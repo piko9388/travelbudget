@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+servera/travelbudget/data_json/
+.venv/
