@@ -8,6 +8,7 @@ from pathlib import Path
 from . import core as C
 
 _LOCK = threading.RLock()
+LOCK = _LOCK  # 라우트에서 read-modify-write 전체를 한 락으로 묶기 위해 노출 (분실 갱신 방지)
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data_json"
 BACKUP_DIR = DATA_DIR / "backup"
@@ -94,14 +95,12 @@ def default_data():
         "updated_at": _now(),
         "settings": {
             "system_name": "국내 출장비 관리",
-            "active_yq": yq,
             "admin_id": "2071478",
             "admin_pw": "2071478",
             "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong.kim@sk.com",
                                 "geonyoung.kim@sk.com", "jeewoung.chun@sk.com"],
             "reference_url": "material.skhynix.com/travelbudget",
         },
-        "ccg": C.CCG_TEAMS,
         "budget": budget,
         "groups": [C.normalize_group(g) for g in groups],
         "audit_log": [],
@@ -111,11 +110,15 @@ def default_data():
 def validate_root(data):
     if not isinstance(data, dict):
         raise ValueError("최상위 JSON은 객체여야 합니다.")
-    for key in ("settings", "ccg", "budget", "groups"):
+    if not isinstance(data.get("settings"), dict):
+        raise ValueError("settings는 객체여야 합니다.")
+    for key in ("budget", "groups"):
         if key not in data:
             raise ValueError(f"필수 키 누락: {key}")
-        if key != "settings" and not isinstance(data[key], list):
+        if not isinstance(data[key], list):
             raise ValueError(f"{key}는 배열이어야 합니다.")
+        if not all(isinstance(x, dict) for x in data[key]):
+            raise ValueError(f"{key}의 각 항목은 객체여야 합니다.")
 
 
 def ensure_storage():
@@ -138,8 +141,9 @@ def backup_current():
         return
     name = datetime.now().strftime("data_%Y%m%d_%H%M%S_%f.json")
     shutil.copy2(DATA_FILE, BACKUP_DIR / name)
+    # 파일명에 YYYYMMDD_HHMMSS_%f 가 박혀 있어 이름순 정렬이 곧 시간순 — copy2가 보존하는 mtime보다 안정적.
     for old in sorted(BACKUP_DIR.glob("data_*.json"),
-                      key=lambda p: p.stat().st_mtime, reverse=True)[MAX_BACKUPS:]:
+                      key=lambda p: p.name, reverse=True)[MAX_BACKUPS:]:
         old.unlink(missing_ok=True)
 
 
@@ -158,6 +162,14 @@ def save_data(data, make_backup=True):
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(tmp, DATA_FILE)
+            try:  # 디렉터리 엔트리까지 fsync — 크래시 시 rename 유실 방지 (미지원 플랫폼은 무시)
+                dfd = os.open(str(DATA_DIR), os.O_DIRECTORY)
+                try:
+                    os.fsync(dfd)
+                finally:
+                    os.close(dfd)
+            except OSError:
+                pass
         finally:
             if os.path.exists(tmp):
                 os.unlink(tmp)
@@ -176,14 +188,16 @@ def list_backups():
     return [{"filename": p.name, "size": p.stat().st_size,
              "modified_at": datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec="seconds")}
             for p in sorted(BACKUP_DIR.glob("data_*.json"),
-                            key=lambda x: x.stat().st_mtime, reverse=True)]
+                            key=lambda x: x.name, reverse=True)]
 
 
-def restore_backup(filename):
+def restore_backup(filename, *, audit_log=None):
     src = BACKUP_DIR / Path(filename).name
     if not src.exists():
         raise FileNotFoundError("백업 파일을 찾을 수 없습니다.")
     with src.open("r", encoding="utf-8") as f:
         data = json.load(f)
     validate_root(data)
+    if audit_log is not None:            # 복원해도 감사 이력은 이어감 (단일 저장으로 처리)
+        data["audit_log"] = audit_log
     return save_data(data, make_backup=True)

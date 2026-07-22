@@ -118,5 +118,61 @@ al = J.load(open('servera/travelbudget/data_json/data.json'))['audit_log']
 ok('감사로그 기록', len(al) >= 5, len(al))
 ok('actor 기록', any(a.get('actor')=='admin' for a in al))
 
+print('\n=== 9. 리뷰 반영 — 게이트 우회·인젝션·분기 ===')
+# 9-1. update_group(PUT)로 상태를 밀어 승인 게이트를 우회할 수 없어야 (status 고정)
+base = dict(plan_type='계획', city='이천', org='테스트BP', purpose='게이트 테스트',
+    kind='정기 Audit', dep_dt=f'{yy}-{mm}-12', ret_dt=f'{yy}-{mm}-13', car='자차사용',
+    travelers=[dict(name='우회자', emp_no='PW01', rank='TL', ccg_nm='Gas 소재팀', p_trans=50000)])
+pg = c.post('/travelbudget/api/groups', json=base).get_json()['group']['group_id']
+before_done = c.get('/travelbudget/api/state').get_json()['dash']['done']
+r = c.put(f'/travelbudget/api/groups/{pg}', json=dict(base, status='처리 완료',
+    travelers=[dict(name='우회자', emp_no='PW01', rank='TL', ccg_nm='Gas 소재팀',
+                    a_trans=900000, a_lodg=900000)]))
+after = c.get('/travelbudget/api/state').get_json()
+put_g = next(g for g in after['groups'] if g['group_id']==pg)
+ok('PUT status 고정 (처리완료 우회 불가)', put_g['status']=='계획 등록', put_g['status'])
+ok('PUT로 done 예산 이동 불가', after['dash']['done']==before_done, (before_done, after['dash']['done']))
+
+# 9-2. 처리 완료 건을 무인증으로 되돌릴 수 없어야 (from-state 게이트)
+done_gid = next((g['group_id'] for g in after['groups'] if g['status']=='처리 완료'), None)
+if done_gid:
+    r = c.post(f'/travelbudget/api/groups/{done_gid}/status', json={'status':'실적 입력·인폼'})
+    ok('무인증 완료 되돌림 401', r.status_code==401, r.status_code)
+    r = c.post(f'/travelbudget/api/groups/{done_gid}/status', json={'status':'실적 입력·인폼'}, headers=ADM)
+    ok('관리자 완료 되돌림 허용', r.status_code==200, r.status_code)
+else:
+    ok('처리완료 시드 존재', False, 'none')
+
+# 9-3. 저장형 XSS 차단 — 인폼 HTML에 원시 <script> 미포함
+xss = dict(base, org='<script>alert(1)</script>BP', city='<img src=x onerror=alert(2)>',
+    travelers=[dict(name='<b>홍</b>', emp_no='XS01', rank='TL', ccg_nm='Gas 소재팀', p_trans=10000)])
+xg = c.post('/travelbudget/api/groups', json=xss).get_json()['group']['group_id']
+r = c.post(f'/travelbudget/api/groups/{xg}/actual',
+    json=dict(travelers=[dict(emp_no='XS01', a_trans=10000)]))
+html = r.get_json()['mail']['body_html']
+ok('인폼 XSS escape (<script> 원시 미포함)', '<script>' not in html and '&lt;script&gt;' in html, html[:60])
+ok('인폼 XSS escape (<img 태그 원시 미포함)', '<img' not in html and '&lt;img' in html)
+
+# 9-4. CSV 수식 인젝션 방어 — 위험 셀 선두 따옴표
+inj = dict(base, org='=HYPERLINK("http://evil")', purpose='@SUM(A1)',
+    travelers=[dict(name='+CMD', emp_no='CS01', rank='TL', ccg_nm='Gas 소재팀', p_trans=1000)])
+c.post('/travelbudget/api/groups', json=inj)
+csv_txt = c.get('/travelbudget/api/export.csv').get_data(as_text=True)
+ok('CSV 수식 인젝션 방어', ("'=HYPERLINK" in csv_txt) and ("'@SUM" in csv_txt) and ("'+CMD" in csv_txt),
+   [l for l in csv_txt.split('\r\n') if 'CS01' in l][:1])
+
+# 9-5. 분기(yq)는 출발일 수정 시 따라와야
+q_next = c.post('/travelbudget/api/groups', json=base).get_json()['group']
+nq_mm = str(((int(qn[0]) % 4) * 3) + 3).zfill(2)   # 다음 분기의 월
+r = c.put(f"/travelbudget/api/groups/{q_next['group_id']}",
+    json=dict(base, dep_dt=f'{yy}-{nq_mm}-05', ret_dt=f'{yy}-{nq_mm}-06'))
+moved = r.get_json()['group']
+ok('출발일 수정 시 yq 재계산', moved['yq']==f'{yy}-{(int(nq_mm)-1)//3+1}Q', moved['yq'])
+
+# 9-6. 잘못된 CCG 코드 차단
+r = c.post('/travelbudget/api/groups', json=dict(base,
+    travelers=[dict(name='엉뚱', emp_no='CG01', rank='TL', ccg_nm='없는팀', ccg='C9999', p_trans=1000)]))
+ok('잘못된 CCG 코드 차단', r.status_code==400, r.status_code)
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

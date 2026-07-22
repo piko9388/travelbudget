@@ -7,6 +7,7 @@ from __future__ import annotations
 import csv, io
 from copy import deepcopy
 from datetime import date
+from html import escape
 
 COST = (("trans", "교통비"), ("lodg", "숙박비"), ("meal", "식대&잡비"), ("etc", "기타"))
 KEYS = tuple(k for k, _ in COST)
@@ -112,7 +113,8 @@ def normalize_group(g):
     g.setdefault("remark", "")
     g["days"] = trip_days(g.get("dep_dt"), g.get("ret_dt"))
     g["quarter"] = quarter(g.get("dep_dt"))
-    g["yq"] = g.get("yq") or year_quarter(g.get("dep_dt"))
+    # 분기(yq)는 항상 출발일 기준으로 재계산 — 일자 수정 시 엉뚱한 분기에 귀속되지 않도록.
+    g["yq"] = year_quarter(g["dep_dt"]) if _d(g.get("dep_dt")) else (g.get("yq") or year_quarter())
     for p in g["travelers"]:
         p.setdefault("rank", "TL")
         if not p.get("ccg") and p.get("ccg_nm") in CCG_BY_NM:
@@ -142,19 +144,24 @@ def validate_group(g, require_actual=False):
     if not T:
         e.append("출장자를 1명 이상 입력하세요.")
     seen = set()
+    valid_ccg = set(CCG_BY_NM.values())
     for i, p in enumerate(T, 1):
         if not str(p.get("name", "")).strip():
             e.append(f"{i}번 출장자 성명을 입력하세요.")
-        if not str(p.get("emp_no", "")).strip():
+        emp = str(p.get("emp_no", "")).strip()
+        if not emp:
             e.append(f"{i}번 출장자 사번을 입력하세요.")
-        elif p["emp_no"] in seen:
+        elif emp in seen:
             e.append(f"{i}번 출장자 사번이 중복입니다.")
         else:
-            seen.add(str(p.get("emp_no")))
+            seen.add(emp)
         if p.get("rank") not in RANKS:
             e.append(f"{i}번 출장자 직책을 선택하세요 (TL/팀장).")
-        if not str(p.get("ccg", "")).strip():
+        ccg = str(p.get("ccg", "")).strip()
+        if not ccg:
             e.append(f"{i}번 출장자 CCG팀을 선택하세요.")
+        elif ccg not in valid_ccg:
+            e.append(f"{i}번 출장자 CCG팀이 올바르지 않습니다.")
         if require_actual and p_sum(p, "a") <= 0:
             e.append(f"{i}번 출장자 실적 비용을 입력하세요.")
     # 긴급은 계획비 0 허용, 그 외 계획 필수
@@ -269,44 +276,53 @@ def make_mail(g, settings):
         L += ["", f"[비고] {g['remark']}"]
     L += ["", f"** 참고 : {settings.get('reference_url','')}"]
 
-    # HTML (Outlook 붙여넣기)
-    td = 'style="padding:6px 11px;border:1px solid #D8DEE8"'
-    tdr = 'style="padding:6px 11px;border:1px solid #D8DEE8;text-align:right"'
-    th = 'style="padding:6px 11px;border:1px solid #D8DEE8;background:#EEF2F8"'
-    thr = th[:-1] + ';text-align:right"'
+    # HTML (Outlook 붙여넣기) — 사용자 입력 값은 전부 escape (담당자 입력이 총괄 화면에서 실행되는 저장형 XSS 차단)
+    base = "padding:6px 11px;border:1px solid #D8DEE8"
+    td = f'style="{base}"'
+    tdr = f'style="{base};text-align:right"'
+    th = f'style="{base};background:#EEF2F8"'
+    thr = f'style="{base};text-align:right;background:#EEF2F8"'
+    tdf = f'style="{base};background:#F6F8FB;font-weight:700"'
+    tdrf = f'style="{base};text-align:right;background:#F6F8FB;font-weight:700"'
     rows = ""
     tots = dict((k, 0) for k in KEYS)
     for p in T:
         for k in KEYS:
             tots[k] += p[f"a_{k}"]
-        rows += (f"<tr><td {td}>{p.get('ccg_nm','')}</td><td {td}>{p.get('name','')}</td>"
-                 f"<td {td}>{p.get('emp_no','')}</td>"
+        rows += (f"<tr><td {td}>{escape(str(p.get('ccg_nm','')))}</td>"
+                 f"<td {td}>{escape(str(p.get('name','')))}</td>"
+                 f"<td {td}>{escape(str(p.get('emp_no','')))}</td>"
                  + "".join(f"<td {tdr}>{won(p[f'a_{k}'])}</td>" for k in KEYS)
                  + f"<td {tdr}><b>{won(p_sum(p,'a'))}</b></td></tr>")
-    foot = (f'<tr><td {td} colspan="3" style="padding:6px 11px;border:1px solid #D8DEE8;'
-            f'background:#F6F8FB;font-weight:700">합계</td>'
-            + "".join(f"<td {tdr[:-1]};background:#F6F8FB;font-weight:700\">{won(tots[k])}</td>" for k in KEYS)
-            + f"<td {tdr[:-1]};background:#F6F8FB;font-weight:700\">{won(g['act_tot'])}</td></tr>")
-    info = (f"<p style='margin:0 0 8px'>{name} 출장비 실비 이관 요청 드립니다.</p>"
+    foot = (f'<tr><td {tdf} colspan="3">합계</td>'
+            + "".join(f"<td {tdrf}>{won(tots[k])}</td>" for k in KEYS)
+            + f"<td {tdrf}>{won(g['act_tot'])}</td></tr>")
+    info = (f"<p style='margin:0 0 8px'>{escape(name)} 출장비 실비 이관 요청 드립니다.</p>"
             f"<table style='border-collapse:collapse;font-size:13px;margin:0 0 8px'>"
-            f"<tr><td style='padding:2px 10px;color:#64718C'>기간</td><td style='padding:2px 10px'>{period}</td></tr>"
-            f"<tr><td style='padding:2px 10px;color:#64718C'>목적</td><td style='padding:2px 10px'>{g.get('purpose','')}</td></tr>"
+            f"<tr><td style='padding:2px 10px;color:#64718C'>기간</td><td style='padding:2px 10px'>{escape(period)}</td></tr>"
+            f"<tr><td style='padding:2px 10px;color:#64718C'>목적</td><td style='padding:2px 10px'>{escape(str(g.get('purpose','')))}</td></tr>"
             f"<tr><td style='padding:2px 10px;color:#64718C'>인원</td><td style='padding:2px 10px'>{len(T)}명 · 실적 총액 <b>{won(g['act_tot'])}원</b></td></tr>"
             f"</table>")
     table = (f"<table style='border-collapse:collapse;font-size:13px'>"
              f"<thead><tr><th {th}>CCG팀</th><th {th}>성명</th><th {th}>사번</th>"
-             + "".join(f"<th {thr}>{lbl}</th>" for _, lbl in COST)
+             + "".join(f"<th {thr}>{escape(lbl)}</th>" for _, lbl in COST)
              + f"<th {thr}>합계</th></tr></thead><tbody>{rows}{foot}</tbody></table>")
-    remark = (f"<p style='margin:8px 0 0;font-size:13px'><b>비고</b> {g['remark']}</p>"
+    remark = (f"<p style='margin:8px 0 0;font-size:13px'><b>비고</b> {escape(str(g['remark']))}</p>"
               if g.get("remark") else "")
     ref = (f"<p style='margin:10px 0 0;font-size:12px;color:#64718C'>"
-           f"** 참고 : {settings.get('reference_url','')}</p>")
+           f"** 참고 : {escape(str(settings.get('reference_url','')))}</p>")
     return {"to": ";".join(settings.get("mail_recipients", [])),
             "subject": subject, "trip_name": name,
             "body_text": "\n".join(L), "body_html": info + table + remark + ref}
 
 
 # ── CSV (개인별 행 flatten) ───────────────────────────────
+def _csv_safe(v):
+    """자유입력 셀의 수식 인젝션(=,+,-,@,탭/개행 선두) 방어 — Excel 자동실행 차단."""
+    s = "" if v is None else str(v)
+    return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
+
+
 def make_csv(data, yq=None):
     out, no = [], 1
     for raw in sorted(data.get("groups", []), key=lambda g: g.get("dep_dt", "")):
@@ -314,14 +330,14 @@ def make_csv(data, yq=None):
         if yq and g["yq"] != yq:
             continue
         for p in g["travelers"]:
-            out.append([no, g["plan_type"], "소재", p.get("ccg", ""), p.get("ccg_nm", ""),
-                        p.get("emp_no", ""), p.get("name", ""), p.get("rank", ""),
-                        g.get("city", ""), g.get("org", ""), g.get("purpose", ""),
+            out.append([no, g["plan_type"], "소재", p.get("ccg", ""), _csv_safe(p.get("ccg_nm", "")),
+                        _csv_safe(p.get("emp_no", "")), _csv_safe(p.get("name", "")), p.get("rank", ""),
+                        _csv_safe(g.get("city", "")), _csv_safe(g.get("org", "")), _csv_safe(g.get("purpose", "")),
                         g.get("dep_dt", ""), g.get("ret_dt", ""), g["days"], g["quarter"],
                         g.get("car", ""), g.get("kind", ""), g["status"],
                         p_sum(p, "p"), p["p_trans"], p["p_lodg"], p["p_meal"], p["p_etc"],
                         p_sum(p, "a"), p["a_trans"], p["a_lodg"], p["a_meal"], p["a_etc"],
-                        g.get("remark", "")])
+                        _csv_safe(g.get("remark", ""))])
             no += 1
     b = io.StringIO()
     w = csv.writer(b, lineterminator="\r\n")

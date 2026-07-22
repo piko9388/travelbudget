@@ -27,6 +27,16 @@ async function api(path, opt = {}){
 }
 function toast(m){ const t = document.createElement('div'); t.className = 'toast';
   t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }
+async function copyText(text, msg = '본문을 복사했습니다'){
+  try {
+    if (navigator.clipboard) { await navigator.clipboard.writeText(text); toast(msg); return; }
+    const ta = document.createElement('textarea');   // 사내 비-HTTPS 등 clipboard 미지원 환경 폴백
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    const okc = document.execCommand('copy'); ta.remove();
+    toast(okc ? msg : '복사할 수 없습니다 — 본문을 직접 선택해 복사하세요');
+  } catch (e) { toast('복사할 수 없습니다 — 본문을 직접 선택해 복사하세요'); }
+}
 function showErr(sel, errs){ $(sel).innerHTML =
   `<div class="err">${(errs || ['요청 실패']).map(esc).join('\n')}</div>`; }
 function stClass(s){ return s === '처리 완료' ? 'done' : s === '취소' ? 'cancel'
@@ -44,7 +54,13 @@ async function load(){
   const qs = $('#qsel');
   const opts = [...new Set([...data.yqList, YQ])];
   qs.innerHTML = opts.map(q => `<option${q === YQ ? ' selected' : ''}>${q}</option>`).join('');
-  qs.onchange = e => { YQ = e.target.value; load(); };
+  qs.onchange = e => {
+    const dirty = ($('#travBody')?.querySelector('.t-nm')?.value.trim()) || ACT_GID;
+    if (dirty && !confirm('입력 중인 내용이 저장되지 않았습니다. 분기를 변경하면 사라집니다. 계속할까요?')) {
+      e.target.value = YQ; return;
+    }
+    YQ = e.target.value; load();
+  };
   renderAll();
 }
 function nav(v){
@@ -64,6 +80,7 @@ function renderAll(){ rDash(); rPlan(); rActual(); rList(); rProcess(); rBudget(
 /* ═══ 대시보드 ═══ */
 function rDash(){
   const d = ST.dash;
+  const burn = d.alloc ? Math.round((d.done + d.wip) / d.alloc * 100) : 0;
   const hero = `
     <div class="hero ${d.short ? 'alert' : ''}">
       <span class="lamp"></span>
@@ -74,7 +91,7 @@ function rDash(){
         <div class="fig">총예산 <b>${won(d.alloc)}원</b> − 처리완료 <b>${won(d.done)}원</b> − 처리중 <b>${won(d.wip)}원</b> = 잔여 <b style="color:${d.remain < 0 ? 'var(--red)' : 'var(--navy)'}">${d.remain < 0 ? '−' : ''}${won(Math.abs(d.remain))}원</b></div>
       </div>
       <div style="text-align:right">
-        <div class="label">현재 잔여 출장비</div>
+        <div class="label">현재 잔여 출장비 · 소진율 ${burn}%</div>
         <div class="amount">${d.remain < 0 ? '−' : ''}${won(Math.abs(d.remain))}원</div>
       </div>
     </div>`;
@@ -185,7 +202,7 @@ function rPlan(){
       </div>
       <label style="margin-top:4px">출장자 <span class="au">동행자는 행 추가</span></label>
       <div class="scroll trav-table"><table>
-        <thead><tr><th>성명</th><th>사번</th><th>직책</th><th>CCG팀</th><th>CCG No.</th>
+        <thead><tr><th>성명<span class="rq">*</span></th><th>사번<span class="rq">*</span></th><th>직책<span class="rq">*</span></th><th>CCG팀<span class="rq">*</span></th><th>CCG No.</th>
           ${m.cost.map(c => `<th class="num">계획 ${c.label}</th>`).join('')}<th class="num">합계</th><th></th></tr></thead>
         <tbody id="travBody"></tbody>
       </table></div>
@@ -215,7 +232,7 @@ function copyPlan(gid){
   planSum();
   toast('이전 출장을 복사했습니다 — 일자·금액을 확인하세요');
 }
-function collectTravelers(withActual){
+function collectTravelers(){
   return $$('#travBody tr').map(tr => {
     const p = {name: tr.querySelector('.t-nm').value.trim(),
       emp_no: tr.querySelector('.t-no').value.trim(),
@@ -231,7 +248,7 @@ async function submitPlan(){
     org: $('#pl_org').value.trim(), kind: $('#pl_kind').value,
     dep_dt: $('#pl_dep').value, ret_dt: $('#pl_ret').value, car: $('#pl_car').value,
     purpose: $('#pl_purpose').value.trim(), remark: $('#pl_remark').value.trim(),
-    travelers: collectTravelers(false)};
+    travelers: collectTravelers()};
   const {ok, data} = await api('/groups', {method: 'POST', body: JSON.stringify(body)});
   if (!ok) { showErr('#planErr', data.errors); return; }
   toast(`등록 완료 — ${body.travelers.length}명`);
@@ -358,19 +375,23 @@ function showMail(mail){
     </div>`;
   document.body.appendChild(el);
   $('#mailOpen').onclick = () => {
-    location.href = `mailto:${encodeURIComponent(mail.to)}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body_text)}`;
+    const url = `mailto:${encodeURIComponent(mail.to)}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body_text)}`;
+    if (url.length > 1900) {   // 긴 본문은 mailto 한도 초과로 잘림 — 복사로 대체
+      copyText(mail.body_text, '본문이 길어 메일 대신 복사했습니다 — 새 메일에 붙여넣으세요');
+      return;
+    }
+    location.href = url;
   };
   $('#mailCopyHtml').onclick = async () => {
+    if (!navigator.clipboard) { copyText(mail.body_text); return; }
     try {
       await navigator.clipboard.write([new ClipboardItem({
         'text/html': new Blob([mail.body_html], {type: 'text/html'}),
         'text/plain': new Blob([mail.body_text], {type: 'text/plain'})})]);
       toast('표 포함 복사됨 — Outlook에 붙여넣으세요');
-    } catch (e) { await navigator.clipboard.writeText(mail.body_text); toast('텍스트로 복사되었습니다'); }
+    } catch (e) { copyText(mail.body_text, '텍스트로 복사되었습니다'); }
   };
-  $('#mailCopyText').onclick = async () => {
-    await navigator.clipboard.writeText(mail.body_text); toast('본문을 복사했습니다');
-  };
+  $('#mailCopyText').onclick = () => copyText(mail.body_text, '본문을 복사했습니다');
 }
 
 /* ═══ 출장 내역 ═══ */
@@ -404,29 +425,41 @@ function filterList(){
 /* ═══ 이관·처리 관리 (관리자) ═══ */
 function rProcess(){
   const G = ST.groups.filter(g => g.yq === YQ && g.status !== '취소');
+  const WIP = ['실적 입력·인폼', '소재 이관'];
+  const waitDays = g => {
+    if (!WIP.includes(g.status)) return null;
+    const src = g.inform_at || g.updated_at || g.created_at;
+    return src ? Math.floor((Date.now() - new Date(src)) / 864e5) : null;
+  };
   const row = g => {
     const acts = [];
     if (g.status === '실적 입력·인폼')
       acts.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','소재 이관')">소재 이관</button>`);
-    if (g.status === '소재 이관')
+    if (g.status === '소재 이관') {
       acts.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','처리 완료')">처리 완료</button>`);
+      acts.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','실적 입력·인폼')">이관 해제</button>`);
+    }
     if (g.status === '처리 완료')
       acts.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','소재 이관')">완료 해제</button>`);
     if (['계획 등록', '실적 입력·인폼'].includes(g.status))
       acts.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
+    const w = waitDays(g);
+    const wcell = w === null ? '–'
+      : `<b style="color:${w >= 7 ? 'var(--red)' : w >= 3 ? '#8A5A10' : 'var(--faint)'}">D+${w}</b>`;
     return `<tr>
       <td>${badge(g)}</td>
       <td><b>${esc(gname(g))}</b><div class="sub">${names(g)} · ${g.travelers.length}명</div></td>
       <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
+      <td class="num">${wcell}</td>
       <td class="num">${g.act_tot ? won(g.act_tot) : '–'}</td>
       <td>${acts.join(' ') || '–'}</td></tr>`;
   };
   $('#v-process').innerHTML = `
-    <div class="note">실적 입력·인폼 → <b>소재 이관</b>(실비 이관 접수) → <b>처리 완료</b>(전표 처리 종료). 처리 완료·처리중 금액만 잔여 예산에서 차감됩니다.</div>
+    <div class="note">실적 입력·인폼 → <b>소재 이관</b>(실비 이관 접수) → <b>처리 완료</b>(전표 처리 종료). 처리 완료·처리중 금액만 잔여 예산에서 차감됩니다. <b>대기</b>는 인폼·이관 상태로 머문 일수 (D+7↑ 빨강).</div>
     <div class="card"><h2>${YQ} 이관·처리 관리</h2>
       <div class="scroll" style="margin-top:10px"><table>
-        <thead><tr><th>상태</th><th>출장</th><th class="num">기간</th><th class="num">실적</th><th>처리</th></tr></thead>
-        <tbody>${G.map(row).join('') || '<tr><td colspan="5" style="color:var(--faint);text-align:center;padding:18px">대상이 없습니다.</td></tr>'}</tbody>
+        <thead><tr><th>상태</th><th>출장</th><th class="num">기간</th><th class="num">대기</th><th class="num">실적</th><th>처리</th></tr></thead>
+        <tbody>${G.map(row).join('') || '<tr><td colspan="6" style="color:var(--faint);text-align:center;padding:18px">대상이 없습니다.</td></tr>'}</tbody>
       </table></div></div>`;
 }
 async function setStatus(gid, status){

@@ -1,15 +1,13 @@
 <!doctype html><html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>국내 출장비 관리</title>
-<link rel="preconnect" href="https://cdn.jsdelivr.net">
-<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <style>
 :root{--bg:#F5F6F8;--white:#FFF;--ink:#111827;--ink2:#344054;--mut:#667085;--faint:#98A2B3;
 --line:#D9DEE7;--line2:#EDF0F4;--soft:#EEF1F5;--shade:#F0F2F5;
 --navy:#17365D;--navy2:#244C79;--blue:#2563A8;--red:#C23A45;--green:#17725C}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;letter-spacing:-.01em;
-font-family:Pretendard,"Pretendard Variable","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}
+font-family:Pretendard,"Pretendard Variable",-apple-system,"Apple SD Gothic Neo","Malgun Gothic","맑은 고딕","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased}
 .app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}
 aside{position:sticky;top:0;height:100vh;background:var(--white);border-right:1px solid var(--line);
 padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
@@ -89,6 +87,8 @@ td .sub{color:var(--faint);font-size:11px}
 .trav-table td{padding:5px 5px}
 .trav-table .w-nm{min-width:86px}.trav-table .w-no{min-width:88px}.trav-table .w-rk{min-width:74px}
 .trav-table .w-tm{min-width:132px}.trav-table .w-cc{min-width:72px}.trav-table .w-mn{min-width:92px}
+.trav-table th:first-child,.trav-table td:first-child{position:sticky;left:0;z-index:1;background:#FFF}
+.trav-table thead th:first-child{background:#F5F6F8}
 .mailcard{position:fixed;right:16px;bottom:16px;width:600px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);
 background:#FFF;border:1px solid #CDD4DF;box-shadow:0 8px 24px rgba(16,24,40,.16);z-index:90;display:flex;flex-direction:column;border-radius:3px;overflow:hidden}
 .mailcard .mh{background:var(--navy);color:#FFF;padding:10px 14px;font-size:12.5px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
