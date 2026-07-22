@@ -1,0 +1,1205 @@
+<!doctype html><html lang="ko"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>국내 출장비 관리</title>
+<style>
+:root{--bg:#F5F6F8;--white:#FFF;--ink:#111827;--ink2:#344054;--mut:#667085;--faint:#98A2B3;
+--line:#D9DEE7;--line2:#EDF0F4;--soft:#EEF1F5;--shade:#F0F2F5;
+--navy:#17365D;--navy2:#244C79;--blue:#2563A8;--red:#C23A45;--green:#17725C}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;letter-spacing:-.01em;
+font-family:Pretendard,"Pretendard Variable",-apple-system,"Apple SD Gothic Neo","Malgun Gothic","맑은 고딕","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased}
+.app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;background:var(--white);border-right:1px solid var(--line);
+padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
+.brand{padding:0 10px 16px;border-bottom:1px solid var(--line);color:var(--navy);font-size:17px;font-weight:800;line-height:1.3}
+.nav-label{margin:16px 10px 5px;color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.04em}
+.nav a{display:block;margin:1px 0;padding:9px 11px;color:var(--ink2);border:1px solid transparent;
+cursor:pointer;border-radius:2px;font-size:13.5px;user-select:none}
+.nav a:hover,.nav a.on{background:var(--soft);border-color:#E3E7ED;color:var(--navy);font-weight:700}
+.nav a .lk{font-size:10px;color:var(--faint);margin-left:4px;font-weight:600}
+.contact{margin-top:auto;padding:14px 10px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--mut);line-height:1.65}
+.contact b{display:block;color:var(--navy);font-size:12px}
+.contact a{color:var(--navy);text-decoration:none}
+main{width:100%;max-width:1560px;padding:22px 28px 48px}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.top h1{margin:0;color:var(--navy);font-size:22px}
+.top .sub{color:var(--mut);font-size:12.5px}
+.top select{margin-left:auto;width:130px}
+.view{display:none}.view.on{display:block}
+.card{background:var(--white);border:1px solid var(--line);box-shadow:0 1px 2px rgba(16,24,40,.03);
+padding:17px;margin-bottom:14px;border-radius:2px}
+.card h2{margin:0 0 4px;color:var(--navy);font-size:15px}
+.card .cap{margin:0 0 13px;color:var(--mut);font-size:12px}
+.card-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.hero{background:var(--white);border:1px solid var(--line);padding:19px 21px;margin-bottom:14px;
+display:flex;align-items:center;gap:18px;border-radius:2px}
+.hero .lamp{width:11px;height:11px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(23,114,92,.14);flex-shrink:0}
+.hero.alert{background:#FFFAFB;border-color:#E6B7BD}
+.hero.alert .lamp{background:var(--red);box-shadow:0 0 0 4px rgba(194,58,69,.14)}
+.hero .label{color:var(--mut);font-size:12px}
+.hero .amount{margin:2px 0 0;color:var(--navy);font-size:31px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.hero.alert .amount{color:var(--red)}
+.hero .msg{font-size:14px;font-weight:700;color:var(--green)}
+.hero.alert .msg{color:var(--red)}
+.hero .fig{font-size:12.5px;color:var(--ink2);margin-top:3px}
+.hero .fig b{font-variant-numeric:tabular-nums}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.kpi{background:var(--white);border:1px solid var(--line);padding:14px 15px;border-radius:2px}
+.kpi span{display:block;color:var(--mut);font-size:12px}
+.kpi b{display:block;margin-top:4px;color:var(--navy);font-size:21px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi small{color:var(--faint);font-size:11.5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid{display:grid;gap:12px;margin-bottom:12px}
+.c2{grid-template-columns:repeat(2,minmax(0,1fr))}.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+label{display:block;margin-bottom:5px;color:#475467;font-size:12px;font-weight:700}
+label .rq{color:var(--red)}label .au{color:var(--faint);font-weight:500;font-size:10.5px;margin-left:3px}
+input,select,textarea{width:100%;border:1px solid #CFD5DF;background:#FFF;padding:8px 9px;color:var(--ink);
+font:inherit;font-size:13.5px;border-radius:2px}
+input:focus,select:focus,textarea:focus{outline:2px solid rgba(37,99,168,.13);border-color:#6F8EAF}
+input[readonly],.auto{background:var(--shade);color:var(--mut)}
+input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
+textarea{min-height:66px;resize:vertical}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid #CFD5DF;background:#FFF;
+color:var(--ink2);padding:8px 14px;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none;border-radius:2px}
+.btn:hover{background:#F7F8FA}
+.btn.pri{background:var(--navy);border-color:var(--navy);color:#FFF}.btn.pri:hover{background:var(--navy2)}
+.btn.red{color:var(--red);border-color:#E2B4BA}
+.btn.sm{padding:5px 9px;font-size:11.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.scroll{overflow:auto;border:1px solid var(--line);border-radius:2px}
+table{width:100%;border-collapse:collapse;background:#FFF}
+th,td{padding:8px 9px;border-bottom:1px solid var(--line2);text-align:left;white-space:nowrap;font-size:12.5px}
+th{background:#F5F6F8;color:#475467;font-size:11.5px;font-weight:700;border-bottom:1px solid var(--line)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:hover{background:#FAFBFC}
+tfoot td{background:var(--shade);font-weight:700;color:var(--navy)}
+td .sub{color:var(--faint);font-size:11px}
+.status{display:inline-block;padding:2px 8px;border:1px solid #D6DCE5;background:#F3F5F8;color:var(--navy);font-size:11.5px;font-weight:600;border-radius:2px}
+.status.done{background:#EDF5F1;border-color:#C4DED2;color:var(--green)}
+.status.wip{background:#FDF6EC;border-color:#E8D4B0;color:#8A5A10}
+.status.cancel{background:var(--shade);color:var(--faint);text-decoration:line-through}
+.status.urgent{background:#FBEDEE;border-color:#E6B7BD;color:var(--red)}
+.note{padding:10px 12px;border:1px solid var(--line);background:#F6F7F9;color:#475467;font-size:12.5px;border-radius:2px;margin-bottom:12px}
+.err{margin-bottom:12px;padding:10px 12px;border:1px solid #E2B4BA;background:#FFF7F8;color:var(--red);font-size:12.5px;border-radius:2px;white-space:pre-line}
+.trav-table input,.trav-table select{min-width:0;padding:6px 8px;font-size:13px}
+.trav-table td{padding:5px 5px}
+.trav-table .w-nm{min-width:86px}.trav-table .w-no{min-width:88px}.trav-table .w-rk{min-width:74px}
+.trav-table .w-tm{min-width:132px}.trav-table .w-cc{min-width:72px}.trav-table .w-mn{min-width:92px}
+.trav-table th:first-child,.trav-table td:first-child{position:sticky;left:0;z-index:1;background:#FFF}
+.trav-table thead th:first-child{background:#F5F6F8}
+.mailcard{position:fixed;right:16px;bottom:16px;width:600px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);
+background:#FFF;border:1px solid #CDD4DF;box-shadow:0 8px 24px rgba(16,24,40,.16);z-index:90;display:flex;flex-direction:column;border-radius:3px;overflow:hidden}
+.mailcard .mh{background:var(--navy);color:#FFF;padding:10px 14px;font-size:12.5px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.mailcard .mh button{background:none;border:0;color:#B9C6DC;font-size:17px;cursor:pointer;line-height:1}
+.mailcard .meta{padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--line);font-size:11.5px}
+.mailcard .meta .row{display:flex;gap:8px;margin-bottom:3px}
+.mailcard .meta .k{color:var(--mut);font-weight:700;width:36px;flex-shrink:0}
+.mailcard .body{padding:14px;overflow:auto;flex:1}
+.mailcard .mf{padding:9px 14px;border-top:1px solid var(--line);background:var(--bg);display:flex;gap:7px;flex-wrap:wrap}
+.modal{position:fixed;inset:0;background:rgba(16,24,40,.46);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-box{width:330px;max-width:96vw;background:#FFF;border:1px solid #CDD4DF;border-radius:3px;overflow:hidden}
+.modal-box .mh{background:var(--navy);color:#FFF;padding:12px 17px;font-size:14px;font-weight:700}
+.modal-box .mb{padding:17px}
+.modal-box .hint{font-size:11.5px;color:var(--mut);background:var(--shade);padding:8px 10px;margin:10px 0 13px;border-radius:2px}
+.modal-box .hint b{color:var(--navy)}
+.modal-box .merr{color:var(--red);font-size:11.5px;margin-bottom:9px;display:none}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#182C46;color:#FFF;
+padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px}
+.filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.filter-row input,.filter-row select{width:auto;min-width:170px}
+@media(max-width:980px){.app{grid-template-columns:minmax(0,1fr)}aside,main{min-width:0;max-width:100%}aside{position:relative;height:auto}
+.contact{margin-top:18px}.kpis,.grid2,.c4,.c3,.c2{grid-template-columns:1fr}main{padding:16px}
+.top select{margin-left:0}.mailcard{left:12px;right:12px;width:auto}
+.hero{flex-wrap:wrap}.hero>div{min-width:0}.hero .amount{font-size:25px}.hero .fig{word-break:keep-all;white-space:normal}}
+</style></head><body>
+<div class="app">
+<aside>
+  <div class="brand">국내 출장비 관리</div>
+  <div class="nav">
+    <div class="nav-label">출장 업무</div>
+    <a class="on" data-view="dash">대시보드</a>
+    <a data-view="plan">출장 계획 등록</a>
+    <a data-view="actual">출장 실적 입력</a>
+    <a data-view="list">출장 내역</a>
+    <div class="nav-label">관리</div>
+    <a data-view="process">이관·처리 관리 <span class="lk">잠금</span></a>
+    <a data-view="budget">예산 관리 <span class="lk">잠금</span></a>
+    <a data-view="data">데이터 관리</a>
+  </div>
+  <div class="contact"><b>기획 · 개발</b>소재전략 이정훈 TL<br>
+  <a href="mailto:junghoon12.lee@sk.com">junghoon12.lee@sk.com</a><br>010-3376-7923</div>
+</aside>
+<main>
+  <div class="top">
+    <div><h1 id="pageTitle">대시보드</h1><div class="sub" id="pageSub"></div></div>
+    <select id="qsel"></select>
+  </div>
+  <section id="v-dash" class="view on"></section>
+  <section id="v-plan" class="view"></section>
+  <section id="v-actual" class="view"></section>
+  <section id="v-list" class="view"></section>
+  <section id="v-process" class="view"></section>
+  <section id="v-budget" class="view"></section>
+  <section id="v-data" class="view"></section>
+</main>
+</div>
+<script>
+/* 국내 출장비 관리 — 정적(GitHub Pages) 로컬 백엔드
+   Flask의 core.py/store.py/routes.py를 브라우저에서 동일 로직으로 구현.
+   저장은 localStorage(브라우저별). 관리자 잠금은 UX용(클라이언트라 보안 경계 아님). */
+(function (root) {
+  'use strict';
+  var LS_DATA = 'tb_data', LS_BACKUPS = 'tb_backups', MAX_BACKUPS = 30;
+
+  // ── 상수 (core.py와 동일) ──
+  var COST = [['trans', '교통비'], ['lodg', '숙박비'], ['meal', '식대&잡비'], ['etc', '기타']];
+  var KEYS = COST.map(function (c) { return c[0]; });
+  var PLAN_TYPES = ['계획', '변경', '긴급'];
+  var RANKS = ['TL', '팀장'];
+  var KINDS = ['기술교류(Live Demo, Data 분석)', '실사&사양 개선,협의', '정기 Audit',
+    '비정기 Audit(Issue/Theme)', '기타'];
+  var CARS = ['미사용', '자차사용'];
+  var REV_TYPES = ['최초배정', '추가증액', '감액', '이월'];
+  var ST_PLAN = '계획 등록', ST_INFORM = '실적 입력·인폼', ST_TRANSFER = '소재 이관',
+    ST_DONE = '처리 완료', ST_CANCEL = '취소';
+  var STATUSES = [ST_PLAN, ST_INFORM, ST_TRANSFER, ST_DONE, ST_CANCEL];
+  var WIP = [ST_INFORM, ST_TRANSFER];
+  var CCG_TEAMS = [
+    { team: 'Photo 소재팀', ccg: 'C1303' }, { team: 'Chemical 소재팀', ccg: 'C1101' },
+    { team: 'CMP 소재팀', ccg: 'C1404' }, { team: 'Gas 소재팀', ccg: 'C1202' },
+    { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
+    { team: 'Target 소재팀', ccg: 'C1707' }];
+  var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
+  var CSV_HEADERS = ['no.', '구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
+    '출장도시', '출장기관&업체', '출장목적&사유', '출발일자', '복귀일자', '출장일수',
+    '출장시점', '자차사용여부', '출장구분', '상태',
+    '계획_총합계', '계획_교통비', '계획_숙박비', '계획_식대&잡비', '계획_기타',
+    '실적_총합계', '실적_교통비', '실적_숙박비', '실적_식대&잡비', '실적_기타', '비고'];
+
+  // ── 유틸 ──
+  function num(v) { var n = Math.round(Number(String(v == null ? 0 : v).replace(/,/g, ''))); return isFinite(n) ? n : 0; }
+  function won(n) { return num(n).toLocaleString('en-US'); }
+  function pad(n, w) { return String(n).padStart(w, '0'); }
+  function today() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function parseD(s) {
+    if (!s) return null;
+    var m = String(s).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null; var d = new Date(+m[1], +m[2] - 1, +m[3]); return isNaN(d.getTime()) ? null : d;
+  }
+  function tripDays(a, b) { var da = parseD(a), db = parseD(b); if (!da || !db) return 0; var n = Math.round((db - da) / 864e5); return n < 0 ? 0 : n + 1; }
+  function quarter(s) { var d = parseD(s); return d ? (Math.floor(d.getMonth() / 3) + 1) + 'Q' : ''; }
+  function yearQuarter(s) { var d = parseD(s) || today(); return d.getFullYear() + '-' + (Math.floor(d.getMonth() / 3) + 1) + 'Q'; }
+  function yqList(n) {
+    n = n || 6; var y = today().getFullYear(), q = Math.floor(today().getMonth() / 3) + 1, out = [];
+    for (var i = 0; i < n; i++) { out.push(y + '-' + q + 'Q'); q--; if (q === 0) { y--; q = 4; } }
+    var ny = today().getFullYear(), nq = Math.floor(today().getMonth() / 3) + 2;
+    if (nq === 5) { ny++; nq = 1; }
+    return [ny + '-' + nq + 'Q'].concat(out);
+  }
+  function pSum(p, x) { return KEYS.reduce(function (s, k) { return s + num(p[x + '_' + k]); }, 0); }
+  function gSum(g, x) { return (g.travelers || []).reduce(function (s, p) { return s + pSum(p, x); }, 0); }
+  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' }[m]; }); }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function nowISO() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1, 2) + '-' + pad(d.getDate(), 2) + 'T' + pad(d.getHours(), 2) + ':' + pad(d.getMinutes(), 2) + ':' + pad(d.getSeconds(), 2); }
+  function todayISO() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1, 2) + '-' + pad(d.getDate(), 2); }
+  function randHex(n) {
+    var a = new Uint8Array(n); (root.crypto || globalThis.crypto).getRandomValues(a);
+    return Array.from(a).map(function (b) { return pad(b.toString(16), 2); }).join('').slice(0, n);
+  }
+  function byteLen(s) { return typeof Blob !== 'undefined' ? new Blob([s]).size : Buffer.byteLength(s, 'utf8'); }
+
+  // ── 정규화·검증 ──
+  function normalizeGroup(gin) {
+    var g = clone(gin);
+    if (g.plan_type == null) g.plan_type = '계획';
+    if (g.status == null) g.status = ST_PLAN;
+    if (g.lv2 == null) g.lv2 = '소재';
+    if (!Array.isArray(g.travelers)) g.travelers = [];
+    if (g.remark == null) g.remark = '';
+    g.days = tripDays(g.dep_dt, g.ret_dt);
+    g.quarter = quarter(g.dep_dt);
+    g.yq = parseD(g.dep_dt) ? yearQuarter(g.dep_dt) : (g.yq || yearQuarter());
+    g.travelers.forEach(function (p) {
+      if (p.rank == null) p.rank = 'TL';
+      if (!p.ccg && CCG_BY_NM[p.ccg_nm]) p.ccg = CCG_BY_NM[p.ccg_nm];
+      ['p', 'a'].forEach(function (x) { KEYS.forEach(function (k) { p[x + '_' + k] = num(p[x + '_' + k]); }); });
+    });
+    g.plan_tot = gSum(g, 'p'); g.act_tot = gSum(g, 'a');
+    return g;
+  }
+  function validateGroup(g, requireActual) {
+    var e = [];
+    [['city', '출장도시'], ['org', '출장기관&업체'], ['purpose', '출장목적&사유'],
+    ['dep_dt', '출발일자'], ['ret_dt', '복귀일자'], ['kind', '출장구분']].forEach(function (kv) {
+      if (!String(g[kv[0]] == null ? '' : g[kv[0]]).trim()) e.push(kv[1] + '을(를) 입력하세요.');
+    });
+    if (PLAN_TYPES.indexOf(g.plan_type) < 0) e.push('구분이 올바르지 않습니다.');
+    if (STATUSES.indexOf(g.status) < 0) e.push('상태 값이 올바르지 않습니다.');
+    if (g.dep_dt && g.ret_dt && tripDays(g.dep_dt, g.ret_dt) < 1) e.push('복귀일자는 출발일자보다 빠를 수 없습니다.');
+    var T = g.travelers || [];
+    if (!T.length) e.push('출장자를 1명 이상 입력하세요.');
+    var seen = {}, valid = {}; Object.keys(CCG_BY_NM).forEach(function (k) { valid[CCG_BY_NM[k]] = 1; });
+    T.forEach(function (p, idx) {
+      var i = idx + 1;
+      if (!String(p.name == null ? '' : p.name).trim()) e.push(i + '번 출장자 성명을 입력하세요.');
+      var emp = String(p.emp_no == null ? '' : p.emp_no).trim();
+      if (!emp) e.push(i + '번 출장자 사번을 입력하세요.');
+      else if (seen[emp]) e.push(i + '번 출장자 사번이 중복입니다.');
+      else seen[emp] = 1;
+      if (RANKS.indexOf(p.rank) < 0) e.push(i + '번 출장자 직책을 선택하세요 (TL/팀장).');
+      var ccg = String(p.ccg == null ? '' : p.ccg).trim();
+      if (!ccg) e.push(i + '번 출장자 CCG팀을 선택하세요.');
+      else if (!valid[ccg]) e.push(i + '번 출장자 CCG팀이 올바르지 않습니다.');
+      if (requireActual && pSum(p, 'a') <= 0) e.push(i + '번 출장자 실적 비용을 입력하세요.');
+    });
+    if (g.plan_type !== '긴급' && g.status === ST_PLAN && gSum(g, 'p') <= 0) e.push('계획 비용을 1개 이상 입력하세요.');
+    if (g.plan_type === '긴급' && requireActual && !String(g.remark == null ? '' : g.remark).trim()) e.push('긴급 출장은 비고(사유)가 필수입니다.');
+    return e;
+  }
+  function validateBudget(b) {
+    var e = [], yq = String(b.yq == null ? '' : b.yq).trim();
+    if (!yq || yq.indexOf('-') < 0 || !/Q$/.test(yq)) e.push('분기를 입력하세요 (예: 2026-3Q).');
+    if (REV_TYPES.indexOf(b.rev_type) < 0) e.push('유형을 선택하세요.');
+    if (num(b.amt) === 0) e.push('금액을 입력하세요.');
+    return e;
+  }
+  function fixBudgetSign(b) { var amt = num(b.amt); b.amt = b.rev_type === '감액' ? -Math.abs(amt) : Math.abs(amt); return b; }
+
+  // ── 대시보드 ──
+  function dash(data, yq) {
+    var G = (data.groups || []).filter(function (g) { return (g.yq || '') === yq; }).map(normalizeGroup);
+    var B = (data.budget || []).filter(function (b) { return b.yq === yq; });
+    var alloc = B.reduce(function (s, b) { return s + num(b.amt); }, 0);
+    var done = G.filter(function (g) { return g.status === ST_DONE; });
+    var wip = G.filter(function (g) { return WIP.indexOf(g.status) >= 0; });
+    var plan = G.filter(function (g) { return g.status === ST_PLAN; });
+    var cancel = G.filter(function (g) { return g.status === ST_CANCEL; });
+    var doneAmt = done.reduce(function (s, g) { return s + g.act_tot; }, 0);
+    var wipAmt = wip.reduce(function (s, g) { return s + g.act_tot; }, 0);
+    var planAmt = plan.reduce(function (s, g) { return s + g.plan_tot; }, 0);
+    var remain = alloc - doneAmt - wipAmt;
+    var map = {}; CCG_TEAMS.forEach(function (t) { map[t.ccg] = { team: t.team, ccg: t.ccg, done: 0, wip: 0, plan: 0, groups: {}, people: 0 }; });
+    G.forEach(function (g) {
+      if (g.status === ST_CANCEL) return;
+      g.travelers.forEach(function (p) {
+        var row = map[p.ccg]; if (!row) return; var a = pSum(p, 'a');
+        if (g.status === ST_DONE) row.done += a;
+        else if (WIP.indexOf(g.status) >= 0) row.wip += a;
+        else row.plan += pSum(p, 'p');
+        row.groups[g.group_id] = 1; row.people++;
+      });
+    });
+    var usedTotal = doneAmt + wipAmt, byCcg = [];
+    Object.keys(map).forEach(function (k) {
+      var row = map[k], tot = row.done + row.wip; if (row.people === 0) return;
+      byCcg.push({ team: row.team, ccg: row.ccg, done: row.done, wip: row.wip, total: tot, plan: row.plan, share: usedTotal ? tot / usedTotal : 0, groups: Object.keys(row.groups).length, people: row.people });
+    });
+    byCcg.sort(function (a, b) { return b.total - a.total; });
+    var td = today();
+    var todo = {
+      actual_wait: plan.filter(function (g) { var r = parseD(g.ret_dt); return r && r < td; }).map(function (g) { return g.group_id; }),
+      process_wait: wip.map(function (g) { return g.group_id; })
+    };
+    return {
+      yq: yq, alloc: alloc, done: doneAmt, wip: wipAmt, remain: remain, planAmt: planAmt, short: remain < 0,
+      nDone: done.length, nWip: wip.length, nPlan: plan.length, nCancel: cancel.length,
+      nPeople: G.filter(function (g) { return g.status !== ST_CANCEL; }).reduce(function (s, g) { return s + g.travelers.length; }, 0),
+      byCcg: byCcg, todo: todo
+    };
+  }
+
+  // ── 이메일 인폼 ──
+  function makeMail(gin, settings) {
+    var g = normalizeGroup(gin);
+    var name = [g.city, g.org].filter(Boolean).join(' ') || '국내 출장';
+    var subject = name + ' 국내 출장 정산 위한 출장비 실비 이관 요청 건';
+    var period = (g.dep_dt || '') + ' ~ ' + (g.ret_dt || '') + ' (' + (g.days || 0) + '일)';
+    var T = g.travelers || [];
+    var L = [name + ' 출장비 실비 이관 요청 드립니다.', '',
+      '[출장 정보] ' + period + ' · ' + (g.purpose || ''),
+      '출장 인원 ' + T.length + '명 · 실적 총액 ' + won(g.act_tot) + '원', '',
+      'CCG팀\t성명\t사번\t교통비\t숙박비\t식대&잡비\t기타\t합계'];
+    T.forEach(function (p) {
+      L.push([p.ccg_nm || '', p.name || '', p.emp_no || '', won(p.a_trans), won(p.a_lodg), won(p.a_meal), won(p.a_etc), won(pSum(p, 'a'))].join('\t'));
+    });
+    if (g.remark) { L.push('', '[비고] ' + g.remark); }
+    L.push('', '** 참고 : ' + (settings.reference_url || ''));
+    var base = 'padding:6px 11px;border:1px solid #D8DEE8';
+    var td = 'style="' + base + '"', tdr = 'style="' + base + ';text-align:right"',
+      th = 'style="' + base + ';background:#EEF2F8"', thr = 'style="' + base + ';text-align:right;background:#EEF2F8"',
+      tdf = 'style="' + base + ';background:#F6F8FB;font-weight:700"', tdrf = 'style="' + base + ';text-align:right;background:#F6F8FB;font-weight:700"';
+    var rows = '', tots = { trans: 0, lodg: 0, meal: 0, etc: 0 };
+    T.forEach(function (p) {
+      KEYS.forEach(function (k) { tots[k] += p['a_' + k]; });
+      rows += '<tr><td ' + td + '>' + escapeHtml(p.ccg_nm || '') + '</td><td ' + td + '>' + escapeHtml(p.name || '') + '</td><td ' + td + '>' + escapeHtml(p.emp_no || '') + '</td>'
+        + KEYS.map(function (k) { return '<td ' + tdr + '>' + won(p['a_' + k]) + '</td>'; }).join('')
+        + '<td ' + tdr + '><b>' + won(pSum(p, 'a')) + '</b></td></tr>';
+    });
+    var foot = '<tr><td ' + tdf + ' colspan="3">합계</td>'
+      + KEYS.map(function (k) { return '<td ' + tdrf + '>' + won(tots[k]) + '</td>'; }).join('')
+      + '<td ' + tdrf + '>' + won(g.act_tot) + '</td></tr>';
+    var info = "<p style='margin:0 0 8px'>" + escapeHtml(name) + " 출장비 실비 이관 요청 드립니다.</p>"
+      + "<table style='border-collapse:collapse;font-size:13px;margin:0 0 8px'>"
+      + "<tr><td style='padding:2px 10px;color:#64718C'>기간</td><td style='padding:2px 10px'>" + escapeHtml(period) + "</td></tr>"
+      + "<tr><td style='padding:2px 10px;color:#64718C'>목적</td><td style='padding:2px 10px'>" + escapeHtml(g.purpose || '') + "</td></tr>"
+      + "<tr><td style='padding:2px 10px;color:#64718C'>인원</td><td style='padding:2px 10px'>" + T.length + "명 · 실적 총액 <b>" + won(g.act_tot) + "원</b></td></tr></table>";
+    var table = "<table style='border-collapse:collapse;font-size:13px'><thead><tr><th " + th + ">CCG팀</th><th " + th + ">성명</th><th " + th + ">사번</th>"
+      + COST.map(function (c) { return '<th ' + thr + '>' + escapeHtml(c[1]) + '</th>'; }).join('')
+      + "<th " + thr + ">합계</th></tr></thead><tbody>" + rows + foot + "</tbody></table>";
+    var remark = g.remark ? "<p style='margin:8px 0 0;font-size:13px'><b>비고</b> " + escapeHtml(g.remark) + "</p>" : '';
+    var ref = "<p style='margin:10px 0 0;font-size:12px;color:#64718C'>** 참고 : " + escapeHtml(settings.reference_url || '') + "</p>";
+    return { to: (settings.mail_recipients || []).join(';'), subject: subject, trip_name: name, body_text: L.join('\n'), body_html: info + table + remark + ref };
+  }
+
+  // ── CSV ──
+  function csvCell(v) { var s = String(v == null ? '' : v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function csvSafe(v) { var s = v == null ? '' : String(v); return (s.length && '=+-@\t\r'.indexOf(s.charAt(0)) >= 0) ? "'" + s : s; }
+  function makeCsv(data, yq) {
+    var out = [], no = 1;
+    var groups = (data.groups || []).slice().sort(function (a, b) { return String(a.dep_dt || '').localeCompare(String(b.dep_dt || '')); });
+    groups.forEach(function (raw) {
+      var g = normalizeGroup(raw); if (yq && g.yq !== yq) return;
+      g.travelers.forEach(function (p) {
+        out.push([no, g.plan_type, '소재', p.ccg || '', csvSafe(p.ccg_nm || ''),
+          csvSafe(p.emp_no || ''), csvSafe(p.name || ''), p.rank || '',
+          csvSafe(g.city || ''), csvSafe(g.org || ''), csvSafe(g.purpose || ''),
+          g.dep_dt || '', g.ret_dt || '', g.days, g.quarter, g.car || '', g.kind || '', g.status,
+          pSum(p, 'p'), p.p_trans, p.p_lodg, p.p_meal, p.p_etc,
+          pSum(p, 'a'), p.a_trans, p.a_lodg, p.a_meal, p.a_etc, csvSafe(g.remark || '')]);
+        no++;
+      });
+    });
+    var lines = [CSV_HEADERS.map(csvCell).join(',')];
+    out.forEach(function (r) { lines.push(r.map(csvCell).join(',')); });
+    return '﻿' + lines.join('\r\n') + '\r\n';
+  }
+
+  // ── 시드 (store.py default_data와 동일) ──
+  function seedData() {
+    var t = today(), yq = yearQuarter(), qm = Math.floor(t.getMonth() / 3) * 3;
+    function dd(day, off) {
+      off = off || 0; var d = new Date(t.getFullYear(), qm, Math.min(day, 28));
+      d = new Date(d.getTime() + off * 864e5);
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1, 2) + '-' + pad(d.getDate(), 2);
+    }
+    function trav(name, emp, rank, team, p, a) {
+      return { name: name, emp_no: emp, rank: rank, ccg_nm: team, ccg: CCG_BY_NM[team],
+        p_trans: p[0], p_lodg: p[1], p_meal: p[2], p_etc: p[3],
+        a_trans: a[0], a_lodg: a[1], a_meal: a[2], a_etc: a[3] };
+    }
+    function grp(gid, ptype, status, city, org, purpose, kind, dep, ret, car, travelers, remark) {
+      return { group_id: gid, plan_type: ptype, status: status, lv2: '소재', city: city, org: org,
+        purpose: purpose, kind: kind, dep_dt: dep, ret_dt: ret, car: car, travelers: travelers,
+        remark: remark || '', created_at: nowISO(), updated_at: nowISO() };
+    }
+    var Z = [0, 0, 0, 0], K = KINDS;
+    var groups = [
+      grp('TB-0001', '계획', ST_DONE, '이천', '동우화인켐',
+        'ArF Photo Resist 정기 품질 실사 및 CoA 항목 협의', K[2], dd(2), dd(3), '자차사용',
+        [trav('김철수', '20150322', '팀장', 'Chemical 소재팀', [80000, 0, 90000, 20000], [60000, 0, 85000, 15000])]),
+      grp('TB-0002', '계획', ST_DONE, '청주', '원익머트리얼즈',
+        'NF3 순도 관리 정기 Audit', K[2], dd(4), dd(5), '자차사용',
+        [trav('박영희', '20140508', '팀장', 'Gas 소재팀', [70000, 95000, 65000, 10000], [65000, 90000, 60000, 10000]),
+        trav('이정훈', '2071478', 'TL', 'Chemical 소재팀', [70000, 95000, 65000, 10000], [68000, 90000, 62000, 8000])]),
+      grp('TB-0003', '계획', ST_TRANSFER, '화성', '동진쎄미켐',
+        'KrF PR Outgassing 개선 사양 협의', K[1], dd(6), dd(7), '자차사용',
+        [trav('이민호', '20120233', '팀장', 'Photo 소재팀', [60000, 0, 70000, 10000], [72000, 0, 78000, 12000])],
+        '현지 미팅 연장으로 식대 증가'),
+      grp('TB-0004', '긴급', ST_INFORM, '성남', '케이씨텍',
+        'CMP Slurry 이물 유입 긴급 대응 (Particle 급증)', K[3], dd(7), dd(8), '자차사용',
+        [trav('정다은', '20200711', '팀장', 'CMP 소재팀', Z, [90000, 105000, 60000, 30000])],
+        '소재하자 발생에 따른 긴급 출장 (사전 계획 없음)'),
+      grp('TB-0005', '계획', ST_INFORM, '공주', '솔브레인',
+        'Wet Chemical 신규 Lot 품질 실사', K[1], dd(9), dd(10), '자차사용',
+        [trav('이수진', '20180915', '팀장', 'Chemical 소재팀', [90000, 95000, 80000, 20000], [88000, 90000, 75000, 18000])]),
+      grp('TB-0006', '계획', ST_PLAN, '세종', 'SK트리켐',
+        'Precursor PCN 대응 및 Lot 이력 협의', K[1], dd(20), dd(21), '자차사용',
+        [trav('최준영', '20170419', '팀장', 'Precursor 소재팀', [80000, 90000, 70000, 15000], Z)]),
+      grp('TB-0007', '계획', ST_PLAN, '구미', 'SK실트론',
+        'Wafer 표면 결함 정기 Audit', K[2], dd(25), dd(26), '미사용',
+        [trav('한지우', '20210302', '팀장', 'Wafer 소재팀', [120000, 100000, 70000, 20000], Z),
+        trav('오세훈', '20160828', '팀장', 'Target 소재팀', [120000, 100000, 70000, 20000], Z)]),
+      grp('TB-0008', '계획', ST_CANCEL, '서울', '이엔에프테크놀로지',
+        'i-line PR 정기 실사', K[2], dd(5), dd(5), '자차사용',
+        [trav('이민호', '20120233', '팀장', 'Photo 소재팀', [50000, 0, 40000, 10000], Z)],
+        'BP 측 일정 연기 요청으로 취소')
+    ];
+    var budget = [
+      { rev_id: 'B-0001', yq: yq, rev_dt: dd(1), rev_type: '최초배정', amt: 9000000, reason: '분기 정기 배정 (전분기 실적 기반)' },
+      { rev_id: 'B-0002', yq: yq, rev_dt: dd(15), rev_type: '추가증액', amt: 2000000, reason: '긴급 품질 대응 출장 추가 발생' }
+    ];
+    return {
+      schema_version: '2.0', updated_at: nowISO(),
+      settings: {
+        system_name: '국내 출장비 관리', admin_id: '2071478', admin_pw: '2071478',
+        mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong.kim@sk.com', 'geonyoung.kim@sk.com', 'jeewoung.chun@sk.com'],
+        reference_url: 'material.skhynix.com/travelbudget'
+      },
+      budget: budget, groups: groups.map(normalizeGroup), audit_log: []
+    };
+  }
+
+  // ── 저장소 (localStorage) ──
+  function LS() { return root.localStorage || globalThis.localStorage; }
+  function appendAudit(data, action, detail, actor) {
+    if (!data.audit_log) data.audit_log = [];
+    data.audit_log.push({ timestamp: nowISO(), actor: actor || '-', action: action, detail: detail || '' });
+    data.audit_log = data.audit_log.slice(-500);
+  }
+  function loadBackups() { try { return JSON.parse(LS().getItem(LS_BACKUPS) || '[]'); } catch (e) { return []; } }
+  function saveBackups(b) { LS().setItem(LS_BACKUPS, JSON.stringify(b)); }
+  var Store = {
+    load: function () {
+      var raw = LS().getItem(LS_DATA);
+      if (!raw) { var d = seedData(); LS().setItem(LS_DATA, JSON.stringify(d)); return d; }
+      return JSON.parse(raw);
+    },
+    save: function (data, makeBackup) {
+      if (makeBackup !== false) {
+        var cur = LS().getItem(LS_DATA);
+        if (cur) {
+          var d = new Date();
+          var fn = 'data_' + d.getFullYear() + pad(d.getMonth() + 1, 2) + pad(d.getDate(), 2) + '_'
+            + pad(d.getHours(), 2) + pad(d.getMinutes(), 2) + pad(d.getSeconds(), 2) + '_'
+            + pad(d.getMilliseconds(), 3) + pad(Math.floor((root.crypto || globalThis.crypto).getRandomValues(new Uint8Array(1))[0]), 3) + '.json';
+          var b = loadBackups(); b.push({ filename: fn, ts: nowISO(), size: byteLen(cur), data: cur });
+          b.sort(function (x, y) { return x.filename < y.filename ? 1 : -1; });
+          saveBackups(b.slice(0, MAX_BACKUPS));
+        }
+      }
+      data.updated_at = nowISO();
+      LS().setItem(LS_DATA, JSON.stringify(data));
+      return data;
+    },
+    backups: function () {
+      return loadBackups().slice().sort(function (x, y) { return x.filename < y.filename ? 1 : -1; })
+        .map(function (b) { return { filename: b.filename, size: b.size, modified_at: b.ts }; });
+    },
+    restore: function (filename, auditLog) {
+      var b = loadBackups().filter(function (x) { return x.filename === filename; })[0];
+      if (!b) throw new Error('백업 파일을 찾을 수 없습니다.');
+      var data = JSON.parse(b.data);
+      if (auditLog != null) data.audit_log = auditLog;
+      return Store.save(data, true);
+    },
+    reset: function () { LS().removeItem(LS_DATA); LS().removeItem(LS_BACKUPS); }
+  };
+
+  // ── 라우트 (routes.py와 동일한 게이트) ──
+  function publicSettings(s) { var o = {}; Object.keys(s).forEach(function (k) { if (k !== 'admin_pw') o[k] = s[k]; }); return o; }
+  function err(msgs, code) { return { ok: false, status: code || 400, data: { ok: false, errors: Array.isArray(msgs) ? msgs : [msgs] } }; }
+  function okr(obj, code) { obj.ok = true; return { ok: true, status: code || 200, data: obj }; }
+  function find(data, gid) { return (data.groups || []).filter(function (g) { return g.group_id === gid; })[0] || null; }
+
+  function localApi(path, opt) {
+    opt = opt || {};
+    var method = (opt.method || 'GET').toUpperCase();
+    var body = {}; if (opt.body) { try { body = JSON.parse(opt.body); } catch (e) { body = {}; } }
+    var headers = opt.headers || {};
+    var qs = ''; var qi = path.indexOf('?'); if (qi >= 0) { qs = path.slice(qi + 1); path = path.slice(0, qi); }
+    function qp(k) { var m = qs.match(new RegExp('(?:^|&)' + k + '=([^&]*)')); return m ? decodeURIComponent(m[1]) : null; }
+    var data = Store.load();
+    var isAdmin = String(headers['X-Admin-PW'] || '') === String(data.settings.admin_pw == null ? '' : data.settings.admin_pw);
+    var m;
+
+    if (path === '/state' && method === 'GET') {
+      var yq = qp('yq') || yearQuarter();
+      var groups = (data.groups || []).map(normalizeGroup).sort(function (a, b) { return (b.dep_dt || '') < (a.dep_dt || '') ? -1 : (b.dep_dt || '') > (a.dep_dt || '') ? 1 : 0; });
+      return okr({
+        yq: yq, yqList: yqList(), settings: publicSettings(data.settings), ccg: CCG_TEAMS,
+        dash: dash(data, yq), groups: groups,
+        budget: (data.budget || []).filter(function (b) { return b.yq === yq; }).sort(function (a, b) { return (a.rev_dt || '') < (b.rev_dt || '') ? -1 : 1; }),
+        meta: { planTypes: PLAN_TYPES, ranks: RANKS, kinds: KINDS, cars: CARS, revTypes: REV_TYPES, statuses: STATUSES, cost: COST.map(function (c) { return { k: c[0], label: c[1] }; }) }
+      });
+    }
+    if (path === '/groups' && method === 'POST') {
+      body.group_id = 'TB-' + randHex(8).toUpperCase();
+      body.status = ST_PLAN; body.created_at = nowISO();
+      var g = normalizeGroup(body); var e = validateGroup(g, false);
+      if (e.length) return err(e);
+      data.groups.push(g);
+      appendAudit(data, '출장 계획 등록', g.group_id + ' ' + (g.org || '') + ' ' + g.travelers.length + '명');
+      Store.save(data); return okr({ group: g }, 201);
+    }
+    if ((m = path.match(/^\/groups\/([^/]+)$/)) && method === 'PUT') {
+      var cur = find(data, m[1]); if (!cur) return err('출장건을 찾을 수 없습니다.', 404);
+      if (cur.status === ST_DONE) return err('처리 완료된 건은 수정할 수 없습니다.');
+      var merged = Object.assign({}, cur, body, { group_id: m[1], status: cur.status || ST_PLAN });
+      var g2 = normalizeGroup(merged); var e2 = validateGroup(g2, WIP.indexOf(g2.status) >= 0);
+      if (e2.length) return err(e2);
+      g2.updated_at = nowISO(); data.groups[data.groups.indexOf(cur)] = g2;
+      appendAudit(data, '출장 수정', m[1]); Store.save(data); return okr({ group: g2 });
+    }
+    if ((m = path.match(/^\/groups\/([^/]+)\/actual$/)) && method === 'POST') {
+      var cur3 = find(data, m[1]); if (!cur3) return err('출장건을 찾을 수 없습니다.', 404);
+      if (cur3.status === ST_DONE || cur3.status === ST_CANCEL) return err('완료·취소된 건에는 실적을 입력할 수 없습니다.');
+      var g3 = normalizeGroup(cur3);
+      var byEmp = {}; (body.travelers || []).forEach(function (p) { byEmp[String(p.emp_no)] = p; });
+      g3.travelers.forEach(function (p) {
+        var src = byEmp[String(p.emp_no)];
+        if (src) KEYS.forEach(function (k) { if (('a_' + k) in src) p['a_' + k] = num(src['a_' + k]); });
+      });
+      if ('remark' in body) g3.remark = String(body.remark == null ? '' : body.remark).trim();
+      g3.status = ST_INFORM;
+      var e3 = validateGroup(g3, true); if (e3.length) return err(e3);
+      g3 = normalizeGroup(g3); g3.inform_at = nowISO(); g3.updated_at = g3.inform_at;
+      data.groups[data.groups.indexOf(cur3)] = g3;
+      appendAudit(data, '실적 입력·인폼', m[1] + ' 실적 ' + won(g3.act_tot) + '원');
+      Store.save(data);
+      return okr({ group: g3, mail: makeMail(g3, data.settings), dash: dash(data, g3.yq) });
+    }
+    if ((m = path.match(/^\/groups\/([^/]+)\/status$/)) && method === 'POST') {
+      var cur4 = find(data, m[1]); if (!cur4) return err('출장건을 찾을 수 없습니다.', 404);
+      var want = body.status || '';
+      if ([ST_INFORM, ST_TRANSFER, ST_DONE, ST_CANCEL].indexOf(want) < 0) return err('상태 값이 올바르지 않습니다.');
+      if ((want === ST_TRANSFER || want === ST_DONE || cur4.status === ST_TRANSFER || cur4.status === ST_DONE) && !isAdmin)
+        return err('관리자 인증이 필요합니다.', 401);
+      if ([ST_INFORM, ST_TRANSFER, ST_DONE].indexOf(want) >= 0 && gSum(normalizeGroup(cur4), 'a') <= 0)
+        return err('실적이 입력된 건만 이관·처리할 수 있습니다.');
+      cur4.status = want; cur4.updated_at = nowISO();
+      if (want === ST_DONE) cur4.settle_at = cur4.updated_at;
+      appendAudit(data, '상태 변경', m[1] + ' → ' + want, isAdmin ? 'admin' : 'user');
+      Store.save(data);
+      var g4 = normalizeGroup(cur4); return okr({ group: g4, dash: dash(data, g4.yq) });
+    }
+    if (path === '/admin/verify' && method === 'POST') {
+      return String(body.pw == null ? '' : body.pw) === String(data.settings.admin_pw == null ? '' : data.settings.admin_pw)
+        ? okr({}) : err('아이디 또는 비밀번호가 올바르지 않습니다.', 401);
+    }
+    if (path === '/budget' && method === 'POST') {
+      if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
+      var e5 = validateBudget(body); if (e5.length) return err(e5);
+      var b2 = fixBudgetSign(body);
+      var rec = { rev_id: 'B-' + randHex(8).toUpperCase(), yq: String(b2.yq).trim(),
+        rev_dt: b2.rev_dt || todayISO(), rev_type: b2.rev_type, amt: b2.amt, reason: String(b2.reason == null ? '' : b2.reason).trim() };
+      data.budget.push(rec);
+      appendAudit(data, '예산 이력 추가', rec.rev_id + ' ' + rec.rev_type + ' ' + won(rec.amt), 'admin');
+      Store.save(data); return okr({ budget: rec, dash: dash(data, rec.yq) }, 201);
+    }
+    if ((m = path.match(/^\/budget\/([^/]+)$/)) && method === 'DELETE') {
+      if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
+      var before = data.budget.length;
+      data.budget = data.budget.filter(function (b) { return b.rev_id !== m[1]; });
+      if (data.budget.length === before) return err('리비전을 찾을 수 없습니다.', 404);
+      appendAudit(data, '예산 이력 삭제', m[1], 'admin'); Store.save(data); return okr({});
+    }
+    if (path === '/backups' && method === 'GET') { return okr({ backups: Store.backups() }); }
+    if ((m = path.match(/^\/backups\/([^/]+)\/restore$/)) && method === 'POST') {
+      if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
+      var fn = decodeURIComponent(m[1]);
+      var au = (Store.load().audit_log || []).slice();
+      au.push({ timestamp: nowISO(), actor: 'admin', action: '백업 복원', detail: fn });
+      try { Store.restore(fn, au.slice(-500)); } catch (e6) { return err(e6.message); }
+      return okr({});
+    }
+    return err('알 수 없는 요청입니다.', 404);
+  }
+
+  var API = {
+    localApi: localApi, Store: Store, makeCsv: makeCsv,
+    // 테스트/재사용용 내부 함수
+    _: { num: num, won: won, tripDays: tripDays, quarter: quarter, yearQuarter: yearQuarter, yqList: yqList,
+      normalizeGroup: normalizeGroup, validateGroup: validateGroup, validateBudget: validateBudget,
+      dash: dash, makeMail: makeMail, seedData: seedData, CCG_TEAMS: CCG_TEAMS, CSV_HEADERS: CSV_HEADERS }
+  };
+  root.__localApi = localApi;
+  root.__tbStore = Store;
+  root.downloadCsv = function (yq) {
+    var text = makeCsv(Store.load(), yq || null);
+    var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = '국내출장비_' + (yq || '전체') + '_' + todayISO().replace(/-/g, '') + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* 국내 출장비 관리 — 프런트 (서버 SSOT 렌더) */
+'use strict';
+const API = '/travelbudget/api';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const won = n => (Math.round(Number(n) || 0)).toLocaleString('ko-KR');
+const fmtD = d => d ? d.slice(5).replace('-', '/') : '';
+const KEYS = ['trans', 'lodg', 'meal', 'etc'];
+
+const TITLES = {dash:'대시보드', plan:'출장 계획 등록', actual:'출장 실적 입력',
+  list:'출장 내역', process:'이관·처리 관리', budget:'예산 관리', data:'데이터 관리'};
+const SUBS = {dash:'잔여 = 총예산 − 처리완료 − 처리중', plan:'동행 출장은 출장자 행을 추가해 한 번에 등록',
+  actual:'실적 저장 시 실비 이관 인폼이 자동 생성됩니다', list:'분기 전체 출장 이력',
+  process:'실적 입력·인폼 → 소재 이관 → 처리 완료', budget:'예산 리비전 등록·이력 (감액은 자동 음수 처리)',
+  data:'CSV 내보내기 · 자동 백업(30개) · 복원'};
+
+let ST = null, YQ = null;
+
+function adminPw(){ return sessionStorage.getItem('tb_pw') || ''; }
+async function api(path, opt = {}){
+  opt.headers = Object.assign({'Content-Type':'application/json'}, opt.headers || {});
+  if (adminPw()) opt.headers['X-Admin-PW'] = adminPw();
+  return __localApi(path, opt);   // 정적(GitHub Pages) — 서버 대신 브라우저에서 동일 로직 처리
+}
+function toast(m){ const t = document.createElement('div'); t.className = 'toast';
+  t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }
+async function copyText(text, msg = '본문을 복사했습니다'){
+  try {
+    if (navigator.clipboard) { await navigator.clipboard.writeText(text); toast(msg); return; }
+    const ta = document.createElement('textarea');   // 사내 비-HTTPS 등 clipboard 미지원 환경 폴백
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    const okc = document.execCommand('copy'); ta.remove();
+    toast(okc ? msg : '복사할 수 없습니다 — 본문을 직접 선택해 복사하세요');
+  } catch (e) { toast('복사할 수 없습니다 — 본문을 직접 선택해 복사하세요'); }
+}
+function showErr(sel, errs){ $(sel).innerHTML =
+  `<div class="err">${(errs || ['요청 실패']).map(esc).join('\n')}</div>`; }
+function stClass(s){ return s === '처리 완료' ? 'done' : s === '취소' ? 'cancel'
+  : (s === '실적 입력·인폼' || s === '소재 이관') ? 'wip' : ''; }
+function badge(g){
+  const urgent = g.plan_type === '긴급' ? ' <span class="status urgent">긴급</span>' : '';
+  return `<span class="status ${stClass(g.status)}">${esc(g.status)}</span>${urgent}`;
+}
+function gname(g){ return [g.city, g.org].filter(Boolean).join(' '); }
+function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); }
+
+async function load(){
+  const {data} = await api('/state' + (YQ ? '?yq=' + encodeURIComponent(YQ) : ''));
+  ST = data; YQ = data.yq;
+  const qs = $('#qsel');
+  const opts = [...new Set([...data.yqList, YQ])];
+  qs.innerHTML = opts.map(q => `<option${q === YQ ? ' selected' : ''}>${q}</option>`).join('');
+  qs.onchange = e => {
+    const dirty = ($('#travBody')?.querySelector('.t-nm')?.value.trim()) || ACT_GID;
+    if (dirty && !confirm('입력 중인 내용이 저장되지 않았습니다. 분기를 변경하면 사라집니다. 계속할까요?')) {
+      e.target.value = YQ; return;
+    }
+    YQ = e.target.value; load();
+  };
+  renderAll();
+}
+function nav(v){
+  $$('.nav a').forEach(a => a.classList.toggle('on', a.dataset.view === v));
+  $$('.view').forEach(x => x.classList.remove('on'));
+  $('#v-' + v).classList.add('on');
+  $('#pageTitle').textContent = TITLES[v];
+  $('#pageSub').textContent = SUBS[v];
+}
+$$('.nav a').forEach(a => a.onclick = () => {
+  const v = a.dataset.view;
+  if ((v === 'process' || v === 'budget') && !adminPw()) { askAdmin(() => nav(v)); return; }
+  nav(v);
+});
+function renderAll(){ rDash(); rPlan(); rActual(); rList(); rProcess(); rBudget(); rData(); }
+
+/* ═══ 대시보드 ═══ */
+function rDash(){
+  const d = ST.dash;
+  const burn = d.alloc ? Math.round((d.done + d.wip) / d.alloc * 100) : 0;
+  const hero = `
+    <div class="hero ${d.short ? 'alert' : ''}">
+      <span class="lamp"></span>
+      <div style="flex:1">
+        <div class="msg">${d.short
+          ? '소재 그룹 국내 출장비 예산이 부족합니다 — 센터 검토 및 추가 지원 필요'
+          : '소재 그룹 국내 출장비 잔액이 있어 정상 운영 중입니다'}</div>
+        <div class="fig">총예산 <b>${won(d.alloc)}원</b> − 처리완료 <b>${won(d.done)}원</b> − 처리중 <b>${won(d.wip)}원</b> = 잔여 <b style="color:${d.remain < 0 ? 'var(--red)' : 'var(--navy)'}">${d.remain < 0 ? '−' : ''}${won(Math.abs(d.remain))}원</b></div>
+      </div>
+      <div style="text-align:right">
+        <div class="label">현재 잔여 출장비 · 소진율 ${burn}%</div>
+        <div class="amount">${d.remain < 0 ? '−' : ''}${won(Math.abs(d.remain))}원</div>
+      </div>
+    </div>`;
+  const kpi = `
+    <div class="kpis">
+      <div class="kpi"><span>총 예산</span><b>${won(d.alloc)}</b><small>리비전 ${ST.budget.length}회</small></div>
+      <div class="kpi"><span>처리 완료</span><b>${won(d.done)}</b><small>${d.nDone}건 · 이관 완료</small></div>
+      <div class="kpi"><span>처리중 (인폼·이관)</span><b>${won(d.wip)}</b><small>${d.nWip}건 진행</small></div>
+      <div class="kpi"><span>미실시 계획 <span class="au">참고</span></span><b>${won(d.planAmt)}</b><small>${d.nPlan}건 · 잔여 미차감</small></div>
+    </div>`;
+  const aw = d.todo.actual_wait.length, pw = d.todo.process_wait.length;
+  const todo = (aw || pw) ? `
+    <div class="card"><h2>바로 할 일</h2><p class="cap">대시보드에서 바로 이동해 처리하세요.</p>
+      <div class="btns" style="margin-top:0">
+        ${aw ? `<button class="btn pri" onclick="nav('actual')">실적 입력 대기 ${aw}건 → 실적 입력</button>` : ''}
+        ${pw ? `<button class="btn" onclick="goProcess()">이관·처리 대기 ${pw}건 → 처리 관리</button>` : ''}
+      </div></div>` : '';
+  const rows = d.byCcg.map(r => `<tr>
+    <td><b>${esc(r.team)}</b> <span class="sub">${r.ccg}</span></td>
+    <td class="num">${won(r.done)}</td><td class="num">${won(r.wip)}</td>
+    <td class="num"><b>${won(r.total)}</b></td>
+    <td class="num">${(r.share * 100).toFixed(1)}%</td>
+    <td class="num">${won(r.plan)}</td>
+    <td class="num">${r.groups}</td><td class="num">${r.people}</td></tr>`).join('')
+    || '<tr><td colspan="8" style="color:var(--faint);text-align:center;padding:18px">집행 내역이 없습니다.</td></tr>';
+  const tot = d.byCcg.reduce((a, r) => (KEYS.forEach(() => 0),
+    {done:a.done + r.done, wip:a.wip + r.wip, total:a.total + r.total, plan:a.plan + r.plan,
+     groups:a.groups + r.groups, people:a.people + r.people}), {done:0, wip:0, total:0, plan:0, groups:0, people:0});
+  const ccg = `
+    <div class="card"><div class="card-head"><h2>CCG팀(부서)별 집행 현황</h2>
+      <span class="cap" style="margin:0">처리완료 + 처리중 = 총사용액 기준</span></div>
+    <div class="scroll" style="margin-top:12px"><table>
+      <thead><tr><th>CCG팀</th><th class="num">처리완료</th><th class="num">처리중</th>
+        <th class="num">총사용액</th><th class="num">구성비</th><th class="num">미실시 계획</th>
+        <th class="num">출장 그룹</th><th class="num">참여 인원</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td>합계</td><td class="num">${won(tot.done)}</td><td class="num">${won(tot.wip)}</td>
+        <td class="num">${won(tot.total)}</td><td class="num">100%</td><td class="num">${won(tot.plan)}</td>
+        <td class="num">${tot.groups}</td><td class="num">${tot.people}</td></tr></tfoot>
+    </table></div></div>`;
+  $('#v-dash').innerHTML = hero + kpi + todo + ccg;
+}
+function goProcess(){ if (!adminPw()) { askAdmin(() => nav('process')); return; } nav('process'); }
+
+/* ═══ 출장 계획 등록 ═══ */
+let TRAV_N = 0;
+function travRow(p = {}){
+  TRAV_N++;
+  const teams = ST.ccg.map(t => `<option${t.team === p.ccg_nm ? ' selected' : ''}>${esc(t.team)}</option>`).join('');
+  const ranks = ST.meta.ranks.map(r => `<option${r === (p.rank || 'TL') ? ' selected' : ''}>${r}</option>`).join('');
+  return `<tr data-tid="${TRAV_N}">
+    <td><input class="w-nm t-nm" value="${esc(p.name || '')}" placeholder="성명"></td>
+    <td><input class="w-no t-no" value="${esc(p.emp_no || '')}" placeholder="사번"></td>
+    <td><select class="w-rk t-rk">${ranks}</select></td>
+    <td><select class="w-tm t-tm" onchange="syncCcg(this)"><option value="">선택</option>${teams}</select></td>
+    <td><input class="w-cc t-cc auto" value="${esc(p.ccg || '')}" readonly placeholder="자동"></td>
+    ${KEYS.map(k => `<td><input type="number" class="w-mn t-p-${k}" step="1000" value="${p['p_' + k] || ''}" placeholder="0" oninput="planSum()"></td>`).join('')}
+    <td class="num t-sum" style="font-weight:700">0</td>
+    <td><button class="btn sm" onclick="this.closest('tr').remove(); planSum()">삭제</button></td>
+  </tr>`;
+}
+function syncCcg(sel){
+  const t = ST.ccg.find(x => x.team === sel.value);
+  sel.closest('tr').querySelector('.t-cc').value = t ? t.ccg : '';
+}
+function planSum(){
+  let tot = 0;
+  $$('#travBody tr').forEach(tr => {
+    let s = 0;
+    KEYS.forEach(k => s += Number(tr.querySelector('.t-p-' + k).value) || 0);
+    tr.querySelector('.t-sum').textContent = won(s);
+    tot += s;
+  });
+  const el = $('#planTot'); if (el) el.textContent = won(tot) + '원';
+  const d1 = $('#pl_dep')?.value, d2 = $('#pl_ret')?.value;
+  const dy = $('#pl_days');
+  if (dy) dy.value = (d1 && d2) ? Math.max(0, (new Date(d2) - new Date(d1)) / 864e5 + 1) : '';
+}
+function rPlan(){
+  const m = ST.meta;
+  const copyOpts = ST.groups.filter(g => g.status !== '취소').slice(0, 30)
+    .map(g => `<option value="${g.group_id}">${esc(gname(g))} · ${names(g)} · ${fmtD(g.dep_dt)}</option>`).join('');
+  $('#v-plan').innerHTML = `
+    <div class="card">
+      <div class="card-head"><h2>출장 계획 등록</h2>
+        <select id="copySel" style="width:auto;min-width:250px" onchange="copyPlan(this.value)">
+          <option value="">이전 출장 복사…</option>${copyOpts}</select></div>
+      <p class="cap">공통 정보는 한 번만 입력하고, 동행자는 출장자 행으로 추가합니다. 긴급 출장은 계획비 없이 등록할 수 있습니다.</p>
+      <div id="planErr"></div>
+      <div class="form-grid c4">
+        <div><label>구분<span class="rq">*</span></label>
+          <select id="pl_type">${m.planTypes.map(t => `<option>${t}</option>`).join('')}</select></div>
+        <div><label>출장 도시<span class="rq">*</span></label><input id="pl_city" placeholder="예: 청주"></div>
+        <div><label>출장 기관&업체<span class="rq">*</span></label><input id="pl_org" placeholder="예: 원익머트리얼즈"></div>
+        <div><label>출장 구분<span class="rq">*</span></label>
+          <select id="pl_kind">${m.kinds.map(k => `<option>${k}</option>`).join('')}</select></div>
+      </div>
+      <div class="form-grid c4">
+        <div><label>출발일자<span class="rq">*</span></label><input type="date" id="pl_dep" onchange="planSum()"></div>
+        <div><label>복귀일자<span class="rq">*</span></label><input type="date" id="pl_ret" onchange="planSum()"></div>
+        <div><label>출장일수 <span class="au">자동</span></label><input id="pl_days" class="auto" readonly></div>
+        <div><label>자차사용 여부</label>
+          <select id="pl_car">${m.cars.map(c => `<option>${c}</option>`).join('')}</select></div>
+      </div>
+      <div class="form-grid">
+        <div><label>출장 목적&사유<span class="rq">*</span> <span class="au">소재명 포함</span></label>
+          <textarea id="pl_purpose" placeholder="예: NF3 순도 관리 정기 Audit"></textarea></div>
+      </div>
+      <label style="margin-top:4px">출장자 <span class="au">동행자는 행 추가</span></label>
+      <div class="scroll trav-table"><table>
+        <thead><tr><th>성명<span class="rq">*</span></th><th>사번<span class="rq">*</span></th><th>직책<span class="rq">*</span></th><th>CCG팀<span class="rq">*</span></th><th>CCG No.</th>
+          ${m.cost.map(c => `<th class="num">계획 ${c.label}</th>`).join('')}<th class="num">합계</th><th></th></tr></thead>
+        <tbody id="travBody"></tbody>
+      </table></div>
+      <div class="btns" style="margin-top:10px">
+        <button class="btn" onclick="addTrav()">+ 동행자 추가</button>
+        <span style="margin-left:auto;font-weight:700;color:var(--navy)">계획 총합계 <span id="planTot">0원</span></span>
+      </div>
+      <div class="form-grid" style="margin-top:12px">
+        <div><label>비고</label><input id="pl_remark"></div>
+      </div>
+      <div class="btns"><button class="btn pri" onclick="submitPlan()">출장 계획 등록</button></div>
+    </div>`;
+  $('#travBody').innerHTML = travRow();
+  planSum();
+}
+function addTrav(p){ $('#travBody').insertAdjacentHTML('beforeend', travRow(p || {})); planSum(); }
+function copyPlan(gid){
+  if (!gid) return;
+  const g = ST.groups.find(x => x.group_id === gid);
+  if (!g) return;
+  $('#pl_type').value = g.plan_type; $('#pl_city').value = g.city; $('#pl_org').value = g.org;
+  $('#pl_kind').value = g.kind; $('#pl_car').value = g.car || '미사용';
+  $('#pl_purpose').value = g.purpose; $('#pl_remark').value = '';
+  $('#pl_dep').value = ''; $('#pl_ret').value = '';
+  $('#travBody').innerHTML = '';
+  (g.travelers || []).forEach(p => addTrav(p));
+  planSum();
+  toast('이전 출장을 복사했습니다 — 일자·금액을 확인하세요');
+}
+function collectTravelers(){
+  return $$('#travBody tr').map(tr => {
+    const p = {name: tr.querySelector('.t-nm').value.trim(),
+      emp_no: tr.querySelector('.t-no').value.trim(),
+      rank: tr.querySelector('.t-rk').value,
+      ccg_nm: tr.querySelector('.t-tm').value,
+      ccg: tr.querySelector('.t-cc').value};
+    KEYS.forEach(k => p['p_' + k] = Number(tr.querySelector('.t-p-' + k).value) || 0);
+    return p;
+  });
+}
+async function submitPlan(){
+  const body = {plan_type: $('#pl_type').value, city: $('#pl_city').value.trim(),
+    org: $('#pl_org').value.trim(), kind: $('#pl_kind').value,
+    dep_dt: $('#pl_dep').value, ret_dt: $('#pl_ret').value, car: $('#pl_car').value,
+    purpose: $('#pl_purpose').value.trim(), remark: $('#pl_remark').value.trim(),
+    travelers: collectTravelers()};
+  const {ok, data} = await api('/groups', {method: 'POST', body: JSON.stringify(body)});
+  if (!ok) { showErr('#planErr', data.errors); return; }
+  toast(`등록 완료 — ${body.travelers.length}명`);
+  YQ = data.group.yq;
+  await load(); nav('plan');
+}
+
+/* ═══ 출장 실적 입력 ═══ */
+let ACT_GID = null;
+function rActual(){
+  const targets = ST.groups.filter(g => ['계획 등록', '실적 입력·인폼'].includes(g.status));
+  const opts = targets.map(g =>
+    `<option value="${g.group_id}">${esc(gname(g))} · ${names(g)} · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${g.status}${g.plan_type === '긴급' ? ' [긴급]' : ''}</option>`).join('');
+  $('#v-actual').innerHTML = `
+    <div class="card">
+      <h2>출장 실적 입력</h2>
+      <p class="cap">대상 출장을 선택해 출장자별 실적을 입력하면, 저장과 동시에 그룹당 1통의 실비 이관 인폼이 생성됩니다.</p>
+      <div id="actErr"></div>
+      <div class="filter-row">
+        <input id="actFilter" placeholder="성명·업체·도시로 검색" oninput="filterActual()">
+        <select id="actSel" onchange="pickActual(this.value)" style="flex:1;min-width:300px">
+          <option value="">대상 출장 선택 (${targets.length}건)</option>${opts}</select>
+      </div>
+      <div id="actBody"></div>
+    </div>`;
+  ACT_GID = null;
+}
+function filterActual(){
+  const q = $('#actFilter').value.trim();
+  [...$('#actSel').options].forEach((o, i) => {
+    if (i === 0) return;
+    o.hidden = q && !o.textContent.includes(q);
+  });
+}
+function pickActual(gid){
+  ACT_GID = gid;
+  const box = $('#actBody');
+  if (!gid) { box.innerHTML = ''; return; }
+  const g = ST.groups.find(x => x.group_id === gid);
+  const m = ST.meta;
+  const rows = g.travelers.map((p, i) => {
+    const plan = KEYS.reduce((s, k) => s + (p['p_' + k] || 0), 0);
+    return `<tr data-emp="${esc(p.emp_no)}">
+      <td><b>${esc(p.name)}</b> <span class="sub">${esc(p.rank)} · ${esc(p.emp_no)}</span></td>
+      <td>${esc(p.ccg_nm)}</td>
+      ${KEYS.map(k => `<td><input type="number" class="a-${k}" step="1000" value="${p['a_' + k] || ''}" placeholder="계획 ${won(p['p_' + k])}" oninput="actSum()"></td>`).join('')}
+      <td class="num a-sum" style="font-weight:700">0</td>
+      <td class="num a-var">–</td>
+    </tr>`;
+  }).join('');
+  box.innerHTML = `
+    <div class="note"><b>${esc(gname(g))}</b> · ${esc(g.purpose)} · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} (${g.days}일) · ${g.travelers.length}명 · 계획 합계 ${won(g.plan_tot)}원</div>
+    <div class="scroll trav-table"><table>
+      <thead><tr><th>출장자</th><th>CCG팀</th>
+        ${m.cost.map(c => `<th class="num">실적 ${c.label}</th>`).join('')}
+        <th class="num">실적 합계</th><th class="num">계획 대비</th></tr></thead>
+      <tbody id="actRows">${rows}</tbody>
+      <tfoot><tr><td colspan="2">그룹 합계</td>
+        ${KEYS.map(k => `<td class="num" id="af-${k}">0</td>`).join('')}
+        <td class="num" id="afTot">0</td><td class="num" id="afVar">–</td></tr></tfoot>
+    </table></div>
+    <div class="form-grid" style="margin-top:12px">
+      <div><label>비고 <span class="au">긴급 출장은 필수</span></label><input id="ac_remark" value="${esc(g.remark || '')}"></div>
+    </div>
+    <div class="btns"><button class="btn pri" onclick="submitActual()">실적 저장 및 인폼 생성 (${g.travelers.length}명)</button></div>`;
+  actSum();
+}
+function actSum(){
+  const g = ST.groups.find(x => x.group_id === ACT_GID);
+  if (!g) return;
+  const ft = {trans:0, lodg:0, meal:0, etc:0};
+  let tot = 0, planTot = 0;
+  $$('#actRows tr').forEach(tr => {
+    const emp = tr.dataset.emp;
+    const p = g.travelers.find(x => String(x.emp_no) === emp) || {};
+    let s = 0, pl = 0;
+    KEYS.forEach(k => { const v = Number(tr.querySelector('.a-' + k).value) || 0;
+      s += v; ft[k] += v; pl += p['p_' + k] || 0; });
+    tot += s; planTot += pl;
+    tr.querySelector('.a-sum').textContent = won(s);
+    const v = pl && s ? pl - s : 0;
+    const el = tr.querySelector('.a-var');
+    el.textContent = v ? (v > 0 ? '+' : '−') + won(Math.abs(v)) : '–';
+    el.style.color = v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--faint)';
+  });
+  KEYS.forEach(k => $('#af-' + k).textContent = won(ft[k]));
+  $('#afTot').textContent = won(tot);
+  const gv = planTot && tot ? planTot - tot : 0;
+  const fe = $('#afVar');
+  fe.textContent = gv ? (gv > 0 ? '+' : '−') + won(Math.abs(gv)) : '–';
+  fe.style.color = gv >= 0 ? 'var(--green)' : 'var(--red)';
+}
+async function submitActual(){
+  const travelers = $$('#actRows tr').map(tr => {
+    const p = {emp_no: tr.dataset.emp};
+    KEYS.forEach(k => p['a_' + k] = Number(tr.querySelector('.a-' + k).value) || 0);
+    return p;
+  });
+  const {ok, data} = await api(`/groups/${ACT_GID}/actual`,
+    {method: 'POST', body: JSON.stringify({travelers, remark: $('#ac_remark').value.trim()})});
+  if (!ok) { showErr('#actErr', data.errors); return; }
+  showMail(data.mail);
+  toast('실적 저장 — 상태: 실적 입력·인폼');
+  await load(); nav('actual');
+}
+
+/* ═══ 인폼 카드 ═══ */
+function showMail(mail){
+  document.getElementById('mailCard')?.remove();
+  const el = document.createElement('div');
+  el.className = 'mailcard'; el.id = 'mailCard';
+  el.innerHTML = `
+    <div class="mh"><span>실비 이관 요청 인폼 (그룹당 1통)</span>
+      <button onclick="this.closest('.mailcard').remove()">×</button></div>
+    <div class="meta">
+      <div class="row"><span class="k">수신</span><span style="word-break:break-all">${esc(mail.to)}</span></div>
+      <div class="row"><span class="k">제목</span><span>${esc(mail.subject)}</span></div>
+    </div>
+    <div class="body">${mail.body_html}</div>
+    <div class="mf">
+      <button class="btn sm pri" id="mailOpen">메일 열기 (Outlook)</button>
+      <button class="btn sm" id="mailCopyHtml">표 포함 복사</button>
+      <button class="btn sm" id="mailCopyText">본문 텍스트 복사</button>
+    </div>`;
+  document.body.appendChild(el);
+  $('#mailOpen').onclick = () => {
+    const url = `mailto:${encodeURIComponent(mail.to)}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body_text)}`;
+    if (url.length > 1900) {   // 긴 본문은 mailto 한도 초과로 잘림 — 복사로 대체
+      copyText(mail.body_text, '본문이 길어 메일 대신 복사했습니다 — 새 메일에 붙여넣으세요');
+      return;
+    }
+    location.href = url;
+  };
+  $('#mailCopyHtml').onclick = async () => {
+    if (!navigator.clipboard) { copyText(mail.body_text); return; }
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([mail.body_html], {type: 'text/html'}),
+        'text/plain': new Blob([mail.body_text], {type: 'text/plain'})})]);
+      toast('표 포함 복사됨 — Outlook에 붙여넣으세요');
+    } catch (e) { copyText(mail.body_text, '텍스트로 복사되었습니다'); }
+  };
+  $('#mailCopyText').onclick = () => copyText(mail.body_text, '본문을 복사했습니다');
+}
+
+/* ═══ 출장 내역 ═══ */
+function rList(){
+  const G = ST.groups.filter(g => g.yq === YQ);
+  const row = g => `<tr>
+    <td>${badge(g)}</td>
+    <td><b>${esc(gname(g))}</b><div class="sub">${esc(g.purpose)}</div></td>
+    <td>${names(g)} <span class="sub">${g.travelers.length}명</span></td>
+    <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
+    <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
+    <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td></tr>`;
+  $('#v-list').innerHTML = `
+    <div class="card">
+      <div class="card-head"><h2>${YQ} 출장 내역 (${G.length}건)</h2>
+        <button class="btn" onclick="downloadCsv(YQ)">CSV 다운로드</button></div>
+      <div class="filter-row" style="margin-top:12px">
+        <input id="listFilter" placeholder="성명·업체·도시·목적으로 검색" oninput="filterList()"></div>
+      <div class="scroll"><table>
+        <thead><tr><th>상태</th><th>출장</th><th>출장자</th><th class="num">기간</th>
+          <th class="num">계획</th><th class="num">실적</th></tr></thead>
+        <tbody id="listBody">${G.map(row).join('') || '<tr><td colspan="6" style="color:var(--faint);text-align:center;padding:18px">해당 분기 출장이 없습니다.</td></tr>'}</tbody>
+      </table></div>
+    </div>`;
+}
+function filterList(){
+  const q = $('#listFilter').value.trim();
+  $$('#listBody tr').forEach(tr => tr.hidden = q && !tr.textContent.includes(q));
+}
+
+/* ═══ 이관·처리 관리 (관리자) ═══ */
+function rProcess(){
+  const G = ST.groups.filter(g => g.yq === YQ && g.status !== '취소');
+  const WIP = ['실적 입력·인폼', '소재 이관'];
+  const waitDays = g => {
+    if (!WIP.includes(g.status)) return null;
+    const src = g.inform_at || g.updated_at || g.created_at;
+    return src ? Math.floor((Date.now() - new Date(src)) / 864e5) : null;
+  };
+  const row = g => {
+    const acts = [];
+    if (g.status === '실적 입력·인폼')
+      acts.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','소재 이관')">소재 이관</button>`);
+    if (g.status === '소재 이관') {
+      acts.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','처리 완료')">처리 완료</button>`);
+      acts.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','실적 입력·인폼')">이관 해제</button>`);
+    }
+    if (g.status === '처리 완료')
+      acts.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','소재 이관')">완료 해제</button>`);
+    if (['계획 등록', '실적 입력·인폼'].includes(g.status))
+      acts.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
+    const w = waitDays(g);
+    const wcell = w === null ? '–'
+      : `<b style="color:${w >= 7 ? 'var(--red)' : w >= 3 ? '#8A5A10' : 'var(--faint)'}">D+${w}</b>`;
+    return `<tr>
+      <td>${badge(g)}</td>
+      <td><b>${esc(gname(g))}</b><div class="sub">${names(g)} · ${g.travelers.length}명</div></td>
+      <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
+      <td class="num">${wcell}</td>
+      <td class="num">${g.act_tot ? won(g.act_tot) : '–'}</td>
+      <td>${acts.join(' ') || '–'}</td></tr>`;
+  };
+  $('#v-process').innerHTML = `
+    <div class="note">실적 입력·인폼 → <b>소재 이관</b>(실비 이관 접수) → <b>처리 완료</b>(전표 처리 종료). 처리 완료·처리중 금액만 잔여 예산에서 차감됩니다. <b>대기</b>는 인폼·이관 상태로 머문 일수 (D+7↑ 빨강).</div>
+    <div class="card"><h2>${YQ} 이관·처리 관리</h2>
+      <div class="scroll" style="margin-top:10px"><table>
+        <thead><tr><th>상태</th><th>출장</th><th class="num">기간</th><th class="num">대기</th><th class="num">실적</th><th>처리</th></tr></thead>
+        <tbody>${G.map(row).join('') || '<tr><td colspan="6" style="color:var(--faint);text-align:center;padding:18px">대상이 없습니다.</td></tr>'}</tbody>
+      </table></div></div>`;
+}
+async function setStatus(gid, status){
+  const {ok, data} = await api(`/groups/${gid}/status`, {method: 'POST', body: JSON.stringify({status})});
+  if (!ok) {
+    if (data.errors?.[0]?.includes('인증')) { askAdmin(() => setStatus(gid, status)); return; }
+    toast((data.errors || ['실패'])[0]); return;
+  }
+  toast(`상태 변경 — ${status}`);
+  await load(); nav('process');
+}
+
+/* ═══ 예산 관리 (관리자) ═══ */
+function rBudget(){
+  let run = 0;
+  const rows = ST.budget.map(b => { run += Number(b.amt) || 0; return `<tr>
+    <td>${esc(b.rev_id)}</td><td class="num">${esc(b.rev_dt)}</td>
+    <td><span class="status">${esc(b.rev_type)}</span></td>
+    <td class="num" style="color:${b.amt >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700">${b.amt >= 0 ? '+' : '−'}${won(Math.abs(b.amt))}</td>
+    <td class="num"><b>${won(run)}</b></td>
+    <td>${esc(b.reason || '')}</td>
+    <td><button class="btn sm red" onclick="delBudget('${esc(b.rev_id)}')">삭제</button></td></tr>`; }).join('');
+  $('#v-budget').innerHTML = `
+    <div class="card"><h2>예산 리비전 등록</h2>
+      <p class="cap">감액은 금액을 자동으로 음수 처리합니다.</p>
+      <div id="bdErr"></div>
+      <div class="form-grid c4">
+        <div><label>분기</label><input id="bd_yq" value="${YQ}"></div>
+        <div><label>유형</label><select id="bd_type">${ST.meta.revTypes.map(t => `<option>${t}</option>`).join('')}</select></div>
+        <div><label>금액 (원)</label><input type="number" id="bd_amt" step="100000"></div>
+        <div><label>반영일</label><input type="date" id="bd_dt" value="${new Date().toISOString().slice(0, 10)}"></div>
+      </div>
+      <div class="form-grid"><div><label>사유</label><input id="bd_reason"></div></div>
+      <div class="btns"><button class="btn pri" onclick="submitBudget()">리비전 반영</button></div>
+    </div>
+    <div class="card"><h2>${YQ} 리비전 이력 · 누적 ${won(ST.dash.alloc)}원</h2>
+      <div class="scroll" style="margin-top:10px"><table>
+        <thead><tr><th>REV</th><th class="num">반영일</th><th>유형</th><th class="num">증감액</th>
+          <th class="num">누적</th><th>사유</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">등록된 예산이 없습니다.</td></tr>'}</tbody>
+      </table></div></div>`;
+}
+async function submitBudget(){
+  const body = {yq: $('#bd_yq').value.trim(), rev_type: $('#bd_type').value,
+    amt: Number($('#bd_amt').value) || 0, rev_dt: $('#bd_dt').value, reason: $('#bd_reason').value.trim()};
+  const {ok, data} = await api('/budget', {method: 'POST', body: JSON.stringify(body)});
+  if (!ok) {
+    if (data.errors?.[0]?.includes('인증')) { askAdmin(submitBudget); return; }
+    showErr('#bdErr', data.errors); return;
+  }
+  toast(`${data.budget.rev_id} 예산 반영`);
+  YQ = body.yq; await load(); nav('budget');
+}
+async function delBudget(rid){
+  if (!confirm(`${rid} 리비전을 삭제할까요?`)) return;
+  const {ok, data} = await api('/budget/' + rid, {method: 'DELETE'});
+  if (!ok) { toast((data.errors || ['실패'])[0]); return; }
+  toast('삭제되었습니다'); await load(); nav('budget');
+}
+
+/* ═══ 데이터 관리 ═══ */
+async function rData(){
+  const {data} = await api('/backups');
+  const rows = (data.backups || []).slice(0, 10).map(b => `<tr>
+    <td>${esc(b.filename)}</td><td class="num">${(b.size / 1024).toFixed(1)}KB</td>
+    <td class="num">${esc(b.modified_at).replace('T', ' ')}</td>
+    <td><button class="btn sm" onclick="restoreBackup('${esc(b.filename)}')">복원</button></td></tr>`).join('');
+  $('#v-data').innerHTML = `
+    <div class="card"><h2>내보내기</h2>
+      <div class="btns" style="margin-top:6px">
+        <button class="btn pri" onclick="downloadCsv(YQ)">${YQ} CSV</button>
+        <button class="btn" onclick="downloadCsv(null)">전체 CSV</button></div></div>
+    <div class="card"><h2>자동 백업 (최근 30개 유지)</h2>
+      <p class="cap">저장 직전 자동 백업됩니다. 복원은 관리자 인증이 필요합니다.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>파일</th><th class="num">크기</th><th class="num">시각</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4" style="color:var(--faint);text-align:center;padding:18px">백업이 없습니다.</td></tr>'}</tbody>
+      </table></div></div>
+    <div class="card"><h2>저장 위치</h2>
+      <div class="note">정적(GitHub Pages) 버전 — 데이터는 이 브라우저의 localStorage에 저장됩니다(브라우저별 개별). 여러 명이 공유하는 원장은 사내 Flask 버전을 사용하세요.</div></div>`;
+}
+async function restoreBackup(fn){
+  if (!confirm(`${fn}\n이 시점으로 복원할까요? 현재 데이터는 백업 후 교체됩니다.`)) return;
+  const {ok, data} = await api(`/backups/${encodeURIComponent(fn)}/restore`, {method: 'POST'});
+  if (!ok) {
+    if (data.errors?.[0]?.includes('인증')) { askAdmin(() => restoreBackup(fn)); return; }
+    toast((data.errors || ['복원 실패'])[0]); return;
+  }
+  toast('복원되었습니다'); await load();
+}
+
+/* ═══ 관리자 인증 ═══ */
+function askAdmin(then){
+  document.getElementById('adminModal')?.remove();
+  const m = document.createElement('div');
+  m.className = 'modal'; m.id = 'adminModal';
+  m.innerHTML = `<div class="modal-box">
+    <div class="mh">관리자 인증</div>
+    <div class="mb">
+      <div class="merr" id="admErr">아이디 또는 비밀번호가 올바르지 않습니다.</div>
+      <label>아이디</label><input id="admId" autocomplete="off" style="margin-bottom:10px">
+      <label>비밀번호</label><input id="admPw" type="password" autocomplete="off">
+      <div class="hint">공개 계정 — ID <b>2071478</b> / PW <b>2071478</b></div>
+      <div class="btns" style="margin-top:0">
+        <button class="btn pri" id="admOk">확인</button>
+        <button class="btn" onclick="document.getElementById('adminModal').remove()">취소</button>
+      </div></div></div>`;
+  document.body.appendChild(m);
+  setTimeout(() => $('#admId').focus(), 50);
+  const go = async () => {
+    const {ok} = await api('/admin/verify', {method: 'POST', body: JSON.stringify({pw: $('#admPw').value})});
+    if (!ok) { $('#admErr').style.display = 'block'; return; }
+    sessionStorage.setItem('tb_pw', $('#admPw').value);
+    m.remove(); if (then) then();
+  };
+  $('#admOk').onclick = go;
+  $('#admPw').onkeydown = e => { if (e.key === 'Enter') go(); };
+}
+
+load().catch(e => { document.body.innerHTML =
+  `<pre style="padding:24px;color:#B42318">${esc(e.message)}</pre>`; });
+
+</script>
+</body></html>
