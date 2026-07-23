@@ -109,6 +109,29 @@ background:#FFF;border:1px solid #CDD4DF;box-shadow:0 8px 24px rgba(16,24,40,.16
 padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px}
 .filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 .filter-row input,.filter-row select{width:auto;min-width:170px}
+/* 이용 안내(흐름) */
+.g-lead{background:linear-gradient(180deg,#FBFCFE,#F2F6FB);border:1px solid var(--line);border-radius:2px;padding:17px 19px;margin-bottom:14px}
+.g-lead h2{margin:0 0 6px;color:var(--navy);font-size:16px}
+.g-lead p{margin:0;color:var(--ink2);font-size:13px;line-height:1.65}
+.g-formula{display:inline-block;margin-top:11px;background:#fff;border:1px solid var(--line);border-radius:2px;padding:8px 13px;font-size:13px;font-weight:800;color:var(--navy)}
+.flowbar{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:4px}
+.flowbar .pill{padding:6px 12px;border-radius:20px;font-size:12.5px;font-weight:700;border:1px solid #D6DCE5;background:#F3F5F8;color:var(--navy)}
+.flowbar .pill.wip{background:#FDF6EC;border-color:#E8D4B0;color:#8A5A10}
+.flowbar .pill.done{background:#EDF5F1;border-color:#C4DED2;color:var(--green)}
+.flowbar .arrow{color:var(--faint);font-weight:800}
+.gstep{display:flex;gap:14px;padding:16px 2px;border-top:1px solid var(--line2)}
+.gstep:first-of-type{border-top:0}
+.gnum{width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0}
+.gstep.admin .gnum{background:#8A5A10}.gstep.cancel .gnum{background:var(--faint)}
+.gbody{flex:1;min-width:0}
+.gtitle{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700;color:var(--navy);font-size:14px}
+.grole{padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700}
+.grole.owner{background:#EAF1FB;color:var(--blue);border:1px solid #CBDCF0}
+.grole.admin{background:#FDF6EC;color:#8A5A10;border:1px solid #E8D4B0}
+.gwhat{margin:6px 0 9px;color:var(--ink2);font-size:13px;line-height:1.65}
+.gauto{font-size:12px;color:var(--green);background:#F1F8F4;border:1px solid #CFE6D8;border-radius:2px;padding:6px 10px;display:inline-block}
+.glegend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--mut);margin-top:4px}
+.glegend span{display:inline-flex;align-items:center;gap:6px}
 @media(max-width:980px){.app{grid-template-columns:minmax(0,1fr)}aside,main{min-width:0;max-width:100%}aside{position:relative;height:auto}
 .contact{margin-top:18px}.kpis,.grid2,.c4,.c3,.c2{grid-template-columns:1fr}main{padding:16px}
 .top select{margin-left:0}.mailcard{left:12px;right:12px;width:auto}
@@ -119,6 +142,7 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
   <div class="brand">소재 그룹 국내 출장비 관리</div>
   <div class="nav">
     <div class="nav-label">출장 업무</div>
+    <a data-view="guide">이용 안내 <span class="lk">흐름</span></a>
     <a class="on" data-view="dash">대시보드</a>
     <a data-view="plan">출장 계획 등록</a>
     <a data-view="actual">출장 실적 입력</a>
@@ -136,6 +160,7 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     <div><h1 id="pageTitle">대시보드</h1><div class="sub" id="pageSub"></div></div>
     <select id="qsel"></select>
   </div>
+  <section id="v-guide" class="view"></section>
   <section id="v-dash" class="view on"></section>
   <section id="v-plan" class="view"></section>
   <section id="v-actual" class="view"></section>

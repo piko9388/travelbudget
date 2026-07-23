@@ -8,9 +8,10 @@ const won = n => (Math.round(Number(n) || 0)).toLocaleString('ko-KR');
 const fmtD = d => d ? d.slice(5).replace('-', '/') : '';
 const KEYS = ['trans', 'lodg', 'meal', 'etc'];
 
-const TITLES = {dash:'대시보드', plan:'출장 계획 등록', actual:'출장 실적 입력',
+const TITLES = {guide:'이용 안내', dash:'대시보드', plan:'출장 계획 등록', actual:'출장 실적 입력',
   list:'출장 내역', process:'이관·처리 관리', budget:'예산 관리', data:'데이터 관리'};
-const SUBS = {dash:'잔여 = 총예산 − 처리완료 − 처리중', plan:'동행 출장은 출장자 행을 추가해 한 번에 등록',
+const SUBS = {guide:'계획 작성부터 처리 완료까지 — 한눈에 보는 처리 흐름',
+  dash:'잔여 = 총예산 − 처리완료 − 처리중', plan:'동행 출장은 출장자 행을 추가해 한 번에 등록',
   actual:'실적 저장 시 실비 이관 인폼이 자동 생성됩니다', list:'분기 전체 출장 이력',
   process:'실적 입력·인폼 → 소재 이관 → 처리 완료', budget:'예산 리비전 등록·이력 (감액은 자동 음수 처리)',
   data:'CSV 내보내기 · 자동 백업(30개) · 복원'};
@@ -75,7 +76,77 @@ $$('.nav a').forEach(a => a.onclick = () => {
   if ((v === 'process' || v === 'budget') && !adminPw()) { askAdmin(() => nav(v)); return; }
   nav(v);
 });
-function renderAll(){ rDash(); rPlan(); rActual(); rList(); rProcess(); rBudget(); rData(); }
+function renderAll(){ rGuide(); rDash(); rPlan(); rActual(); rList(); rProcess(); rBudget(); rData(); }
+
+/* ═══ 이용 안내 (처리 흐름) ═══ */
+function rGuide(){
+  const to = (ST.settings && ST.settings.mail_recipients || []).map(esc).join(', ');
+  const step = (n, cls, status, title, role, roleCls, what, auto, jump) => `
+    <div class="gstep ${cls}">
+      <div class="gnum">${n}</div>
+      <div class="gbody">
+        <div class="gtitle"><span class="status ${stClass(status)}">${status}</span> ${title}
+          <span class="grole ${roleCls}">${role}</span></div>
+        <div class="gwhat">${what}</div>
+        ${auto ? `<div class="gauto">⚙ 자동 · ${auto}</div>` : ''}
+        ${jump ? `<div class="btns" style="margin-top:10px">${jump}</div>` : ''}
+      </div>
+    </div>`;
+  const lead = `
+    <div class="g-lead">
+      <h2>출장비, 이렇게 흘러갑니다</h2>
+      <p>출장자는 <b>계획</b>과 <b>실적</b>만 입력하면 됩니다. 인폼(메일)·이관·정산·이력은 시스템과 총괄이 이어받습니다.
+      입력은 한 번, 실비 이관 인폼은 <b>그룹당 한 통</b>이에요.</p>
+      <div class="g-formula">잔여 예산 = 총예산 − 처리완료 − 처리중</div>
+    </div>
+    <div class="card">
+      <div class="flowbar">
+        <span class="pill">① 계획 등록</span><span class="arrow">→</span>
+        <span class="pill wip">② 실적 입력·인폼</span><span class="arrow">→</span>
+        <span class="pill wip">③ 소재 이관</span><span class="arrow">→</span>
+        <span class="pill done">④ 처리 완료</span>
+      </div>`;
+  const steps =
+    step(1, '', '계획 등록', '출장을 가기 전, 계획을 올립니다', '담당자', 'owner',
+      '출장 도시·업체·목적·일자와 <b>출장자별 예상 비용</b>을 입력합니다. 같이 가는 사람은 <b>‘동행자 추가’</b>로 한 그룹에 함께 넣으면 됩니다.',
+      '긴급 출장은 계획비 없이도 등록할 수 있어요.',
+      `<button class="btn pri" onclick="nav('plan')">출장 계획 등록으로 가기 →</button>`) +
+    step(2, '', '실적 입력·인폼', '출장을 다녀온 뒤, 실제 쓴 금액을 넣습니다', '담당자', 'owner',
+      '실제 사용액을 입력하면 <b>실비 이관 요청 인폼(메일)</b>이 그룹당 1통 자동으로 만들어집니다. 표 그대로 <b>복사</b>하거나 <b>Outlook으로 바로 열기</b> 할 수 있어요.',
+      '계획 대비 차액이 자동 계산됩니다. (긴급 출장은 비고 필수)',
+      `<button class="btn pri" onclick="nav('actual')">출장 실적 입력으로 가기 →</button>`) +
+    step(3, 'admin', '소재 이관', '총괄이 실비를 각 소재팀으로 이관 접수', '총괄·관리자', 'admin',
+      '소재전략(총괄)이 실비를 각 소재팀으로 이관합니다. 여기서부터는 총괄(관리자) 단계라 담당자가 따로 할 일은 없어요.',
+      '', `<button class="btn" onclick="nav('list')">내 출장 상태 확인 (출장 내역) →</button>`) +
+    step(4, 'admin', '처리 완료', '소재팀 전표 처리까지 끝나면 완료', '총괄·관리자', 'admin',
+      '소재팀에서 전표 처리가 끝나면 <b>‘처리 완료’</b>가 됩니다. 이 금액이 예산에서 <b>최종 차감</b>돼요.',
+      '', '') +
+    step('취', 'cancel', '취소', '안 가게 되면 취소', '담당자·총괄', 'owner',
+      '일정 연기 등으로 출장이 취소되면 <b>계획·인폼 단계</b>에서 취소할 수 있습니다. 취소 건은 예산 계산에서 빠집니다.',
+      '', '');
+  const money = `
+      <div class="note" style="margin:14px 0 0">
+        💡 <b>‘계획 등록’만 된 건</b>(아직 안 다녀온 출장)은 참고로만 보이고 <b>잔여에서 빼지 않습니다</b>.
+        실제로 예산이 줄어드는 건 <b>처리중</b>(실적·인폼 / 소재 이관)과 <b>처리 완료</b>예요.
+      </div></div>`;
+  const legend = `
+    <div class="card"><h2>상태 색상 보는 법</h2>
+      <p class="cap">‘출장 내역’과 화면 곳곳의 배지 색으로 지금 어느 단계인지 한눈에 알 수 있어요.</p>
+      <div class="glegend">
+        <span><span class="status">계획 등록</span> 아직 계획만</span>
+        <span><span class="status wip">처리중</span> 실적·인폼 / 소재 이관</span>
+        <span><span class="status done">처리 완료</span> 정산 끝</span>
+        <span><span class="status cancel">취소</span> 취소된 건</span>
+        <span><span class="status urgent">긴급</span> 긴급 출장</span>
+      </div></div>`;
+  const faq = `
+    <div class="card"><h2>자주 묻는 것</h2>
+      <div class="gwhat"><b>· 같이 출장 가면?</b> 대표 1명이 그룹으로 등록하고 <b>동행자 행을 추가</b>하세요. 비용은 개인별로 저장되고, 인폼은 <b>그룹당 1통</b>만 나갑니다.</div>
+      <div class="gwhat"><b>· 인폼은 누구에게 가나요?</b> ${to || '설정된 수신자'} 로 발송용 초안이 만들어집니다.</div>
+      <div class="gwhat"><b>· 내 출장이 지금 어느 단계인지?</b> <a onclick="nav('list')" style="color:var(--blue);cursor:pointer;font-weight:700">‘출장 내역’</a>에서 상태 배지로 확인하세요.</div>
+    </div>`;
+  $('#v-guide').innerHTML = lead + steps + money + legend + faq;
+}
 
 /* ═══ 대시보드 ═══ */
 function rDash(){
