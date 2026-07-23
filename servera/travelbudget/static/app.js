@@ -568,7 +568,7 @@ function askAdmin(then){
         <button class="btn" onclick="document.getElementById('adminModal').remove()">취소</button>
       </div></div></div>`;
   document.body.appendChild(m);
-  setTimeout(() => $('#admId').focus(), 50);
+  setTimeout(() => $('#admId')?.focus(), 50);   // 모달이 이미 닫혔으면 무시
   const go = async () => {
     const {ok} = await api('/admin/verify', {method: 'POST', body: JSON.stringify({pw: $('#admPw').value})});
     if (!ok) { $('#admErr').style.display = 'block'; return; }

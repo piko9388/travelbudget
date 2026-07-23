@@ -94,7 +94,7 @@ def default_data():
         "schema_version": "2.0",
         "updated_at": _now(),
         "settings": {
-            "system_name": "국내 출장비 관리",
+            "system_name": "소재 그룹 국내 출장비 관리",
             "admin_id": "2071478",
             "admin_pw": "2071478",
             "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong.kim@sk.com",

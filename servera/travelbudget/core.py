@@ -193,7 +193,8 @@ def fix_budget_sign(b):
 
 # ── 대시보드 (SSOT) ───────────────────────────────────────
 def dash(data, yq):
-    G = [normalize_group(g) for g in data.get("groups", []) if (g.get("yq") or "") == yq]
+    # 정규화 후 필터 — yq는 출발일에서 파생되므로, 가져온 데이터에 yq가 없어도 올바른 분기에 집계됨.
+    G = [g for g in (normalize_group(g) for g in data.get("groups", [])) if g["yq"] == yq]
     B = [b for b in data.get("budget", []) if b.get("yq") == yq]
     alloc = sum(num(b.get("amt")) for b in B)
 

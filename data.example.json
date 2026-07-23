@@ -1,0 +1,84 @@
+{
+  "schema_version": "2.0",
+  "updated_at": "2026-07-23T09:00:00",
+  "settings": {
+    "system_name": "소재 그룹 국내 출장비 관리",
+    "admin_id": "2071478",
+    "admin_pw": "2071478",
+    "mail_recipients": [
+      "junghoon12.lee@sk.com",
+      "eunjeong.kim@sk.com",
+      "geonyoung.kim@sk.com",
+      "jeewoung.chun@sk.com"
+    ],
+    "reference_url": "material.skhynix.com/travelbudget"
+  },
+  "budget": [
+    { "rev_id": "B-0001", "yq": "2026-3Q", "rev_dt": "2026-07-01", "rev_type": "최초배정", "amt": 9000000, "reason": "분기 정기 배정 (전분기 실적 기반)" },
+    { "rev_id": "B-0002", "yq": "2026-3Q", "rev_dt": "2026-07-15", "rev_type": "추가증액", "amt": 2000000, "reason": "긴급 품질 대응 출장 추가 발생" },
+    { "rev_id": "B-0003", "yq": "2026-3Q", "rev_dt": "2026-07-20", "rev_type": "감액", "amt": -500000, "reason": "예산 재배분" }
+  ],
+  "groups": [
+    {
+      "group_id": "TB-0001",
+      "plan_type": "계획",
+      "status": "처리 완료",
+      "city": "청주",
+      "org": "원익머트리얼즈",
+      "purpose": "NF3 순도 관리 정기 Audit",
+      "kind": "정기 Audit",
+      "dep_dt": "2026-08-04",
+      "ret_dt": "2026-08-05",
+      "car": "자차사용",
+      "remark": "",
+      "travelers": [
+        { "name": "박영희", "emp_no": "20140508", "rank": "팀장", "ccg_nm": "Gas 소재팀",
+          "p_trans": 70000, "p_lodg": 95000, "p_meal": 65000, "p_etc": 10000,
+          "a_trans": 65000, "a_lodg": 90000, "a_meal": 60000, "a_etc": 10000 },
+        { "name": "이정훈", "emp_no": "2071478", "rank": "TL", "ccg_nm": "Chemical 소재팀",
+          "p_trans": 70000, "p_lodg": 95000, "p_meal": 65000, "p_etc": 10000,
+          "a_trans": 68000, "a_lodg": 90000, "a_meal": 62000, "a_etc": 8000 }
+      ]
+    },
+    {
+      "group_id": "TB-0002",
+      "plan_type": "긴급",
+      "status": "실적 입력·인폼",
+      "city": "성남",
+      "org": "케이씨텍",
+      "purpose": "CMP Slurry 이물 유입 긴급 대응 (Particle 급증)",
+      "kind": "비정기 Audit(Issue/Theme)",
+      "dep_dt": "2026-08-07",
+      "ret_dt": "2026-08-08",
+      "car": "자차사용",
+      "remark": "소재하자 발생에 따른 긴급 출장 (사전 계획 없음)",
+      "travelers": [
+        { "name": "정다은", "emp_no": "20200711", "rank": "팀장", "ccg_nm": "CMP 소재팀",
+          "p_trans": 0, "p_lodg": 0, "p_meal": 0, "p_etc": 0,
+          "a_trans": 90000, "a_lodg": 105000, "a_meal": 60000, "a_etc": 30000 }
+      ]
+    },
+    {
+      "group_id": "TB-0003",
+      "plan_type": "계획",
+      "status": "계획 등록",
+      "city": "구미",
+      "org": "SK실트론",
+      "purpose": "Wafer 표면 결함 정기 Audit",
+      "kind": "정기 Audit",
+      "dep_dt": "2026-08-25",
+      "ret_dt": "2026-08-26",
+      "car": "미사용",
+      "remark": "",
+      "travelers": [
+        { "name": "한지우", "emp_no": "20210302", "rank": "팀장", "ccg_nm": "Wafer 소재팀",
+          "p_trans": 120000, "p_lodg": 100000, "p_meal": 70000, "p_etc": 20000,
+          "a_trans": 0, "a_lodg": 0, "a_meal": 0, "a_etc": 0 },
+        { "name": "오세훈", "emp_no": "20160828", "rank": "팀장", "ccg_nm": "Target 소재팀",
+          "p_trans": 120000, "p_lodg": 100000, "p_meal": 70000, "p_etc": 20000,
+          "a_trans": 0, "a_lodg": 0, "a_meal": 0, "a_etc": 0 }
+      ]
+    }
+  ],
+  "audit_log": []
+}

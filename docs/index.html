@@ -1,6 +1,6 @@
 <!doctype html><html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>국내 출장비 관리</title>
+<title>소재 그룹 국내 출장비 관리</title>
 <style>
 :root{--bg:#F5F6F8;--white:#FFF;--ink:#111827;--ink2:#344054;--mut:#667085;--faint:#98A2B3;
 --line:#D9DEE7;--line2:#EDF0F4;--soft:#EEF1F5;--shade:#F0F2F5;
@@ -116,7 +116,7 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
 </style></head><body>
 <div class="app">
 <aside>
-  <div class="brand">국내 출장비 관리</div>
+  <div class="brand">소재 그룹 국내 출장비 관리</div>
   <div class="nav">
     <div class="nav-label">출장 업무</div>
     <a class="on" data-view="dash">대시보드</a>
@@ -269,7 +269,7 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
 
   // ── 대시보드 ──
   function dash(data, yq) {
-    var G = (data.groups || []).filter(function (g) { return (g.yq || '') === yq; }).map(normalizeGroup);
+    var G = (data.groups || []).map(normalizeGroup).filter(function (g) { return g.yq === yq; });
     var B = (data.budget || []).filter(function (b) { return b.yq === yq; });
     var alloc = B.reduce(function (s, b) { return s + num(b.amt); }, 0);
     var done = G.filter(function (g) { return g.status === ST_DONE; });
@@ -433,7 +433,7 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     return {
       schema_version: '2.0', updated_at: nowISO(),
       settings: {
-        system_name: '국내 출장비 관리', admin_id: '2071478', admin_pw: '2071478',
+        system_name: '소재 그룹 국내 출장비 관리', admin_id: '2071478', admin_pw: '2071478',
         mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong.kim@sk.com', 'geonyoung.kim@sk.com', 'jeewoung.chun@sk.com'],
         reference_url: 'material.skhynix.com/travelbudget'
       },
@@ -1187,7 +1187,7 @@ function askAdmin(then){
         <button class="btn" onclick="document.getElementById('adminModal').remove()">취소</button>
       </div></div></div>`;
   document.body.appendChild(m);
-  setTimeout(() => $('#admId').focus(), 50);
+  setTimeout(() => $('#admId')?.focus(), 50);   // 모달이 이미 닫혔으면 무시
   const go = async () => {
     const {ok} = await api('/admin/verify', {method: 'POST', body: JSON.stringify({pw: $('#admPw').value})});
     if (!ok) { $('#admErr').style.display = 'block'; return; }

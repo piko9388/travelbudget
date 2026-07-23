@@ -174,5 +174,19 @@ r = c.post('/travelbudget/api/groups', json=dict(base,
     travelers=[dict(name='엉뚱', emp_no='CG01', rank='TL', ccg_nm='없는팀', ccg='C9999', p_trans=1000)]))
 ok('잘못된 CCG 코드 차단', r.status_code==400, r.status_code)
 
+# 9-7. 가져온 데이터에 yq가 없어도 출발일 기준으로 대시보드 집계 (Qwen 임포트 견고성)
+from servera.travelbudget import core as _C
+imported = {
+    'settings': {'admin_pw': 'x'},
+    'budget': [dict(yq=yq, rev_type='최초배정', amt=1000000, rev_dt=f'{yy}-{mm}-01')],
+    'groups': [dict(group_id='IM-1', plan_type='계획', status='처리 완료', city='이천',
+        org='임포트BP', purpose='임포트 검증', kind='정기 Audit',
+        dep_dt=f'{yy}-{mm}-05', ret_dt=f'{yy}-{mm}-06', car='미사용',
+        travelers=[dict(name='임포트', emp_no='IMP1', rank='TL', ccg_nm='Gas 소재팀', a_trans=50000)])]}
+    # yq·ccg·days·plan_tot 등 파생필드 의도적 생략
+dd = _C.dash(imported, yq)
+ok('yq 없는 임포트 그룹도 집계', dd['done']==50000 and dd['nDone']==1, dd)
+ok('ccg_nm만으로 CCG 롤업', any(r['ccg']=='C1202' and r['done']==50000 for r in dd['byCcg']), dd['byCcg'])
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)
