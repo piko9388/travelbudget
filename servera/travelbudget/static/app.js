@@ -48,6 +48,16 @@ function badge(g){
 }
 function gname(g){ return [g.city, g.org].filter(Boolean).join(' '); }
 function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); }
+function procTag(g){   // 부분 처리(개인별 상태 분리) 표시
+  const p = g.proc;
+  if (!p || g.status === '계획 등록' || g.status === '취소' || p.done === p.total) return '';
+  const bits = [];
+  if (p.done) bits.push(`완료 ${p.done}`);
+  if (p.transfer) bits.push(`이관 ${p.transfer}`);
+  if (p.inform) bits.push(`인폼 ${p.inform}`);
+  if (p.hold) bits.push(`보류 ${p.hold}`);
+  return ` <span class="sub" style="color:${p.hold ? 'var(--red)' : 'var(--mut)'}">(${bits.join(' · ')})</span>`;
+}
 
 async function load(){
   const {data} = await api('/state' + (YQ ? '?yq=' + encodeURIComponent(YQ) : ''));
@@ -115,9 +125,10 @@ function rGuide(){
       '실제 사용액을 입력하면 <b>실비 이관 요청 인폼(메일)</b>이 그룹당 1통 자동으로 만들어집니다. 표 그대로 <b>복사</b>하거나 <b>Outlook으로 바로 열기</b> 할 수 있어요.',
       '계획 대비 차액이 자동 계산됩니다. (긴급 출장은 비고 필수)',
       `<button class="btn pri" onclick="nav('actual')">출장 실적 입력으로 가기 →</button>`) +
-    step(3, 'admin', '소재 이관', '총괄이 실비를 각 소재팀으로 이관 접수', '총괄·관리자', 'admin',
-      '소재전략(총괄)이 실비를 각 소재팀으로 이관합니다. 여기서부터는 총괄(관리자) 단계라 담당자가 따로 할 일은 없어요.',
-      '', `<button class="btn" onclick="nav('list')">내 출장 상태 확인 (출장 내역) →</button>`) +
+    step(3, 'admin', '소재 이관', '총괄이 실비를 각 소재팀으로 이관·처리', '총괄·관리자', 'admin',
+      '소재전략(총괄)이 실비를 각 소재팀으로 이관·처리합니다. <b>같은 출장이라도 사람마다 사정이 다르면</b>(예: 5명 중 1명만 예산 부족) 총괄이 <b>출장자별로 따로</b> 이관·완료·<b>보류</b>할 수 있어요.',
+      '보류(예산 부족 등)는 대시보드 ‘바로 할 일’에 알림으로 표시됩니다.',
+      `<button class="btn" onclick="nav('list')">내 출장 상태 확인 (출장 내역) →</button>`) +
     step(4, 'admin', '처리 완료', '소재팀 전표 처리까지 끝나면 완료', '총괄·관리자', 'admin',
       '소재팀에서 전표 처리가 끝나면 <b>‘처리 완료’</b>가 됩니다. 이 금액이 예산에서 <b>최종 차감</b>돼요.',
       '', '') +
@@ -143,6 +154,7 @@ function rGuide(){
     <div class="card"><h2>자주 묻는 것</h2>
       <div class="gwhat"><b>· 같이 출장 가면?</b> 대표 1명이 그룹으로 등록하고 <b>동행자 행을 추가</b>하세요. 비용은 개인별로 저장되고, 인폼은 <b>그룹당 1통</b>만 나갑니다.</div>
       <div class="gwhat"><b>· 인폼은 누구에게 가나요?</b> ${to || '설정된 수신자'} 로 발송용 초안이 만들어집니다.</div>
+      <div class="gwhat"><b>· 5명 중 일부만 처리됐다면?</b> 처리 관리에서 <b>출장자별로</b> 완료·보류를 따로 정할 수 있어요. 3명 완료·1명 보류 같은 상태가 예산·대시보드에 그대로 반영됩니다.</div>
       <div class="gwhat"><b>· 내 출장이 지금 어느 단계인지?</b> <a onclick="nav('list')" style="color:var(--blue);cursor:pointer;font-weight:700">‘출장 내역’</a>에서 상태 배지로 확인하세요.</div>
     </div>`;
   $('#v-guide').innerHTML = lead + steps + money + legend + faq;
@@ -173,12 +185,13 @@ function rDash(){
       <div class="kpi"><span>처리중 (인폼·이관)</span><b>${won(d.wip)}</b><small>${d.nWip}건 진행</small></div>
       <div class="kpi"><span>미실시 계획 <span class="au">참고</span></span><b>${won(d.planAmt)}</b><small>${d.nPlan}건 · 잔여 미차감</small></div>
     </div>`;
-  const aw = d.todo.actual_wait.length, pw = d.todo.process_wait.length;
-  const todo = (aw || pw) ? `
+  const aw = d.todo.actual_wait.length, pw = d.todo.process_wait.length, hd = (d.todo.hold || []).length;
+  const todo = (aw || pw || hd) ? `
     <div class="card"><h2>바로 할 일</h2><p class="cap">대시보드에서 바로 이동해 처리하세요.</p>
       <div class="btns" style="margin-top:0">
         ${aw ? `<button class="btn pri" onclick="nav('actual')">실적 입력 대기 ${aw}건 → 실적 입력</button>` : ''}
         ${pw ? `<button class="btn" onclick="goProcess()">이관·처리 대기 ${pw}건 → 처리 관리</button>` : ''}
+        ${hd ? `<button class="btn red" onclick="goProcess()">보류 ${d.nHold}명 (예산부족 등) → 처리 관리</button>` : ''}
       </div></div>` : '';
   const rows = d.byCcg.map(r => `<tr>
     <td><b>${esc(r.team)}</b> <span class="sub">${r.ccg}</span></td>
@@ -469,9 +482,9 @@ function showMail(mail){
 function rList(){
   const G = ST.groups.filter(g => g.yq === YQ);
   const row = g => `<tr>
-    <td>${badge(g)}</td>
+    <td><span class="status ${stClass(g.roll)}">${esc(g.roll)}</span>${g.plan_type === '긴급' ? ' <span class="status urgent">긴급</span>' : ''}</td>
     <td><b>${esc(gname(g))}</b><div class="sub">${esc(g.purpose)}</div></td>
-    <td>${names(g)} <span class="sub">${g.travelers.length}명</span></td>
+    <td>${names(g)} <span class="sub">${g.travelers.length}명</span>${procTag(g)}</td>
     <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
     <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
     <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td></tr>`;
@@ -493,45 +506,64 @@ function filterList(){
   $$('#listBody tr').forEach(tr => tr.hidden = q && !tr.textContent.includes(q));
 }
 
-/* ═══ 이관·처리 관리 (관리자) ═══ */
+/* ═══ 이관·처리 관리 (관리자) — 출장자 개인별 처리 ═══ */
+function pStClass(s){ return s === '처리 완료' ? 'done' : s === '보류' ? 'hold'
+  : (s === '소재 이관' || s === '실적 입력·인폼') ? 'wip' : ''; }
+function pBtn(gid, emp, status, label, cls){
+  return `<button class="btn sm ${cls || ''}" onclick="setPersonStatus('${gid}','${esc(emp)}','${status}')">${label}</button>`;
+}
 function rProcess(){
   const G = ST.groups.filter(g => g.yq === YQ && g.status !== '취소');
-  const WIP = ['실적 입력·인폼', '소재 이관'];
-  const waitDays = g => {
-    if (!WIP.includes(g.status)) return null;
+  const block = g => {
+    const past = g.status !== '계획 등록';            // 실적 입력 후 = 개인별 처리 가능
+    const pc = g.proc || {done:0, transfer:0, inform:0, hold:0, total:g.travelers.length};
     const src = g.inform_at || g.updated_at || g.created_at;
-    return src ? Math.floor((Date.now() - new Date(src)) / 864e5) : null;
-  };
-  const row = g => {
-    const acts = [];
-    if (g.status === '실적 입력·인폼')
-      acts.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','소재 이관')">소재 이관</button>`);
-    if (g.status === '소재 이관') {
-      acts.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','처리 완료')">처리 완료</button>`);
-      acts.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','실적 입력·인폼')">이관 해제</button>`);
-    }
-    if (g.status === '처리 완료')
-      acts.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','소재 이관')">완료 해제</button>`);
-    if (['계획 등록', '실적 입력·인폼'].includes(g.status))
-      acts.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
-    const w = waitDays(g);
-    const wcell = w === null ? '–'
-      : `<b style="color:${w >= 7 ? 'var(--red)' : w >= 3 ? '#8A5A10' : 'var(--faint)'}">D+${w}</b>`;
-    return `<tr>
-      <td>${badge(g)}</td>
-      <td><b>${esc(gname(g))}</b><div class="sub">${names(g)} · ${g.travelers.length}명</div></td>
-      <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
-      <td class="num">${wcell}</td>
-      <td class="num">${g.act_tot ? won(g.act_tot) : '–'}</td>
-      <td>${acts.join(' ') || '–'}</td></tr>`;
+    const w = past && g.roll !== '처리 완료' && src ? Math.floor((Date.now() - new Date(src)) / 864e5) : null;
+    const wtag = w === null ? '' : ` · <b style="color:${w >= 7 ? 'var(--red)' : w >= 3 ? '#8A5A10' : 'var(--faint)'}">대기 D+${w}</b>`;
+    const summary = !past ? '실적 미입력 (먼저 실적을 입력하세요)'
+      : `완료 ${pc.done} · 이관 ${pc.transfer} · 인폼 ${pc.inform}${pc.hold ? ` · <b>보류 ${pc.hold}</b>` : ''} / ${pc.total}명${wtag}`;
+    // 그룹 전체 버튼 (공통 케이스)
+    const gb = [];
+    if (past && g.travelers.length > 1 && g.roll !== '처리 완료')
+      gb.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','처리 완료')">전체 처리 완료</button>`);
+    if (past && g.travelers.length > 1 && pc.transfer + pc.done < pc.total)
+      gb.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','소재 이관')">전체 소재 이관</button>`);
+    if (['계획 등록', '실적 입력·인폼'].includes(g.roll))
+      gb.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">출장 취소</button>`);
+    // 개인별 행
+    const prows = !past ? '' : g.travelers.map(p => {
+      const eff = p.status || g.status;
+      const a = KEYS.reduce((s, k) => s + (p['a_' + k] || 0), 0);
+      const b = [];
+      if (['실적 입력·인폼', '보류'].includes(eff)) b.push(pBtn(g.group_id, p.emp_no, '소재 이관', '소재 이관', 'pri'));
+      if (['실적 입력·인폼', '소재 이관', '보류'].includes(eff)) b.push(pBtn(g.group_id, p.emp_no, '처리 완료', '처리 완료', 'pri'));
+      if (!['보류', '처리 완료'].includes(eff)) b.push(pBtn(g.group_id, p.emp_no, '보류', '보류', 'red'));
+      if (['소재 이관', '처리 완료', '보류'].includes(eff)) b.push(pBtn(g.group_id, p.emp_no, '실적 입력·인폼', '되돌리기'));
+      return `<tr>
+        <td><span class="status ${pStClass(eff)}">${esc(eff)}</span></td>
+        <td><b>${esc(p.name)}</b> <span class="sub">${esc(p.ccg_nm)}</span></td>
+        <td class="num">${a ? won(a) : '–'}</td>
+        <td>${b.join(' ')}</td></tr>`;
+    }).join('');
+    return `<div class="pgroup">
+      <div class="pg-head">
+        <span class="status ${stClass(g.roll)}">${esc(g.roll)}</span>
+        <span class="nm">${esc(gname(g))}</span>
+        <span class="sub">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${g.travelers.length}명 · 실적 ${g.act_tot ? won(g.act_tot) : '–'}</span>
+        <span class="gb">${gb.join(' ')}</span>
+      </div>
+      <div style="padding:5px 13px 3px"><span class="pg-sum">${summary}</span></div>
+      ${past ? `<div class="scroll" style="border:0"><table>
+        <thead><tr><th style="width:120px">개인 상태</th><th>출장자</th><th class="num">실적</th><th>처리 (인당)</th></tr></thead>
+        <tbody>${prows}</tbody></table></div>` : ''}
+    </div>`;
   };
   $('#v-process').innerHTML = `
-    <div class="note">실적 입력·인폼 → <b>소재 이관</b>(실비 이관 접수) → <b>처리 완료</b>(전표 처리 종료). 처리 완료·처리중 금액만 잔여 예산에서 차감됩니다. <b>대기</b>는 인폼·이관 상태로 머문 일수 (D+7↑ 빨강).</div>
-    <div class="card"><h2>${YQ} 이관·처리 관리</h2>
-      <div class="scroll" style="margin-top:10px"><table>
-        <thead><tr><th>상태</th><th>출장</th><th class="num">기간</th><th class="num">대기</th><th class="num">실적</th><th>처리</th></tr></thead>
-        <tbody>${G.map(row).join('') || '<tr><td colspan="6" style="color:var(--faint);text-align:center;padding:18px">대상이 없습니다.</td></tr>'}</tbody>
-      </table></div></div>`;
+    <div class="note">실적 입력·인폼 → <b>소재 이관</b>(실비 이관 접수) → <b>처리 완료</b>(전표 처리 종료). 처리 완료·처리중(인폼·이관·<b>보류</b>) 금액만 잔여에서 차감됩니다.
+      <br>같은 출장이라도 <b>출장자별로 따로</b> 처리·보류할 수 있어요 — 아래 ‘처리(인당)’ 버튼. 다 같이 처리할 땐 상단 ‘전체’ 버튼을 쓰세요.</div>
+    <div class="card"><h2>${YQ} 이관·처리 관리 (출장자 개인별)</h2>
+      ${G.map(block).join('') || '<div style="color:var(--faint);text-align:center;padding:22px">대상이 없습니다.</div>'}
+    </div>`;
 }
 async function setStatus(gid, status){
   const {ok, data} = await api(`/groups/${gid}/status`, {method: 'POST', body: JSON.stringify({status})});
@@ -540,6 +572,15 @@ async function setStatus(gid, status){
     toast((data.errors || ['실패'])[0]); return;
   }
   toast(`상태 변경 — ${status}`);
+  await load(); nav('process');
+}
+async function setPersonStatus(gid, emp, status){
+  const {ok, data} = await api(`/groups/${gid}/status`, {method: 'POST', body: JSON.stringify({status, emp_no: emp})});
+  if (!ok) {
+    if (data.errors?.[0]?.includes('인증')) { askAdmin(() => setPersonStatus(gid, emp, status)); return; }
+    toast((data.errors || ['실패'])[0]); return;
+  }
+  toast(`개인 처리 — ${status}`);
   await load(); nav('process');
 }
 

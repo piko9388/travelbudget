@@ -156,11 +156,43 @@ def change_status(gid):
         cur = _find(data, gid)
         if cur is None:
             return _err("출장건을 찾을 수 없습니다.", 404)
-        want = (request.get_json(silent=True) or {}).get("status", "")
-        # /status 로 몰 수 있는 전환만 허용 — 계획→인폼(최초 실적)은 오직 /actual 로.
+        body = request.get_json(silent=True) or {}
+        want = body.get("status", "")
+        emp = body.get("emp_no")
+        admin = _is_admin(data)
+        now = datetime.now().isoformat(timespec="seconds")
+
+        # ── 개인별 처리 (5명 중 일부만 이관/완료/보류) ──
+        if emp not in (None, ""):
+            if want not in C.PSTATES:
+                return _err("개인 처리 상태 값이 올바르지 않습니다.")
+            if cur.get("status") in (C.ST_PLAN, C.ST_CANCEL):
+                return _err("실적 입력 후 개인별 처리가 가능합니다.")
+            if not admin:                # 이관·완료·보류·되돌림 모두 관리자
+                return _err("관리자 인증이 필요합니다.", 401)
+            g = C.normalize_group(cur)
+            tgt = next((p for p in g["travelers"] if str(p.get("emp_no")) == str(emp)), None)
+            if tgt is None:
+                return _err("출장자를 찾을 수 없습니다.", 404)
+            if want in (C.ST_TRANSFER, C.ST_DONE) and C.p_sum(tgt, "a") <= 0:
+                return _err("실적이 입력된 출장자만 이관·처리할 수 있습니다.")
+            # 개인 상태를 명시화(상속 해제) 후 대상만 변경 → 그룹 상태는 롤업
+            for p in g["travelers"]:
+                if not p.get("status"):
+                    p["status"] = C.eff_status(p, cur)
+            tgt["status"] = want
+            g["status"] = C.group_roll(g)
+            g["updated_at"] = now
+            data["groups"][data["groups"].index(cur)] = g
+            append_audit(data, "개인 처리 변경", f"{gid} {emp} → {want}", actor="admin")
+            save_data(data)
+            g = C.normalize_group(g)
+            dash = C.dash(data, g["yq"])
+            return jsonify({"ok": True, "group": g, "dash": dash})
+
+        # ── 그룹 전체 전환 (기존) ──
         if want not in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE, C.ST_CANCEL):
             return _err("상태 값이 올바르지 않습니다.")
-        admin = _is_admin(data)
         # 관리자 통제 상태(이관·완료)로 들어가거나 거기서 되돌리는 전환은 모두 관리자 인증 필요.
         if (want in (C.ST_TRANSFER, C.ST_DONE)
                 or cur.get("status") in (C.ST_TRANSFER, C.ST_DONE)) and not admin:
@@ -169,7 +201,11 @@ def change_status(gid):
         if want in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE) and C.g_sum(C.normalize_group(cur), "a") <= 0:
             return _err("실적이 입력된 건만 이관·처리할 수 있습니다.")
         cur["status"] = want
-        cur["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        # 전체 전환은 모든 출장자 개인 상태도 함께 맞춤 (개인/그룹 일관성)
+        if want in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE):
+            for p in cur.get("travelers", []):
+                p["status"] = want
+        cur["updated_at"] = now
         if want == C.ST_DONE:
             cur["settle_at"] = cur["updated_at"]
         append_audit(data, "상태 변경", f"{gid} → {want}", actor="admin" if admin else "user")

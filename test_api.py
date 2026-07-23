@@ -103,7 +103,8 @@ ok('관리자 삭제', r.status_code==200)
 print('\n=== 7. CSV / 백업 ===')
 r = c.get('/travelbudget/api/export.csv')
 head = r.get_data(as_text=True).split('\r\n')[0]
-ok('CSV 29필드(상태 포함)', head.count(',')==28, head.count(',')+1)
+ok('CSV 30필드(개인처리상태 포함)', head.count(',')==29, head.count(',')+1)
+ok('CSV 개인처리상태 헤더', '개인처리상태' in head, head)
 ok('개인별 행 flatten', len(r.get_data(as_text=True).strip().split('\r\n')) > 8)
 bks = c.get('/travelbudget/api/backups').get_json()['backups']
 ok('자동 백업 누적', len(bks) >= 3, len(bks))
@@ -187,6 +188,41 @@ imported = {
 dd = _C.dash(imported, yq)
 ok('yq 없는 임포트 그룹도 집계', dd['done']==50000 and dd['nDone']==1, dd)
 ok('ccg_nm만으로 CCG 롤업', any(r['ccg']=='C1202' and r['done']==50000 for r in dd['byCcg']), dd['byCcg'])
+
+print('\n=== 10. 개인별 처리 (5명 중 일부만 완료/보류) ===')
+# 5인 그룹 생성 → 실적 입력 → 3명 완료, 1명 보류, 1명 이관
+five = dict(base, city='대전', org='5인BP', purpose='5인 동행 실사', dep_dt=f'{yy}-{mm}-14', ret_dt=f'{yy}-{mm}-15',
+    travelers=[dict(name=f'출장자{i}', emp_no=f'F{i}', rank='TL', ccg_nm='Gas 소재팀', p_trans=50000) for i in range(1,6)])
+fg = c.post('/travelbudget/api/groups', json=five).get_json()['group']['group_id']
+c.post(f'/travelbudget/api/groups/{fg}/actual',
+    json=dict(travelers=[dict(emp_no=f'F{i}', a_trans=100000) for i in range(1,6)]))
+# 개인 이관/완료는 관리자
+r = c.post(f'/travelbudget/api/groups/{fg}/status', json={'status':'처리 완료','emp_no':'F1'})
+ok('무인증 개인 완료 401', r.status_code==401, r.status_code)
+for i in (1,2,3):
+    r = c.post(f'/travelbudget/api/groups/{fg}/status', json={'status':'처리 완료','emp_no':f'F{i}'}, headers=ADM)
+ok('개인 3명 완료 200', r.status_code==200)
+c.post(f'/travelbudget/api/groups/{fg}/status', json={'status':'소재 이관','emp_no':'F4'}, headers=ADM)
+c.post(f'/travelbudget/api/groups/{fg}/status', json={'status':'보류','emp_no':'F5'}, headers=ADM)
+stt = c.get('/travelbudget/api/state').get_json()
+fgn = next(g for g in stt['groups'] if g['group_id']==fg)
+effs = {p['emp_no']: (p.get('status') or fgn['status']) for p in fgn['travelers']}
+ok('개인 상태 분리 저장', effs['F1']=='처리 완료' and effs['F4']=='소재 이관' and effs['F5']=='보류', effs)
+ok('그룹 롤업 = 처리중(전부완료 아님)', fgn['roll']=='실적 입력·인폼', fgn['roll'])
+ok('proc 집계 완료3·이관1·보류1', fgn['proc']['done']==3 and fgn['proc']['transfer']==1 and fgn['proc']['hold']==1, fgn['proc'])
+# 예산 반영: 완료 3명(30만)=done, 이관·보류 2명(20만)=wip
+gc = _C.dash(J.load(open('servera/travelbudget/data_json/data.json')), yq) if False else None
+# state의 dash로 확인
+dsh = stt['dash']
+# 이 그룹 기여분만 별도 계산: 완료 300000, 처리중 200000 은 전체 done/wip에 포함
+sub = _C.dash({'settings':{'admin_pw':'x'},'budget':[dict(yq=yq,rev_type='최초배정',amt=1,rev_dt=f'{yy}-{mm}-01')],
+    'groups':[fgn]}, yq)
+ok('개인 기준 예산 집계(완료 30만/처리중 20만)', sub['done']==300000 and sub['wip']==200000, (sub['done'],sub['wip']))
+ok('보류 알림(todo.hold)', fg in dsh['todo']['hold'], dsh['todo']['hold'])
+# CSV에 개인처리상태 반영
+csvp = c.get(f'/travelbudget/api/export.csv?yq={yq}').get_data(as_text=True)
+frow = [l for l in csvp.split('\r\n') if 'F5' in l]
+ok('CSV 개인 보류 반영', frow and '보류' in frow[0], frow[:1])
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)
