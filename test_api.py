@@ -239,5 +239,28 @@ ok('이관 인폼 다시 보기 200', rg.status_code==200 and rg.get_json()['mai
 r5 = c.post(f'/travelbudget/api/groups/{fg}/status', json={'status':'소재 이관'}, headers=ADM)
 ok('전체 이관 시 인폼 반환', bool(r5.get_json().get('mail')), r5.status_code)
 
+print('\n=== 12. 잠정/확정 구분 + 예산 선확보 + 삭제 ===')
+d0 = c.get('/travelbudget/api/state').get_json()['dash']
+ok('시드 확정 예정 → committed 반영', d0['commit']>0 and d0['nConfirm']>=1, (d0['commit'], d0['nConfirm']))
+ok('가용 = 실집행잔여 − 확정예정', d0['avail']==d0['remain']-d0['commit'], (d0['avail'], d0['remain'], d0['commit']))
+rc = c.post('/travelbudget/api/groups', json=dict(base, org='확정BP', confirmed=True))
+ok('확정으로 바로 생성', rc.get_json()['group']['status']=='확정 예정', rc.get_json()['group']['status'])
+cgid = rc.get_json()['group']['group_id']
+rp = c.post('/travelbudget/api/groups', json=dict(base, org='잠정BP'))
+pgid = rp.get_json()['group']['group_id']
+ok('기본은 잠정(계획 등록)', rp.get_json()['group']['status']=='계획 등록')
+before = c.get('/travelbudget/api/state').get_json()['dash']['commit']
+r = c.post(f'/travelbudget/api/groups/{pgid}/status', json={'status':'확정 예정'})
+ok('출장 확정(공개)', r.status_code==200 and r.get_json()['group']['status']=='확정 예정', r.status_code)
+after = c.get('/travelbudget/api/state').get_json()['dash']
+ok('확정 시 예산 선확보 증가', after['commit']>before and after['avail']==after['remain']-after['commit'], (before, after['commit']))
+r = c.post(f'/travelbudget/api/groups/{pgid}/status', json={'status':'계획 등록'})
+ok('확정 해제 → 잠정', r.get_json()['group']['status']=='계획 등록')
+r = c.delete(f'/travelbudget/api/groups/{pgid}')
+ok('잠정 계획 삭제 200', r.status_code==200, r.status_code)
+ok('삭제 후 흔적 없이 사라짐', not any(g['group_id']==pgid for g in c.get('/travelbudget/api/state').get_json()['groups']))
+r = c.delete(f'/travelbudget/api/groups/{cgid}')
+ok('확정 건은 삭제 차단(취소로)', r.status_code==400, r.status_code)
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

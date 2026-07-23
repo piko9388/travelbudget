@@ -19,10 +19,12 @@ KINDS = ("기술교류(Live Demo, Data 분석)", "실사&사양 개선,협의", 
 CARS = ("미사용", "자차사용")
 REV_TYPES = ("최초배정", "추가증액", "감액", "이월")
 
-# 상태: 계획 등록 → 실적 입력·인폼 → 소재 이관 → 처리 완료 / 취소
+# 상태: 계획 등록(잠정) → 확정 예정(예산 확보) → 실적 입력·인폼 → 소재 이관 → 처리 완료 / 취소
 ST_PLAN, ST_INFORM, ST_TRANSFER, ST_DONE, ST_CANCEL = \
     "계획 등록", "실적 입력·인폼", "소재 이관", "처리 완료", "취소"
-STATUSES = (ST_PLAN, ST_INFORM, ST_TRANSFER, ST_DONE, ST_CANCEL)
+ST_CONFIRM = "확정 예정"                  # 실제로 감 → 계획 금액만큼 예산 선확보
+STATUSES = (ST_PLAN, ST_CONFIRM, ST_INFORM, ST_TRANSFER, ST_DONE, ST_CANCEL)
+PRE = (ST_PLAN, ST_CONFIRM)             # 실적 전(계획 단계) — 개인 처리 상태 없음
 WIP = (ST_INFORM, ST_TRANSFER)          # 처리중 = 실적 있고 이관·처리 진행
 ST_HOLD = "보류"                         # 개인별 처리 보류 (예: 예산 부족)
 PSTATES = (ST_INFORM, ST_TRANSFER, ST_HOLD, ST_DONE)   # 출장자 개인 처리 상태
@@ -110,15 +112,15 @@ def g_sum(g, x):
 def eff_status(p, g):
     """출장자 실효 처리 상태 — 개인 상태가 있으면 개인, 없으면 그룹 상태 상속(구 데이터 호환)."""
     gs = g.get("status")
-    if gs in (ST_PLAN, ST_CANCEL):
+    if gs in PRE or gs == ST_CANCEL:
         return gs
     return p.get("status") or gs
 
 
 def group_roll(g):
-    """출장자 개인 상태 롤업 → 그룹 표시용 상태 (계획/취소는 그대로)."""
+    """출장자 개인 상태 롤업 → 그룹 표시용 상태 (계획/확정/취소는 그대로)."""
     gs = g.get("status")
-    if gs in (ST_PLAN, ST_CANCEL):
+    if gs in PRE or gs == ST_CANCEL:
         return gs
     effs = [eff_status(p, g) for p in g.get("travelers", [])]
     if not effs:
@@ -134,7 +136,7 @@ def proc_counts(g):
     """그룹 내 개인 상태 집계 (UI 표시용)."""
     c = {"total": len(g.get("travelers", [])), "inform": 0,
          "transfer": 0, "done": 0, "hold": 0}
-    if g.get("status") in (ST_PLAN, ST_CANCEL):
+    if g.get("status") in PRE or g.get("status") == ST_CANCEL:
         return c
     for p in g.get("travelers", []):
         e = eff_status(p, g)
@@ -214,8 +216,8 @@ def validate_group(g, require_actual=False):
             e.append(f"{i}번 출장자 CCG팀이 올바르지 않습니다.")
         if require_actual and p_sum(p, "a") <= 0:
             e.append(f"{i}번 출장자 실적 비용을 입력하세요.")
-    # 긴급은 계획비 0 허용, 그 외 계획 필수
-    if g.get("plan_type") != "긴급" and g.get("status") == ST_PLAN and g_sum(g, "p") <= 0:
+    # 긴급은 계획비 0 허용, 그 외 계획 단계(잠정·확정)는 계획 필수
+    if g.get("plan_type") != "긴급" and g.get("status") in PRE and g_sum(g, "p") <= 0:
         e.append("계획 비용을 1개 이상 입력하세요.")
     if g.get("plan_type") == "긴급" and require_actual and not str(g.get("remark", "")).strip():
         e.append("긴급 출장은 비고(사유)가 필수입니다.")
@@ -248,13 +250,14 @@ def dash(data, yq):
     B = [b for b in data.get("budget", []) if b.get("yq") == yq]
     alloc = sum(num(b.get("amt")) for b in B)
 
-    done_amt = wip_amt = plan_amt = 0
-    nDone = nWip = nPlan = nCancel = nPeople = 0
+    done_amt = wip_amt = plan_amt = commit_amt = 0
+    nDone = nWip = nPlan = nConfirm = nCancel = nPeople = 0
     ccg_map = {}
     for t in CCG_TEAMS:
         ccg_map[t["ccg"]] = dict(team=t["team"], ccg=t["ccg"], done=0, wip=0,
-                                 plan=0, groups=set(), people=0)
-    # 금액은 '출장자 개인 실효 상태' 기준으로 집계 — 5명 중 3명 완료·1명 보류가 그대로 반영됨.
+                                 commit=0, plan=0, groups=set(), people=0)
+    # 확정 예정 = 계획 금액 선확보(가용에서 차감), 잠정 계획 = 참고만.
+    # 실적 이후 금액은 출장자 개인 실효 상태 기준(5명 중 3완료·1보류 그대로).
     for g in G:
         gs = g["status"]
         if gs == ST_CANCEL:
@@ -262,6 +265,8 @@ def dash(data, yq):
             continue
         if gs == ST_PLAN:
             nPlan += 1
+        elif gs == ST_CONFIRM:
+            nConfirm += 1
         elif g["roll"] == ST_DONE:
             nDone += 1
         else:
@@ -274,6 +279,11 @@ def dash(data, yq):
                 plan_amt += pl
                 if row:
                     row["plan"] += pl
+            elif gs == ST_CONFIRM:
+                pl = p_sum(p, "p")
+                commit_amt += pl
+                if row:
+                    row["commit"] += pl
             else:
                 eff = eff_status(p, g)
                 a = p_sum(p, "a")
@@ -288,7 +298,8 @@ def dash(data, yq):
             if row:
                 row["groups"].add(g["group_id"])
                 row["people"] += 1
-    remain = alloc - done_amt - wip_amt          # 요청 공식
+    remain = alloc - done_amt - wip_amt              # 실집행 잔여
+    avail = remain - commit_amt                      # 가용 잔여 (확정 예산 확보 반영)
 
     used_total = done_amt + wip_amt
     by_ccg = []
@@ -297,23 +308,24 @@ def dash(data, yq):
         if row["people"] == 0:
             continue
         by_ccg.append(dict(team=row["team"], ccg=row["ccg"], done=row["done"],
-                           wip=row["wip"], total=tot, plan=row["plan"],
+                           wip=row["wip"], commit=row["commit"], total=tot, plan=row["plan"],
                            share=(tot / used_total) if used_total else 0,
                            groups=len(row["groups"]), people=row["people"]))
-    by_ccg.sort(key=lambda r: -r["total"])
+    by_ccg.sort(key=lambda r: -(r["total"] + r["commit"]))
 
     todo = {
-        "actual_wait": [g["group_id"] for g in G if g["status"] == ST_PLAN
+        "actual_wait": [g["group_id"] for g in G if g["status"] in PRE
                         and (_d(g.get("ret_dt")) or date.max) < date.today()],
         "process_wait": [g["group_id"] for g in G
-                         if g["status"] not in (ST_PLAN, ST_CANCEL) and g["roll"] != ST_DONE],
+                         if g["status"] not in PRE and g["status"] != ST_CANCEL and g["roll"] != ST_DONE],
         # 보류 출장자가 있는 그룹 (예산 부족 등으로 처리 막힌 건)
         "hold": [g["group_id"] for g in G if g["proc"]["hold"] > 0],
     }
     return {
         "yq": yq, "alloc": alloc, "done": done_amt, "wip": wip_amt,
-        "remain": remain, "planAmt": plan_amt, "short": remain < 0,
-        "nDone": nDone, "nWip": nWip, "nPlan": nPlan,
+        "commit": commit_amt, "remain": remain, "avail": avail, "planAmt": plan_amt,
+        "short": avail < 0,
+        "nDone": nDone, "nWip": nWip, "nPlan": nPlan, "nConfirm": nConfirm,
         "nCancel": nCancel, "nPeople": nPeople,
         "nHold": sum(g["proc"]["hold"] for g in G),
         "byCcg": by_ccg, "todo": todo,

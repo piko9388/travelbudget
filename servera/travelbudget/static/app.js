@@ -16,7 +16,7 @@ const SUBS = {guide:'계획 작성부터 처리 완료까지 — 한눈에 보�
   process:'실적 입력·인폼 → 소재 이관 → 처리 완료', budget:'예산 리비전 등록·이력 (감액은 자동 음수 처리)',
   data:'CSV 내보내기 · 자동 백업(30개) · 복원'};
 
-let ST = null, YQ = null;
+let ST = null, YQ = null, VIEW = 'dash';
 
 function adminPw(){ return sessionStorage.getItem('tb_pw') || ''; }
 async function api(path, opt = {}){
@@ -41,10 +41,12 @@ async function copyText(text, msg = '본문을 복사했습니다'){
 function showErr(sel, errs){ $(sel).innerHTML =
   `<div class="err">${(errs || ['요청 실패']).map(esc).join('\n')}</div>`; }
 function stClass(s){ return s === '처리 완료' ? 'done' : s === '취소' ? 'cancel'
+  : s === '확정 예정' ? 'confirm'
   : (s === '실적 입력·인폼' || s === '소재 이관') ? 'wip' : ''; }
+function dispSt(s){ return s === '계획 등록' ? '계획(잠정)' : s; }   // 잠정/확정 구분 명확히
 function badge(g){
   const urgent = g.plan_type === '긴급' ? ' <span class="status urgent">긴급</span>' : '';
-  return `<span class="status ${stClass(g.status)}">${esc(g.status)}</span>${urgent}`;
+  return `<span class="status ${stClass(g.status)}">${esc(dispSt(g.status))}</span>${urgent}`;
 }
 function gname(g){ return [g.city, g.org].filter(Boolean).join(' '); }
 function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); }
@@ -75,6 +77,7 @@ async function load(){
   renderAll();
 }
 function nav(v){
+  VIEW = v;
   $$('.nav a').forEach(a => a.classList.toggle('on', a.dataset.view === v));
   $$('.view').forEach(x => x.classList.remove('on'));
   $('#v-' + v).classList.add('on');
@@ -107,19 +110,20 @@ function rGuide(){
       <h2>출장비, 이렇게 흘러갑니다</h2>
       <p>출장자는 <b>계획</b>과 <b>실적</b>만 입력하면 됩니다. 인폼(메일)·이관·정산·이력은 시스템과 <b>소재 출장 예산 담당자</b>가 이어받습니다.
       입력은 한 번, 실비 이관 인폼은 <b>그룹당 한 통</b>이에요.</p>
-      <div class="g-formula">잔여 예산 = 총예산 − 처리완료 − 처리중</div>
+      <div class="g-formula">가용 잔여 = 총예산 − 처리완료 − 처리중 − 확정예정(확보)</div>
     </div>
     <div class="card">
       <div class="flowbar">
-        <span class="pill">① 계획 등록</span><span class="arrow">→</span>
-        <span class="pill wip">② 실적 입력·인폼</span><span class="arrow">→</span>
-        <span class="pill wip">③ 소재 이관</span><span class="arrow">→</span>
-        <span class="pill done">④ 처리 완료</span>
+        <span class="pill">① 계획(잠정)</span><span class="arrow">→</span>
+        <span class="pill confirm">② 확정(예산 확보)</span><span class="arrow">→</span>
+        <span class="pill wip">③ 실적·인폼</span><span class="arrow">→</span>
+        <span class="pill wip">④ 소재 이관</span><span class="arrow">→</span>
+        <span class="pill done">⑤ 처리 완료</span>
       </div>`;
   const steps =
-    step(1, '', '계획 등록', '출장을 가기 전, 계획을 올립니다', '담당자', 'owner',
-      '출장 도시·업체·목적·일자와 <b>출장자별 예상 비용</b>을 입력합니다. 같이 가는 사람은 <b>‘동행자 추가’</b>로 한 그룹에 함께 넣으면 됩니다.',
-      '긴급 출장은 계획비 없이도 등록할 수 있어요.',
+    step(1, '', '계획 등록', '계획을 올리고, 실제로 갈 건 ‘확정’', '담당자', 'owner',
+      '도시·업체·목적·일자와 <b>출장자별 예상 비용</b>을 입력합니다(동행자는 행 추가). 처음엔 <b>잠정 계획</b>이고, 실제로 갈 건 <b>‘출장 확정’</b> 하면 계획 금액만큼 <b>예산이 미리 확보</b>돼요. 안 가게 된 잠정 계획은 ‘출장 내역’에서 <b>삭제</b>(흔적 없이 사라짐).',
+      '잠정 계획은 예산 미반영(참고), 확정하면 가용 잔여에서 차감됩니다.',
       `<button class="btn pri" onclick="nav('plan')">출장 계획 등록으로 가기 →</button>`) +
     step(2, '', '실적 입력·인폼', '출장을 다녀온 뒤, 실제 쓴 금액을 넣습니다', '담당자', 'owner',
       '실제 사용액을 입력하면 <b>실비 이관 요청 인폼(메일)</b>이 그룹당 1통 자동으로 만들어집니다. 표 그대로 <b>복사</b>하거나 <b>Outlook으로 바로 열기</b> 할 수 있어요.',
@@ -137,8 +141,8 @@ function rGuide(){
       '', '');
   const money = `
       <div class="note" style="margin:14px 0 0">
-        💡 <b>‘계획 등록’만 된 건</b>(아직 안 다녀온 출장)은 참고로만 보이고 <b>잔여에서 빼지 않습니다</b>.
-        실제로 예산이 줄어드는 건 <b>처리중</b>(실적·인폼 / 소재 이관)과 <b>처리 완료</b>예요.
+        💡 예산 계산: <b>가용 잔여 = 총예산 − 처리완료 − 처리중 − 확정예정(확보)</b>.
+        <b>잠정 계획</b>은 참고만(미반영), <b>확정 예정</b>은 미리 확보(가용 차감), 실제 집행은 처리중·처리완료로 반영됩니다.
       </div></div>`;
   const legend = `
     <div class="card"><h2>상태 색상 보는 법</h2>
@@ -163,27 +167,29 @@ function rGuide(){
 /* ═══ 대시보드 ═══ */
 function rDash(){
   const d = ST.dash;
-  const burn = d.alloc ? Math.round((d.done + d.wip) / d.alloc * 100) : 0;
+  const av = d.avail !== undefined ? d.avail : d.remain;
+  const burn = d.alloc ? Math.round((d.done + d.wip + (d.commit || 0)) / d.alloc * 100) : 0;
   const hero = `
     <div class="hero ${d.short ? 'alert' : ''}">
       <span class="lamp"></span>
       <div style="flex:1">
         <div class="msg">${d.short
-          ? '소재 그룹 국내 출장비 예산이 부족합니다 — 센터 검토 및 추가 지원 필요'
+          ? '확정·집행이 예산을 초과했습니다 — 센터 검토 및 추가 확보 필요'
           : '소재 그룹 국내 출장비 잔액이 있어 정상 운영 중입니다'}</div>
-        <div class="fig">총예산 <b>${won(d.alloc)}원</b> − 처리완료 <b>${won(d.done)}원</b> − 처리중 <b>${won(d.wip)}원</b> = 잔여 <b style="color:${d.remain < 0 ? 'var(--red)' : 'var(--navy)'}">${d.remain < 0 ? '−' : ''}${won(Math.abs(d.remain))}원</b></div>
+        <div class="fig">총예산 <b>${won(d.alloc)}원</b> − 처리완료 <b>${won(d.done)}원</b> − 처리중 <b>${won(d.wip)}원</b> − 확정예정 <b>${won(d.commit || 0)}원</b> = 가용 <b style="color:${av < 0 ? 'var(--red)' : 'var(--navy)'}">${av < 0 ? '−' : ''}${won(Math.abs(av))}원</b></div>
+        <div class="fig" style="color:var(--faint)">잠정 계획 ${won(d.planAmt)}원은 참고(예산 미반영) · 확정 시 위 ‘확정예정’으로 선확보됩니다</div>
       </div>
       <div style="text-align:right">
-        <div class="label">현재 잔여 출장비 · 소진율 ${burn}%</div>
-        <div class="amount">${d.remain < 0 ? '−' : ''}${won(Math.abs(d.remain))}원</div>
+        <div class="label">가용 잔여 (확정 확보 반영) · 소진율 ${burn}%</div>
+        <div class="amount">${av < 0 ? '−' : ''}${won(Math.abs(av))}원</div>
       </div>
     </div>`;
   const kpi = `
     <div class="kpis">
       <div class="kpi"><span>총 예산</span><b>${won(d.alloc)}</b><small>리비전 ${ST.budget.length}회</small></div>
-      <div class="kpi"><span>처리 완료</span><b>${won(d.done)}</b><small>${d.nDone}건 · 이관 완료</small></div>
+      <div class="kpi"><span>확정 예정 <span class="au">예산 확보</span></span><b>${won(d.commit || 0)}</b><small>${d.nConfirm || 0}건 · 가용서 차감</small></div>
       <div class="kpi"><span>처리중 (인폼·이관)</span><b>${won(d.wip)}</b><small>${d.nWip}건 진행</small></div>
-      <div class="kpi"><span>미실시 계획 <span class="au">참고</span></span><b>${won(d.planAmt)}</b><small>${d.nPlan}건 · 잔여 미차감</small></div>
+      <div class="kpi"><span>처리 완료</span><b>${won(d.done)}</b><small>${d.nDone}건 · 정산 완료</small></div>
     </div>`;
   const aw = d.todo.actual_wait.length, pw = d.todo.process_wait.length, hd = (d.todo.hold || []).length;
   const todo = (aw || pw || hd) ? `
@@ -198,22 +204,23 @@ function rDash(){
     <td class="num">${won(r.done)}</td><td class="num">${won(r.wip)}</td>
     <td class="num"><b>${won(r.total)}</b></td>
     <td class="num">${(r.share * 100).toFixed(1)}%</td>
-    <td class="num">${won(r.plan)}</td>
+    <td class="num" style="color:var(--blue)">${won(r.commit || 0)}</td>
+    <td class="num sub">${won(r.plan)}</td>
     <td class="num">${r.groups}</td><td class="num">${r.people}</td></tr>`).join('')
-    || '<tr><td colspan="8" style="color:var(--faint);text-align:center;padding:18px">집행 내역이 없습니다.</td></tr>';
-  const tot = d.byCcg.reduce((a, r) => (KEYS.forEach(() => 0),
-    {done:a.done + r.done, wip:a.wip + r.wip, total:a.total + r.total, plan:a.plan + r.plan,
-     groups:a.groups + r.groups, people:a.people + r.people}), {done:0, wip:0, total:0, plan:0, groups:0, people:0});
+    || '<tr><td colspan="9" style="color:var(--faint);text-align:center;padding:18px">집행 내역이 없습니다.</td></tr>';
+  const tot = d.byCcg.reduce((a, r) => (
+    {done:a.done + r.done, wip:a.wip + r.wip, total:a.total + r.total, commit:a.commit + (r.commit||0), plan:a.plan + r.plan,
+     groups:a.groups + r.groups, people:a.people + r.people}), {done:0, wip:0, total:0, commit:0, plan:0, groups:0, people:0});
   const ccg = `
     <div class="card"><div class="card-head"><h2>CCG팀(부서)별 집행 현황</h2>
-      <span class="cap" style="margin:0">처리완료 + 처리중 = 총사용액 기준</span></div>
+      <span class="cap" style="margin:0">총사용액 = 처리완료 + 처리중 · 확정예정은 선확보(가용 차감) · 잠정은 참고</span></div>
     <div class="scroll" style="margin-top:12px"><table>
       <thead><tr><th>CCG팀</th><th class="num">처리완료</th><th class="num">처리중</th>
-        <th class="num">총사용액</th><th class="num">구성비</th><th class="num">미실시 계획</th>
+        <th class="num">총사용액</th><th class="num">구성비</th><th class="num">확정예정</th><th class="num">잠정계획</th>
         <th class="num">출장 그룹</th><th class="num">참여 인원</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td>합계</td><td class="num">${won(tot.done)}</td><td class="num">${won(tot.wip)}</td>
-        <td class="num">${won(tot.total)}</td><td class="num">100%</td><td class="num">${won(tot.plan)}</td>
+        <td class="num">${won(tot.total)}</td><td class="num">100%</td><td class="num">${won(tot.commit)}</td><td class="num">${won(tot.plan)}</td>
         <td class="num">${tot.groups}</td><td class="num">${tot.people}</td></tr></tfoot>
     </table></div></div>`;
   $('#v-dash').innerHTML = hero + kpi + todo + ccg;
@@ -297,6 +304,9 @@ function rPlan(){
       <div class="form-grid" style="margin-top:12px">
         <div><label>비고</label><input id="pl_remark"></div>
       </div>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:4px">
+        <input type="checkbox" id="pl_confirm" style="width:auto;margin:0"> 이 출장은 <b style="margin:0 2px">실제로 갑니다</b> — 지금 <b style="margin:0 2px;color:var(--blue)">예산 확보(확정 예정)</b>. 미체크 시 잠정 계획으로 등록됩니다.
+      </label>
       <div class="btns"><button class="btn pri" onclick="submitPlan()">출장 계획 등록</button></div>
     </div>`;
   $('#travBody').innerHTML = travRow();
@@ -332,10 +342,11 @@ async function submitPlan(){
     org: $('#pl_org').value.trim(), kind: $('#pl_kind').value,
     dep_dt: $('#pl_dep').value, ret_dt: $('#pl_ret').value, car: $('#pl_car').value,
     purpose: $('#pl_purpose').value.trim(), remark: $('#pl_remark').value.trim(),
+    confirmed: $('#pl_confirm')?.checked || false,
     travelers: collectTravelers()};
   const {ok, data} = await api('/groups', {method: 'POST', body: JSON.stringify(body)});
   if (!ok) { showErr('#planErr', data.errors); return; }
-  toast(`등록 완료 — ${body.travelers.length}명`);
+  toast(`등록 완료 — ${dispSt(data.group.status)} · ${body.travelers.length}명`);
   YQ = data.group.yq;
   await load(); nav('plan');
 }
@@ -343,7 +354,7 @@ async function submitPlan(){
 /* ═══ 출장 실적 입력 ═══ */
 let ACT_GID = null;
 function rActual(){
-  const targets = ST.groups.filter(g => ['계획 등록', '실적 입력·인폼'].includes(g.status));
+  const targets = ST.groups.filter(g => ['계획 등록', '확정 예정', '실적 입력·인폼'].includes(g.status));
   const opts = targets.map(g =>
     `<option value="${g.group_id}">${esc(gname(g))} · ${names(g)} · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${g.status}${g.plan_type === '긴급' ? ' [긴급]' : ''}</option>`).join('');
   $('#v-actual').innerHTML = `
@@ -481,23 +492,38 @@ function showMail(mail){
 /* ═══ 출장 내역 ═══ */
 function rList(){
   const G = ST.groups.filter(g => g.yq === YQ);
+  const jname = g => (gname(g) || '출장').replace(/'/g, '’');
+  const acts = g => {
+    const b = [];
+    if (g.status === '계획 등록') {          // 잠정: 확정하거나 흔적 없이 삭제
+      b.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','확정 예정')">출장 확정</button>`);
+      b.push(`<button class="btn sm" onclick="delGroup('${g.group_id}','${esc(jname(g))}')">삭제</button>`);
+    } else if (g.status === '확정 예정') {   // 확정: 예산 확보됨
+      b.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','계획 등록')">확정 해제</button>`);
+      b.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
+    }
+    return b.join(' ') || '<span class="sub">진행/처리 단계</span>';
+  };
   const row = g => `<tr>
-    <td><span class="status ${stClass(g.roll)}">${esc(g.roll)}</span>${g.plan_type === '긴급' ? ' <span class="status urgent">긴급</span>' : ''}</td>
+    <td><span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>${g.plan_type === '긴급' ? ' <span class="status urgent">긴급</span>' : ''}</td>
     <td><b>${esc(gname(g))}</b><div class="sub">${esc(g.purpose)}</div></td>
     <td>${names(g)} <span class="sub">${g.travelers.length}명</span>${procTag(g)}</td>
     <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
     <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
-    <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td></tr>`;
+    <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td>
+    <td>${acts(g)}</td></tr>`;
+  const nP = ST.dash.nPlan || 0, nC = ST.dash.nConfirm || 0;
   $('#v-list').innerHTML = `
+    <div class="note">‘<b>계획(잠정)</b>’은 참고용 리스트 — 실제로 안 가면 <b>삭제</b>(흔적 없이 사라짐). 실제로 갈 건 ‘<b>출장 확정</b>’ 하면 계획 금액만큼 <b>예산이 미리 확보</b>됩니다. (확정 이후 취소는 기록으로 남습니다)</div>
     <div class="card">
-      <div class="card-head"><h2>${YQ} 출장 내역 (${G.length}건)</h2>
+      <div class="card-head"><h2>${YQ} 출장 내역 (${G.length}건) <span class="sub" style="font-weight:600">· 잠정 ${nP} · 확정 ${nC}</span></h2>
         <a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">CSV 다운로드</a></div>
       <div class="filter-row" style="margin-top:12px">
         <input id="listFilter" placeholder="성명·업체·도시·목적으로 검색" oninput="filterList()"></div>
       <div class="scroll"><table>
         <thead><tr><th>상태</th><th>출장</th><th>출장자</th><th class="num">기간</th>
-          <th class="num">계획</th><th class="num">실적</th></tr></thead>
-        <tbody id="listBody">${G.map(row).join('') || '<tr><td colspan="6" style="color:var(--faint);text-align:center;padding:18px">해당 분기 출장이 없습니다.</td></tr>'}</tbody>
+          <th class="num">계획</th><th class="num">실적</th><th>관리</th></tr></thead>
+        <tbody id="listBody">${G.map(row).join('') || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">해당 분기 출장이 없습니다.</td></tr>'}</tbody>
       </table></div>
     </div>`;
 }
@@ -513,7 +539,8 @@ function pBtn(gid, emp, status, label, cls){
   return `<button class="btn sm ${cls || ''}" onclick="setPersonStatus('${gid}','${esc(emp)}','${status}')">${label}</button>`;
 }
 function rProcess(){
-  const G = ST.groups.filter(g => g.yq === YQ && g.status !== '취소');
+  // 이관·처리 = 실적 이후 단계만. 계획(잠정)·확정 예정은 ‘출장 내역’에서 관리.
+  const G = ST.groups.filter(g => g.yq === YQ && !['계획 등록', '확정 예정', '취소'].includes(g.status));
   const block = g => {
     const past = g.status !== '계획 등록';            // 실적 입력 후 = 개인별 처리 가능
     const pc = g.proc || {done:0, transfer:0, inform:0, hold:0, total:g.travelers.length};
@@ -574,8 +601,8 @@ async function setStatus(gid, status){
     toast((data.errors || ['실패'])[0]); return;
   }
   if (data.mail) showMail(data.mail);          // 이관 → 비용 처리 요청 인폼
-  toast(`상태 변경 — ${status}`);
-  await load(); nav('process');
+  toast(`상태 변경 — ${dispSt(status)}`);
+  await load(); nav(VIEW);
 }
 async function setPersonStatus(gid, emp, status){
   const {ok, data} = await api(`/groups/${gid}/status`, {method: 'POST', body: JSON.stringify({status, emp_no: emp})});
@@ -585,7 +612,13 @@ async function setPersonStatus(gid, emp, status){
   }
   if (data.mail) showMail(data.mail);          // 이관 → 비용 처리 요청 인폼
   toast(`개인 처리 — ${status}`);
-  await load(); nav('process');
+  await load(); nav(VIEW);
+}
+async function delGroup(gid, label){
+  if (!confirm(`잠정 계획 ‘${label}’을(를) 삭제할까요?\n실제로 가지 않는 계획은 흔적 없이 사라집니다. (되돌릴 수 없음)`)) return;
+  const {ok, data} = await api('/groups/' + gid, {method: 'DELETE'});
+  if (!ok) { toast((data.errors || ['삭제 실패'])[0]); return; }
+  toast('잠정 계획을 삭제했습니다'); await load(); nav(VIEW);
 }
 async function openTransferMail(gid){
   const {ok, data} = await api(`/groups/${gid}/transfer_mail`);

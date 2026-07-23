@@ -76,7 +76,7 @@ def create_group():
         data = load_data()
         payload = request.get_json(silent=True) or {}
         payload["group_id"] = f"TB-{uuid.uuid4().hex[:8].upper()}"
-        payload["status"] = C.ST_PLAN
+        payload["status"] = C.ST_CONFIRM if payload.get("confirmed") else C.ST_PLAN
         payload["created_at"] = datetime.now().isoformat(timespec="seconds")
         g = C.normalize_group(payload)
         errors = C.validate_group(g)
@@ -193,9 +193,17 @@ def change_status(gid):
                 resp["mail"] = C.make_transfer_mail(g, data["settings"], emps=[emp])
             return jsonify(resp)
 
-        # ── 그룹 전체 전환 (기존) ──
-        if want not in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE, C.ST_CANCEL):
+        # ── 그룹 전체 전환 ──
+        if want not in (C.ST_PLAN, C.ST_CONFIRM, C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE, C.ST_CANCEL):
             return _err("상태 값이 올바르지 않습니다.")
+        # 출장 확정 = 계획 금액 예산 선확보 (계획 단계 토글, 공개)
+        if want == C.ST_CONFIRM:
+            if cur.get("status") not in C.PRE:
+                return _err("계획 단계에서만 출장 확정을 할 수 있습니다.")
+            if cur.get("plan_type") != "긴급" and C.g_sum(C.normalize_group(cur), "p") <= 0:
+                return _err("계획 비용이 있어야 예산을 확보(확정)할 수 있습니다.")
+        if want == C.ST_PLAN and cur.get("status") not in C.PRE:
+            return _err("확정 예정 건만 잠정 계획으로 되돌릴 수 있습니다.")
         # 관리자 통제 상태(이관·완료)로 들어가거나 거기서 되돌리는 전환은 모두 관리자 인증 필요.
         if (want in (C.ST_TRANSFER, C.ST_DONE)
                 or cur.get("status") in (C.ST_TRANSFER, C.ST_DONE)) and not admin:
@@ -208,6 +216,9 @@ def change_status(gid):
         if want in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE):
             for p in cur.get("travelers", []):
                 p["status"] = want
+        elif want in C.PRE:               # 계획/확정 단계로 (되)돌아가면 개인 처리상태 초기화
+            for p in cur.get("travelers", []):
+                p.pop("status", None)
         cur["updated_at"] = now
         if want == C.ST_DONE:
             cur["settle_at"] = cur["updated_at"]
@@ -231,6 +242,24 @@ def transfer_mail(gid):
     if not emps:
         return _err("이관 상태의 출장자가 없습니다.", 404)
     return jsonify({"ok": True, "mail": C.make_transfer_mail(g, data["settings"], emps=emps)})
+
+
+# ── 잠정 계획 삭제 (계획 등록만 — 흔적 없이 제거, 확정 이후는 취소) ──
+@travelbudget.delete("/api/groups/<gid>")
+def delete_group(gid):
+    with LOCK:
+        data = load_data()
+        cur = _find(data, gid)
+        if cur is None:
+            return _err("출장건을 찾을 수 없습니다.", 404)
+        if cur.get("status") != C.ST_PLAN:
+            return _err("잠정 계획(계획 등록) 건만 삭제할 수 있습니다. 확정·진행 건은 취소를 쓰세요.")
+        yq = C.normalize_group(cur)["yq"]
+        data["groups"] = [x for x in data["groups"] if x.get("group_id") != gid]
+        append_audit(data, "잠정 계획 삭제", f"{gid} {cur.get('org','')}")
+        save_data(data)
+        dash = C.dash(data, yq)
+    return jsonify({"ok": True, "dash": dash})
 
 
 # ── 예산 (관리자, 검증 + 감액 자동 음수) ──────────────────
