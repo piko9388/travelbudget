@@ -188,7 +188,10 @@ def change_status(gid):
             save_data(data)
             g = C.normalize_group(g)
             dash = C.dash(data, g["yq"])
-            return jsonify({"ok": True, "group": g, "dash": dash})
+            resp = {"ok": True, "group": g, "dash": dash}
+            if want == C.ST_TRANSFER:     # 이관 → 비용 처리 요청 인폼
+                resp["mail"] = C.make_transfer_mail(g, data["settings"], emps=[emp])
+            return jsonify(resp)
 
         # ── 그룹 전체 전환 (기존) ──
         if want not in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE, C.ST_CANCEL):
@@ -212,7 +215,22 @@ def change_status(gid):
         save_data(data)
         g = C.normalize_group(cur)
         dash = C.dash(data, g["yq"])
-    return jsonify({"ok": True, "group": g, "dash": dash})
+        mail = C.make_transfer_mail(g, data["settings"]) if want == C.ST_TRANSFER else None
+    return jsonify({"ok": True, "group": g, "dash": dash, "mail": mail})
+
+
+# ── 이관 인폼 다시 보기 (현재 '소재 이관' 상태 출장자 대상) ──
+@travelbudget.get("/api/groups/<gid>/transfer_mail")
+def transfer_mail(gid):
+    data = load_data()
+    cur = _find(data, gid)
+    if cur is None:
+        return _err("출장건을 찾을 수 없습니다.", 404)
+    g = C.normalize_group(cur)
+    emps = [p.get("emp_no") for p in g["travelers"] if C.eff_status(p, g) == C.ST_TRANSFER]
+    if not emps:
+        return _err("이관 상태의 출장자가 없습니다.", 404)
+    return jsonify({"ok": True, "mail": C.make_transfer_mail(g, data["settings"], emps=emps)})
 
 
 # ── 예산 (관리자, 검증 + 감액 자동 음수) ──────────────────

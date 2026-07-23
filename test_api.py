@@ -224,5 +224,20 @@ csvp = c.get(f'/travelbudget/api/export.csv?yq={yq}').get_data(as_text=True)
 frow = [l for l in csvp.split('\r\n') if 'F5' in l]
 ok('CSV 개인 보류 반영', frow and '보류' in frow[0], frow[:1])
 
+print('\n=== 11. 이관 인폼 (예산 담당자 → 소재 담당자) ===')
+rt = c.post(f'/travelbudget/api/groups/{fg}/status', json={'status':'소재 이관','emp_no':'F4'}, headers=ADM)
+tmail = rt.get_json().get('mail')
+ok('이관 시 인폼 자동 반환', bool(tmail), list(rt.get_json().keys()))
+ok('이관 인폼 문구(결재 상신/비용 처리)',
+   tmail and '이관 결재 상신했습니다' in tmail['body_text'] and '비용 처리 부탁드립니다' in tmail['body_text'],
+   tmail and tmail['body_text'][:60])
+ok('이관 인폼 HTML 표', tmail and '<table' in tmail['body_html'])
+ok('이관 인폼 제목', tmail and '비용 처리 요청' in tmail['subject'], tmail and tmail['subject'])
+rg = c.get(f'/travelbudget/api/groups/{fg}/transfer_mail')
+ok('이관 인폼 다시 보기 200', rg.status_code==200 and rg.get_json()['mail']['kind']=='transfer', rg.status_code)
+# 전체 이관도 인폼 반환 (fg 사용 — gid는 7절 복원으로 롤백됨)
+r5 = c.post(f'/travelbudget/api/groups/{fg}/status', json={'status':'소재 이관'}, headers=ADM)
+ok('전체 이관 시 인폼 반환', bool(r5.get_json().get('mail')), r5.status_code)
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

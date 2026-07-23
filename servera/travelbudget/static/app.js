@@ -105,7 +105,7 @@ function rGuide(){
   const lead = `
     <div class="g-lead">
       <h2>출장비, 이렇게 흘러갑니다</h2>
-      <p>출장자는 <b>계획</b>과 <b>실적</b>만 입력하면 됩니다. 인폼(메일)·이관·정산·이력은 시스템과 총괄이 이어받습니다.
+      <p>출장자는 <b>계획</b>과 <b>실적</b>만 입력하면 됩니다. 인폼(메일)·이관·정산·이력은 시스템과 <b>소재 출장 예산 담당자</b>가 이어받습니다.
       입력은 한 번, 실비 이관 인폼은 <b>그룹당 한 통</b>이에요.</p>
       <div class="g-formula">잔여 예산 = 총예산 − 처리완료 − 처리중</div>
     </div>
@@ -125,14 +125,14 @@ function rGuide(){
       '실제 사용액을 입력하면 <b>실비 이관 요청 인폼(메일)</b>이 그룹당 1통 자동으로 만들어집니다. 표 그대로 <b>복사</b>하거나 <b>Outlook으로 바로 열기</b> 할 수 있어요.',
       '계획 대비 차액이 자동 계산됩니다. (긴급 출장은 비고 필수)',
       `<button class="btn pri" onclick="nav('actual')">출장 실적 입력으로 가기 →</button>`) +
-    step(3, 'admin', '소재 이관', '총괄이 실비를 각 소재팀으로 이관·처리', '총괄·관리자', 'admin',
-      '소재전략(총괄)이 실비를 각 소재팀으로 이관·처리합니다. <b>같은 출장이라도 사람마다 사정이 다르면</b>(예: 5명 중 1명만 예산 부족) 총괄이 <b>출장자별로 따로</b> 이관·완료·<b>보류</b>할 수 있어요.',
-      '보류(예산 부족 등)는 대시보드 ‘바로 할 일’에 알림으로 표시됩니다.',
+    step(3, 'admin', '소재 이관', '예산 담당자가 이관 후 소재 담당자에게 인폼', '예산 담당자', 'admin',
+      '<b>소재 출장 예산 담당자</b>가 실비 이관 결재를 상신하고, <b>소재 담당자에게 이관 인폼(메일)</b>을 보냅니다 — “이관 결재 상신했습니다. 참조자로 추가했으니 이관 후 비용 처리 부탁드립니다.” <b>같은 출장이라도 사람마다 사정이 다르면</b>(예: 5명 중 1명만 예산 부족) <b>출장자별로 따로</b> 이관·완료·<b>보류</b>할 수 있어요.',
+      '소재 이관 시 비용 처리 요청 인폼이 자동 생성됩니다. 보류(예산 부족 등)는 대시보드 ‘바로 할 일’에 알림으로 표시돼요.',
       `<button class="btn" onclick="nav('list')">내 출장 상태 확인 (출장 내역) →</button>`) +
-    step(4, 'admin', '처리 완료', '소재팀 전표 처리까지 끝나면 완료', '총괄·관리자', 'admin',
-      '소재팀에서 전표 처리가 끝나면 <b>‘처리 완료’</b>가 됩니다. 이 금액이 예산에서 <b>최종 차감</b>돼요.',
+    step(4, 'done', '처리 완료', '소재 담당자가 비용 처리하면 완료', '소재 담당자', 'owner',
+      '이관 인폼을 받은 <b>소재 담당자</b>가 전표로 비용 처리를 하면 예산 담당자가 <b>‘처리 완료’</b>로 표시합니다. 이 금액이 예산에서 <b>최종 차감</b>돼요.',
       '', '') +
-    step('취', 'cancel', '취소', '안 가게 되면 취소', '담당자·총괄', 'owner',
+    step('취', 'cancel', '취소', '안 가게 되면 취소', '담당자·예산 담당자', 'owner',
       '일정 연기 등으로 출장이 취소되면 <b>계획·인폼 단계</b>에서 취소할 수 있습니다. 취소 건은 예산 계산에서 빠집니다.',
       '', '');
   const money = `
@@ -445,7 +445,7 @@ function showMail(mail){
   const el = document.createElement('div');
   el.className = 'mailcard'; el.id = 'mailCard';
   el.innerHTML = `
-    <div class="mh"><span>실비 이관 요청 인폼 (그룹당 1통)</span>
+    <div class="mh"><span>${esc(mail.heading || '실비 이관 요청 인폼 (그룹당 1통)')}</span>
       <button onclick="this.closest('.mailcard').remove()">×</button></div>
     <div class="meta">
       <div class="row"><span class="k">수신</span><span style="word-break:break-all">${esc(mail.to)}</span></div>
@@ -528,6 +528,8 @@ function rProcess(){
       gb.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','처리 완료')">전체 처리 완료</button>`);
     if (past && g.travelers.length > 1 && pc.transfer + pc.done < pc.total)
       gb.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','소재 이관')">전체 소재 이관</button>`);
+    if (past && pc.transfer > 0)
+      gb.push(`<button class="btn sm" onclick="openTransferMail('${g.group_id}')">이관 인폼</button>`);
     if (['계획 등록', '실적 입력·인폼'].includes(g.roll))
       gb.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">출장 취소</button>`);
     // 개인별 행
@@ -571,6 +573,7 @@ async function setStatus(gid, status){
     if (data.errors?.[0]?.includes('인증')) { askAdmin(() => setStatus(gid, status)); return; }
     toast((data.errors || ['실패'])[0]); return;
   }
+  if (data.mail) showMail(data.mail);          // 이관 → 비용 처리 요청 인폼
   toast(`상태 변경 — ${status}`);
   await load(); nav('process');
 }
@@ -580,8 +583,14 @@ async function setPersonStatus(gid, emp, status){
     if (data.errors?.[0]?.includes('인증')) { askAdmin(() => setPersonStatus(gid, emp, status)); return; }
     toast((data.errors || ['실패'])[0]); return;
   }
+  if (data.mail) showMail(data.mail);          // 이관 → 비용 처리 요청 인폼
   toast(`개인 처리 — ${status}`);
   await load(); nav('process');
+}
+async function openTransferMail(gid){
+  const {ok, data} = await api(`/groups/${gid}/transfer_mail`);
+  if (!ok) { toast((data.errors || ['이관 인폼을 만들 수 없습니다'])[0]); return; }
+  showMail(data.mail);
 }
 
 /* ═══ 예산 관리 (관리자) ═══ */

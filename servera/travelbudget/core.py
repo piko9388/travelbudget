@@ -377,8 +377,61 @@ def make_mail(g, settings):
     ref = (f"<p style='margin:10px 0 0;font-size:12px;color:#64718C'>"
            f"** 참고 : {escape(str(settings.get('reference_url','')))}</p>")
     return {"to": ";".join(settings.get("mail_recipients", [])),
-            "subject": subject, "trip_name": name,
+            "subject": subject, "trip_name": name, "kind": "actual",
+            "heading": "실비 이관 요청 인폼 (그룹당 1통)",
             "body_text": "\n".join(L), "body_html": info + table + remark + ref}
+
+
+# ── 이관 인폼 (예산 담당자 → 소재 담당자, 비용 처리 요청) ──
+def make_transfer_mail(g, settings, emps=None):
+    """소재 이관 시점 인폼 — '이관 결재 상신했습니다. 이관 후 비용 처리 부탁드립니다.'"""
+    g = normalize_group(g)
+    name = " ".join(x for x in (g.get("city", ""), g.get("org", "")) if x) or "국내 출장"
+    subject = f"[출장비] {name} 이관 결재 상신 — 비용 처리 요청 건"
+    period = f"{g.get('dep_dt','')} ~ {g.get('ret_dt','')} ({g.get('days',0)}일)"
+    keys = None if emps is None else {str(e) for e in emps}
+    T = [p for p in g.get("travelers", []) if keys is None or str(p.get("emp_no")) in keys]
+    tot = sum(p_sum(p, "a") for p in T)
+    msg = ["요청하신 금액 이관 결재 상신했습니다.",
+           "참조자로 추가하였으니, 이관 후 비용 처리 부탁드립니다."]
+
+    # 평문
+    L = msg + ["", f"[출장 정보] {name} · {period} · {g.get('purpose','')}",
+               f"이관 대상 {len(T)}명 · 이관 총액 {won(tot)}원", "",
+               "성명\tCCG팀\t사번\t이관금액"]
+    for p in T:
+        L.append("\t".join(str(x) for x in (p.get("name", ""), p.get("ccg_nm", ""),
+                 p.get("emp_no", ""), won(p_sum(p, "a")))))
+    L += ["", f"** 참고 : {settings.get('reference_url','')}"]
+
+    # HTML (Outlook) — 사용자 입력 escape
+    base = "padding:6px 11px;border:1px solid #D8DEE8"
+    td = f'style="{base}"'
+    tdr = f'style="{base};text-align:right"'
+    th = f'style="{base};background:#EEF2F8"'
+    thr = f'style="{base};text-align:right;background:#EEF2F8"'
+    tdf = f'style="{base};background:#F6F8FB;font-weight:700"'
+    tdrf = f'style="{base};text-align:right;background:#F6F8FB;font-weight:700"'
+    rows = "".join(
+        f"<tr><td {td}>{escape(str(p.get('name','')))}</td>"
+        f"<td {td}>{escape(str(p.get('ccg_nm','')))}</td>"
+        f"<td {td}>{escape(str(p.get('emp_no','')))}</td>"
+        f"<td {tdr}><b>{won(p_sum(p,'a'))}</b></td></tr>" for p in T)
+    foot = f'<tr><td {tdf} colspan="3">합계</td><td {tdrf}>{won(tot)}</td></tr>'
+    lead = (f"<p style='margin:0 0 5px'>{escape(msg[0])}</p>"
+            f"<p style='margin:0 0 10px'>{escape(msg[1])}</p>")
+    info = (f"<table style='border-collapse:collapse;font-size:13px;margin:0 0 8px'>"
+            f"<tr><td style='padding:2px 10px;color:#64718C'>출장</td><td style='padding:2px 10px'>{escape(name)} · {escape(period)}</td></tr>"
+            f"<tr><td style='padding:2px 10px;color:#64718C'>이관</td><td style='padding:2px 10px'>{len(T)}명 · 이관 총액 <b>{won(tot)}원</b></td></tr></table>")
+    table = (f"<table style='border-collapse:collapse;font-size:13px'>"
+             f"<thead><tr><th {th}>성명</th><th {th}>CCG팀</th><th {th}>사번</th><th {thr}>이관금액</th></tr></thead>"
+             f"<tbody>{rows}{foot}</tbody></table>")
+    ref = (f"<p style='margin:10px 0 0;font-size:12px;color:#64718C'>"
+           f"** 참고 : {escape(str(settings.get('reference_url','')))}</p>")
+    to = ";".join(p.get("email", "") for p in T if p.get("email"))
+    return {"to": to, "subject": subject, "trip_name": name, "kind": "transfer",
+            "heading": "이관 결재 상신 · 비용 처리 요청 인폼",
+            "body_text": "\n".join(L), "body_html": lead + info + table + ref}
 
 
 # ── CSV (개인별 행 flatten) ───────────────────────────────
