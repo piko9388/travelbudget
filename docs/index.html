@@ -204,6 +204,7 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
   var WIP = [ST_INFORM, ST_TRANSFER];
   var ST_HOLD = '보류';                                    // 개인별 처리 보류
   var PSTATES = [ST_INFORM, ST_TRANSFER, ST_HOLD, ST_DONE]; // 출장자 개인 처리 상태
+  var ADMIN_ZONE = [ST_TRANSFER, ST_HOLD, ST_DONE];         // 예산 담당자가 결정한 영역
   var CCG_TEAMS = [
     { team: 'Photo 소재팀', ccg: 'C1303' }, { team: 'Chemical 소재팀', ccg: 'C1101' },
     { team: 'CMP 소재팀', ccg: 'C1404' }, { team: 'Gas 소재팀', ccg: 'C1202' },
@@ -251,6 +252,11 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     if (effs.every(function (e) { return e === ST_DONE; })) return ST_DONE;
     if (effs.every(function (e) { return e === ST_TRANSFER || e === ST_DONE; })) return ST_TRANSFER;
     return ST_INFORM;
+  }
+  // 예산 담당자 영역인가 — 여기 걸리면 모든 변경에 관리자 인증 필요
+  function locked(g) {
+    if ([ST_TRANSFER, ST_DONE, ST_CANCEL].indexOf(g.status) >= 0) return true;
+    return (g.travelers || []).some(function (p) { return ADMIN_ZONE.indexOf(effStatus(p, g)) >= 0; });
   }
   function procCounts(g) {
     var c = { total: (g.travelers || []).length, inform: 0, transfer: 0, done: 0, hold: 0 };
@@ -303,6 +309,8 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     });
     if (PLAN_TYPES.indexOf(g.plan_type) < 0) e.push('구분이 올바르지 않습니다.');
     if (STATUSES.indexOf(g.status) < 0) e.push('상태 값이 올바르지 않습니다.');
+    if (String(g.kind || '').trim() && KINDS.indexOf(g.kind) < 0) e.push('출장구분이 올바르지 않습니다.');
+    if (String(g.car || '').trim() && CARS.indexOf(g.car) < 0) e.push('자차사용여부가 올바르지 않습니다.');
     if (g.dep_dt && g.ret_dt && tripDays(g.dep_dt, g.ret_dt) < 1) e.push('복귀일자는 출발일자보다 빠를 수 없습니다.');
     var T = g.travelers || [];
     if (!T.length) e.push('출장자를 1명 이상 입력하세요.');
@@ -619,6 +627,7 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     if (path === '/groups' && method === 'POST') {
       body.group_id = 'TB-' + randHex(8).toUpperCase();
       body.status = body.confirmed ? ST_CONFIRM : ST_PLAN; body.created_at = nowISO();
+      (body.travelers || []).forEach(function (p) { if (p && typeof p === 'object') delete p.status; });
       var g = normalizeGroup(body); var e = validateGroup(g, false);
       if (e.length) return err(e);
       data.groups.push(g);
@@ -627,8 +636,10 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     }
     if ((m = path.match(/^\/groups\/([^/]+)$/)) && method === 'PUT') {
       var cur = find(data, m[1]); if (!cur) return err('출장건을 찾을 수 없습니다.', 404);
-      if (cur.status === ST_DONE) return err('처리 완료된 건은 수정할 수 없습니다.');
+      if (locked(cur) && !isAdmin) return err('이관·처리 단계의 건은 관리자만 수정할 수 있습니다.', 401);
       var merged = Object.assign({}, cur, body, { group_id: m[1], status: cur.status || ST_PLAN });
+      var oldSt = {}; (cur.travelers || []).forEach(function (p) { oldSt[String(p.emp_no)] = p.status || ''; });
+      (merged.travelers || []).forEach(function (p) { if (p && typeof p === 'object') p.status = oldSt[String(p.emp_no)] || ''; });
       var g2 = normalizeGroup(merged); var e2 = validateGroup(g2, WIP.indexOf(g2.status) >= 0);
       if (e2.length) return err(e2);
       g2.updated_at = nowISO(); data.groups[data.groups.indexOf(cur)] = g2;
@@ -637,6 +648,7 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     if ((m = path.match(/^\/groups\/([^/]+)\/actual$/)) && method === 'POST') {
       var cur3 = find(data, m[1]); if (!cur3) return err('출장건을 찾을 수 없습니다.', 404);
       if (cur3.status === ST_DONE || cur3.status === ST_CANCEL) return err('완료·취소된 건에는 실적을 입력할 수 없습니다.');
+      if (locked(cur3) && !isAdmin) return err('이관·처리가 시작된 건의 실적은 관리자만 수정할 수 있습니다.', 401);
       var g3 = normalizeGroup(cur3);
       var byEmp = {}; (body.travelers || []).forEach(function (p) { byEmp[String(p.emp_no)] = p; });
       g3.travelers.forEach(function (p) {
@@ -682,20 +694,26 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
         if (cur4.plan_type !== '긴급' && gSum(normalizeGroup(cur4), 'p') <= 0) return err('계획 비용이 있어야 예산을 확보(확정)할 수 있습니다.');
       }
       if (want === ST_PLAN && PRE.indexOf(cur4.status) < 0) return err('확정 예정 건만 잠정 계획으로 되돌릴 수 있습니다.');
-      if ((want === ST_TRANSFER || want === ST_DONE || cur4.status === ST_TRANSFER || cur4.status === ST_DONE) && !isAdmin)
+      if ((want === ST_TRANSFER || want === ST_DONE || locked(cur4)) && !isAdmin)
         return err('관리자 인증이 필요합니다.', 401);
       if ([ST_INFORM, ST_TRANSFER, ST_DONE].indexOf(want) >= 0 && gSum(normalizeGroup(cur4), 'a') <= 0)
         return err('실적이 입력된 건만 이관·처리할 수 있습니다.');
-      cur4.status = want;
-      if ([ST_INFORM, ST_TRANSFER, ST_DONE].indexOf(want) >= 0)
-        (cur4.travelers || []).forEach(function (p) { p.status = want; });
-      else if (PRE.indexOf(want) >= 0)
-        (cur4.travelers || []).forEach(function (p) { delete p.status; });
+      var held = 0;
+      if ([ST_INFORM, ST_TRANSFER, ST_DONE].indexOf(want) >= 0) {
+        (cur4.travelers || []).forEach(function (p) {
+          if (effStatus(p, cur4) === ST_HOLD) { p.status = ST_HOLD; held++; } else { p.status = want; }
+        });
+        cur4.status = want;
+        cur4.status = groupRoll(cur4);      // 보류가 남으면 그룹은 완료로 올리지 않음
+      } else {
+        cur4.status = want;
+        if (PRE.indexOf(want) >= 0) (cur4.travelers || []).forEach(function (p) { delete p.status; });
+      }
       cur4.updated_at = nowISO();
       if (want === ST_DONE) cur4.settle_at = cur4.updated_at;
       appendAudit(data, '상태 변경', m[1] + ' → ' + want, isAdmin ? 'admin' : 'user');
       Store.save(data);
-      var g4 = normalizeGroup(cur4); var r2 = { group: g4, dash: dash(data, g4.yq) };
+      var g4 = normalizeGroup(cur4); var r2 = { group: g4, dash: dash(data, g4.yq), held: held };
       if (want === ST_TRANSFER) r2.mail = makeTransferMail(g4, data.settings);
       return okr(r2);
     }
@@ -821,14 +839,15 @@ function badge(g){
 }
 function gname(g){ return [g.city, g.org].filter(Boolean).join(' '); }
 function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); }
-function procTag(g){   // 부분 처리(개인별 상태 분리) 표시
+function procTag(g){   // 부분 처리(개인별 상태 분리) 표시 — 섞여 있을 때만
   const p = g.proc;
-  if (!p || g.status === '계획 등록' || g.status === '취소' || p.done === p.total) return '';
+  if (!p || ['계획 등록', '확정 예정', '취소'].includes(g.status) || p.done === p.total) return '';
   const bits = [];
   if (p.done) bits.push(`완료 ${p.done}`);
   if (p.transfer) bits.push(`이관 ${p.transfer}`);
   if (p.inform) bits.push(`인폼 ${p.inform}`);
   if (p.hold) bits.push(`보류 ${p.hold}`);
+  if (!bits.length) return '';                 // 표시할 게 없으면 빈 괄호를 만들지 않는다
   return ` <span class="sub" style="color:${p.hold ? 'var(--red)' : 'var(--mut)'}">(${bits.join(' · ')})</span>`;
 }
 
@@ -885,11 +904,10 @@ function rGuide(){
     </div>
     <div class="card">
       <div class="flowbar">
-        <span class="pill">① 계획(잠정)</span><span class="arrow">→</span>
-        <span class="pill confirm">② 확정(예산 확보)</span><span class="arrow">→</span>
-        <span class="pill wip">③ 실적·인폼</span><span class="arrow">→</span>
-        <span class="pill wip">④ 소재 이관</span><span class="arrow">→</span>
-        <span class="pill done">⑤ 처리 완료</span>
+        <span class="pill">① 계획(잠정)·확정</span><span class="arrow">→</span>
+        <span class="pill wip">② 실적·인폼</span><span class="arrow">→</span>
+        <span class="pill wip">③ 소재 이관</span><span class="arrow">→</span>
+        <span class="pill done">④ 처리 완료</span>
       </div>`;
   const steps =
     step(1, '', '계획 등록', '계획을 올리고, 실제로 갈 건 ‘확정’', '담당자', 'owner',
@@ -1263,12 +1281,11 @@ function showMail(mail){
 /* ═══ 출장 내역 ═══ */
 function rList(){
   const G = ST.groups.filter(g => g.yq === YQ);
-  const jname = g => (gname(g) || '출장').replace(/'/g, '’');
   const acts = g => {
     const b = [];
     if (g.status === '계획 등록') {          // 잠정: 확정하거나 흔적 없이 삭제
       b.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','확정 예정')">출장 확정</button>`);
-      b.push(`<button class="btn sm" onclick="delGroup('${g.group_id}','${esc(jname(g))}')">삭제</button>`);
+      b.push(`<button class="btn sm" onclick="delGroup('${g.group_id}')">삭제</button>`);
     } else if (g.status === '확정 예정') {   // 확정: 예산 확보됨
       b.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','계획 등록')">확정 해제</button>`);
       b.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
@@ -1306,9 +1323,16 @@ function filterList(){
 /* ═══ 이관·처리 관리 (관리자) — 출장자 개인별 처리 ═══ */
 function pStClass(s){ return s === '처리 완료' ? 'done' : s === '보류' ? 'hold'
   : (s === '소재 이관' || s === '실적 입력·인폼') ? 'wip' : ''; }
+/* 사용자 입력(사번)을 JS 문자열로 보간하면 따옴표 탈출로 코드가 실행된다.
+   data 속성 + 이벤트 위임으로 값을 '데이터'로만 전달한다. */
 function pBtn(gid, emp, status, label, cls){
-  return `<button class="btn sm ${cls || ''}" onclick="setPersonStatus('${gid}','${esc(emp)}','${status}')">${label}</button>`;
+  return `<button class="btn sm ${cls || ''}" data-act="person" data-gid="${esc(gid)}"`
+    + ` data-emp="${esc(emp)}" data-st="${esc(status)}">${label}</button>`;
 }
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('button[data-act="person"]');
+  if (b) setPersonStatus(b.dataset.gid, b.dataset.emp, b.dataset.st);
+});
 function rProcess(){
   // 이관·처리 = 실적 이후 단계만. 계획(잠정)·확정 예정은 ‘출장 내역’에서 관리.
   const G = ST.groups.filter(g => g.yq === YQ && !['계획 등록', '확정 예정', '취소'].includes(g.status));
@@ -1372,7 +1396,7 @@ async function setStatus(gid, status){
     toast((data.errors || ['실패'])[0]); return;
   }
   if (data.mail) showMail(data.mail);          // 이관 → 비용 처리 요청 인폼
-  toast(`상태 변경 — ${dispSt(status)}`);
+  toast(data.held ? `${dispSt(status)} — 보류 ${data.held}명은 제외(유지)됨` : `상태 변경 — ${dispSt(status)}`);
   await load(); nav(VIEW);
 }
 async function setPersonStatus(gid, emp, status){
@@ -1385,7 +1409,9 @@ async function setPersonStatus(gid, emp, status){
   toast(`개인 처리 — ${status}`);
   await load(); nav(VIEW);
 }
-async function delGroup(gid, label){
+async function delGroup(gid){
+  const g = ST.groups.find(x => x.group_id === gid);
+  const label = g ? gname(g) : '출장';
   if (!confirm(`잠정 계획 ‘${label}’을(를) 삭제할까요?\n실제로 가지 않는 계획은 흔적 없이 사라집니다. (되돌릴 수 없음)`)) return;
   const {ok, data} = await api('/groups/' + gid, {method: 'DELETE'});
   if (!ok) { toast((data.errors || ['삭제 실패'])[0]); return; }

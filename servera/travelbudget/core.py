@@ -28,7 +28,7 @@ PRE = (ST_PLAN, ST_CONFIRM)             # 실적 전(계획 단계) — 개인 �
 WIP = (ST_INFORM, ST_TRANSFER)          # 처리중 = 실적 있고 이관·처리 진행
 ST_HOLD = "보류"                         # 개인별 처리 보류 (예: 예산 부족)
 PSTATES = (ST_INFORM, ST_TRANSFER, ST_HOLD, ST_DONE)   # 출장자 개인 처리 상태
-PWIP = (ST_INFORM, ST_TRANSFER, ST_HOLD)               # 개인 기준 '처리중'
+ADMIN_ZONE = (ST_TRANSFER, ST_HOLD, ST_DONE)           # 예산 담당자가 결정한 영역
 
 CCG_TEAMS = [
     {"team": "Photo 소재팀",     "ccg": "C1303"},
@@ -132,6 +132,15 @@ def group_roll(g):
     return ST_INFORM                     # 일부 인폼/보류 남음 → 처리중
 
 
+def locked(g):
+    """예산 담당자 영역인가 — 여기 걸리면 모든 변경에 관리자 인증 필요.
+    원칙: 그룹이 이관·완료·취소이거나, 출장자 중 한 명이라도 이관·완료·보류면 잠금.
+    (부분 완료 건이 '아직 담당자 영역'으로 오인되어 정산 금액이 조작되던 구멍을 막는다)"""
+    if g.get("status") in (ST_TRANSFER, ST_DONE, ST_CANCEL):
+        return True
+    return any(eff_status(p, g) in ADMIN_ZONE for p in g.get("travelers", []))
+
+
 def proc_counts(g):
     """그룹 내 개인 상태 집계 (UI 표시용)."""
     c = {"total": len(g.get("travelers", [])), "inform": 0,
@@ -190,6 +199,10 @@ def validate_group(g, require_actual=False):
         e.append("구분이 올바르지 않습니다.")
     if g.get("status") not in STATUSES:
         e.append("상태 값이 올바르지 않습니다.")
+    if str(g.get("kind", "")).strip() and g.get("kind") not in KINDS:
+        e.append("출장구분이 올바르지 않습니다.")
+    if str(g.get("car", "")).strip() and g.get("car") not in CARS:
+        e.append("자차사용여부가 올바르지 않습니다.")
     if g.get("dep_dt") and g.get("ret_dt") and trip_days(g["dep_dt"], g["ret_dt"]) < 1:
         e.append("복귀일자는 출발일자보다 빠를 수 없습니다.")
     T = g.get("travelers", [])

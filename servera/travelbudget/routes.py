@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from functools import wraps
+from urllib.parse import quote
 from flask import Response, jsonify, render_template, request
 
 from . import travelbudget
@@ -78,6 +79,9 @@ def create_group():
         payload["group_id"] = f"TB-{uuid.uuid4().hex[:8].upper()}"
         payload["status"] = C.ST_CONFIRM if payload.get("confirmed") else C.ST_PLAN
         payload["created_at"] = datetime.now().isoformat(timespec="seconds")
+        for p in payload.get("travelers") or []:   # 개인 처리 상태 주입 금지 (신규는 항상 빈 값)
+            if isinstance(p, dict):
+                p.pop("status", None)
         g = C.normalize_group(payload)
         errors = C.validate_group(g)
         if errors:
@@ -95,12 +99,18 @@ def update_group(gid):
         cur = _find(data, gid)
         if cur is None:
             return _err("출장건을 찾을 수 없습니다.", 404)
-        if cur.get("status") in (C.ST_DONE,):
-            return _err("처리 완료된 건은 수정할 수 없습니다.")
+        # 예산 담당자 영역(이관·완료·보류·취소)은 관리자만 수정 — 정산 금액 사후 변조 차단
+        if C.locked(cur) and not _is_admin(data):
+            return _err("이관·처리 단계의 건은 관리자만 수정할 수 있습니다.", 401)
         # 상태는 현재 값으로 고정 — 상태 전환은 오직 게이트가 있는 /actual·/status 로만.
         # (이 라우트로 status·실적을 밀어넣어 승인 게이트를 우회하고 예산을 움직이는 경로 차단)
         merged = {**cur, **(request.get_json(silent=True) or {}),
                   "group_id": gid, "status": cur.get("status") or C.ST_PLAN}
+        # 개인 처리 상태도 동일 — 기존 값만 사번 기준으로 이식하고 요청 값은 폐기.
+        old_st = {str(p.get("emp_no")): p.get("status", "") for p in cur.get("travelers", [])}
+        for p in merged.get("travelers") or []:
+            if isinstance(p, dict):
+                p["status"] = old_st.get(str(p.get("emp_no")), "")
         g = C.normalize_group(merged)
         errors = C.validate_group(g, require_actual=g["status"] in C.WIP)
         if errors:
@@ -122,6 +132,9 @@ def input_actual(gid):
             return _err("출장건을 찾을 수 없습니다.", 404)
         if cur.get("status") in (C.ST_DONE, C.ST_CANCEL):
             return _err("완료·취소된 건에는 실적을 입력할 수 없습니다.")
+        # 이관·완료·보류된 인원이 있으면 실적 재입력은 관리자만 (정산 금액 사후 변조 차단)
+        if C.locked(cur) and not _is_admin(data):
+            return _err("이관·처리가 시작된 건의 실적은 관리자만 수정할 수 있습니다.", 401)
         body = request.get_json(silent=True) or {}
         g = C.normalize_group(cur)
         by_emp = {str(p.get("emp_no")): p for p in body.get("travelers", [])}
@@ -204,21 +217,30 @@ def change_status(gid):
                 return _err("계획 비용이 있어야 예산을 확보(확정)할 수 있습니다.")
         if want == C.ST_PLAN and cur.get("status") not in C.PRE:
             return _err("확정 예정 건만 잠정 계획으로 되돌릴 수 있습니다.")
-        # 관리자 통제 상태(이관·완료)로 들어가거나 거기서 되돌리는 전환은 모두 관리자 인증 필요.
-        if (want in (C.ST_TRANSFER, C.ST_DONE)
-                or cur.get("status") in (C.ST_TRANSFER, C.ST_DONE)) and not admin:
+        # 관리자 통제 상태로 들어가거나, 이미 예산 담당자 영역인 건(부분 완료 포함)의
+        # 어떤 전환이든 관리자 인증 필요. — 취소로 정산금을 지우던 우회 경로 차단.
+        if (want in (C.ST_TRANSFER, C.ST_DONE) or C.locked(cur)) and not admin:
             return _err("관리자 인증이 필요합니다.", 401)
         # 이관·완료·인폼(되돌림 포함) 상태는 실적이 있어야만.
         if want in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE) and C.g_sum(C.normalize_group(cur), "a") <= 0:
             return _err("실적이 입력된 건만 이관·처리할 수 있습니다.")
-        cur["status"] = want
-        # 전체 전환은 모든 출장자 개인 상태도 함께 맞춤 (개인/그룹 일관성)
+        held = 0
         if want in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE):
+            # 전체 전환은 개인 상태도 함께 맞춤. 단 '보류'는 유지 —
+            # 예산 부족 등으로 막아둔 인원이 일괄 처리에 휩쓸려 정산 완료로 둔갑하지 않도록.
             for p in cur.get("travelers", []):
-                p["status"] = want
-        elif want in C.PRE:               # 계획/확정 단계로 (되)돌아가면 개인 처리상태 초기화
-            for p in cur.get("travelers", []):
-                p.pop("status", None)
+                if C.eff_status(p, cur) == C.ST_HOLD:
+                    p["status"] = C.ST_HOLD
+                    held += 1
+                else:
+                    p["status"] = want
+            cur["status"] = want
+            cur["status"] = C.group_roll(cur)      # 보류가 남으면 그룹은 완료로 올리지 않음
+        else:
+            cur["status"] = want
+            if want in C.PRE:             # 계획/확정 단계로 (되)돌아가면 개인 처리상태 초기화
+                for p in cur.get("travelers", []):
+                    p.pop("status", None)
         cur["updated_at"] = now
         if want == C.ST_DONE:
             cur["settle_at"] = cur["updated_at"]
@@ -227,7 +249,7 @@ def change_status(gid):
         g = C.normalize_group(cur)
         dash = C.dash(data, g["yq"])
         mail = C.make_transfer_mail(g, data["settings"]) if want == C.ST_TRANSFER else None
-    return jsonify({"ok": True, "group": g, "dash": dash, "mail": mail})
+    return jsonify({"ok": True, "group": g, "dash": dash, "mail": mail, "held": held})
 
 
 # ── 이관 인폼 다시 보기 (현재 '소재 이관' 상태 출장자 대상) ──
@@ -313,8 +335,11 @@ def export_csv():
     yq = request.args.get("yq") or None
     content = C.make_csv(load_data(), yq)
     fn = f"국내출장비_{yq or '전체'}_{datetime.now().strftime('%Y%m%d')}.csv"
+    # RFC 5987: 헤더는 latin-1만 허용 — 한글 파일명을 percent-encoding 해야 실서버에서 안 죽는다.
     return Response(content, mimetype="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fn}"})
+                    headers={"Content-Disposition":
+                             "attachment; filename=travelbudget.csv; "
+                             f"filename*=UTF-8''{quote(fn, safe='')}"})
 
 
 @travelbudget.get("/api/backups")

@@ -262,5 +262,61 @@ ok('삭제 후 흔적 없이 사라짐', not any(g['group_id']==pgid for g in c.
 r = c.delete(f'/travelbudget/api/groups/{cgid}')
 ok('확정 건은 삭제 차단(취소로)', r.status_code==400, r.status_code)
 
+print('\n=== 13. P0 권한 경계 — 무인증 공격 차단 ===')
+def _mk(org, n=3, amt=1000000):
+    gg = dict(plan_type='계획', city='c', org=org, purpose='p', kind='정기 Audit',
+        dep_dt=f'{yy}-{mm}-14', ret_dt=f'{yy}-{mm}-15', car='미사용',
+        travelers=[dict(name=f'p{i}', emp_no=f'{org}{i}', rank='TL', ccg_nm='Gas 소재팀', p_trans=50000) for i in range(n)])
+    _id = c.post('/travelbudget/api/groups', json=gg).get_json()['group']['group_id']
+    c.post(f'/travelbudget/api/groups/{_id}/actual',
+           json=dict(travelers=[dict(emp_no=f'{org}{i}', a_trans=amt) for i in range(n)]))
+    return _id, gg
+def _dash(): return c.get('/travelbudget/api/state').get_json()['dash']
+def _grp(i): return next(g for g in c.get('/travelbudget/api/state').get_json()['groups'] if g['group_id']==i)
+
+# 13-1. PUT으로 개인 처리상태 주입 불가 (관리자 결정 위조 차단)
+i1,g1 = _mk('ZA',1)
+c.put(f'/travelbudget/api/groups/{i1}', json=dict(g1,
+    travelers=[dict(name='p0',emp_no='ZA0',rank='TL',ccg_nm='Gas 소재팀',status='처리 완료',a_trans=1000000)]))
+ok('PUT traveler.status 주입 불가', all(not p.get('status') for p in _grp(i1)['travelers']), [p.get('status') for p in _grp(i1)['travelers']])
+
+# 13-2. 부분완료 건을 무인증 취소로 정산금 제거 불가
+i2,_ = _mk('ZB',3)
+for k in (0,1):
+    c.post(f'/travelbudget/api/groups/{i2}/status', json={'status':'처리 완료','emp_no':f'ZB{k}'}, headers=ADM)
+d_before = _dash()['done']
+r = c.post(f'/travelbudget/api/groups/{i2}/status', json={'status':'취소'})
+ok('부분완료 건 무인증 취소 401', r.status_code==401, r.status_code)
+ok('정산 금액 보존', _dash()['done']==d_before, (d_before, _dash()['done']))
+
+# 13-3. 이관 건 금액 무인증 변조 불가 (PUT / 실적 재입력 양쪽)
+i3,g3 = _mk('ZC',1)
+c.post(f'/travelbudget/api/groups/{i3}/status', json={'status':'소재 이관'}, headers=ADM)
+w_before = _dash()['wip']
+r = c.put(f'/travelbudget/api/groups/{i3}', json=dict(g3,
+    travelers=[dict(name='p0',emp_no='ZC0',rank='TL',ccg_nm='Gas 소재팀',a_trans=50000000)]))
+ok('이관건 PUT 금액변조 401', r.status_code==401, r.status_code)
+r = c.post(f'/travelbudget/api/groups/{i3}/actual', json=dict(travelers=[dict(emp_no='ZC0',a_trans=1)]))
+ok('이관건 실적 재입력 401', r.status_code==401, r.status_code)
+ok('처리중 금액 보존', _dash()['wip']==w_before, (w_before, _dash()['wip']))
+
+# 13-4. 일괄 처리 완료가 '보류'를 삼키지 않음
+i4,_ = _mk('ZD',3,amt=100000)
+c.post(f'/travelbudget/api/groups/{i4}/status', json={'status':'보류','emp_no':'ZD2'}, headers=ADM)
+r = c.post(f'/travelbudget/api/groups/{i4}/status', json={'status':'처리 완료'}, headers=ADM)
+g4 = _grp(i4)
+ok('일괄 완료가 보류 보존', g4['travelers'][2]['status']=='보류', [p.get('status') for p in g4['travelers']])
+ok('보류 남으면 그룹 완료 아님', g4['roll']!='처리 완료', g4['roll'])
+ok('보류 인원수 응답', r.get_json().get('held')==1, r.get_json().get('held'))
+
+# 13-5. CSV 응답 헤더가 latin-1 안전 (실서버 500 방지)
+r = c.get('/travelbudget/api/export.csv')
+cd = r.headers.get('Content-Disposition','')
+ok('CSV 헤더 latin-1 안전', all(ord(ch)<256 for ch in cd), cd[:60])
+
+# 13-6. 열거값 검증 (CSV 수식 인젝션 우회 차단)
+r = c.post('/travelbudget/api/groups', json=dict(base, kind='=cmd|calc', car='=1+1'))
+ok('kind/car 열거값 차단', r.status_code==400, r.status_code)
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

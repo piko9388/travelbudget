@@ -50,14 +50,15 @@ function badge(g){
 }
 function gname(g){ return [g.city, g.org].filter(Boolean).join(' '); }
 function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); }
-function procTag(g){   // 부분 처리(개인별 상태 분리) 표시
+function procTag(g){   // 부분 처리(개인별 상태 분리) 표시 — 섞여 있을 때만
   const p = g.proc;
-  if (!p || g.status === '계획 등록' || g.status === '취소' || p.done === p.total) return '';
+  if (!p || ['계획 등록', '확정 예정', '취소'].includes(g.status) || p.done === p.total) return '';
   const bits = [];
   if (p.done) bits.push(`완료 ${p.done}`);
   if (p.transfer) bits.push(`이관 ${p.transfer}`);
   if (p.inform) bits.push(`인폼 ${p.inform}`);
   if (p.hold) bits.push(`보류 ${p.hold}`);
+  if (!bits.length) return '';                 // 표시할 게 없으면 빈 괄호를 만들지 않는다
   return ` <span class="sub" style="color:${p.hold ? 'var(--red)' : 'var(--mut)'}">(${bits.join(' · ')})</span>`;
 }
 
@@ -114,11 +115,10 @@ function rGuide(){
     </div>
     <div class="card">
       <div class="flowbar">
-        <span class="pill">① 계획(잠정)</span><span class="arrow">→</span>
-        <span class="pill confirm">② 확정(예산 확보)</span><span class="arrow">→</span>
-        <span class="pill wip">③ 실적·인폼</span><span class="arrow">→</span>
-        <span class="pill wip">④ 소재 이관</span><span class="arrow">→</span>
-        <span class="pill done">⑤ 처리 완료</span>
+        <span class="pill">① 계획(잠정)·확정</span><span class="arrow">→</span>
+        <span class="pill wip">② 실적·인폼</span><span class="arrow">→</span>
+        <span class="pill wip">③ 소재 이관</span><span class="arrow">→</span>
+        <span class="pill done">④ 처리 완료</span>
       </div>`;
   const steps =
     step(1, '', '계획 등록', '계획을 올리고, 실제로 갈 건 ‘확정’', '담당자', 'owner',
@@ -492,12 +492,11 @@ function showMail(mail){
 /* ═══ 출장 내역 ═══ */
 function rList(){
   const G = ST.groups.filter(g => g.yq === YQ);
-  const jname = g => (gname(g) || '출장').replace(/'/g, '’');
   const acts = g => {
     const b = [];
     if (g.status === '계획 등록') {          // 잠정: 확정하거나 흔적 없이 삭제
       b.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','확정 예정')">출장 확정</button>`);
-      b.push(`<button class="btn sm" onclick="delGroup('${g.group_id}','${esc(jname(g))}')">삭제</button>`);
+      b.push(`<button class="btn sm" onclick="delGroup('${g.group_id}')">삭제</button>`);
     } else if (g.status === '확정 예정') {   // 확정: 예산 확보됨
       b.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','계획 등록')">확정 해제</button>`);
       b.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
@@ -535,9 +534,16 @@ function filterList(){
 /* ═══ 이관·처리 관리 (관리자) — 출장자 개인별 처리 ═══ */
 function pStClass(s){ return s === '처리 완료' ? 'done' : s === '보류' ? 'hold'
   : (s === '소재 이관' || s === '실적 입력·인폼') ? 'wip' : ''; }
+/* 사용자 입력(사번)을 JS 문자열로 보간하면 따옴표 탈출로 코드가 실행된다.
+   data 속성 + 이벤트 위임으로 값을 '데이터'로만 전달한다. */
 function pBtn(gid, emp, status, label, cls){
-  return `<button class="btn sm ${cls || ''}" onclick="setPersonStatus('${gid}','${esc(emp)}','${status}')">${label}</button>`;
+  return `<button class="btn sm ${cls || ''}" data-act="person" data-gid="${esc(gid)}"`
+    + ` data-emp="${esc(emp)}" data-st="${esc(status)}">${label}</button>`;
 }
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('button[data-act="person"]');
+  if (b) setPersonStatus(b.dataset.gid, b.dataset.emp, b.dataset.st);
+});
 function rProcess(){
   // 이관·처리 = 실적 이후 단계만. 계획(잠정)·확정 예정은 ‘출장 내역’에서 관리.
   const G = ST.groups.filter(g => g.yq === YQ && !['계획 등록', '확정 예정', '취소'].includes(g.status));
@@ -601,7 +607,7 @@ async function setStatus(gid, status){
     toast((data.errors || ['실패'])[0]); return;
   }
   if (data.mail) showMail(data.mail);          // 이관 → 비용 처리 요청 인폼
-  toast(`상태 변경 — ${dispSt(status)}`);
+  toast(data.held ? `${dispSt(status)} — 보류 ${data.held}명은 제외(유지)됨` : `상태 변경 — ${dispSt(status)}`);
   await load(); nav(VIEW);
 }
 async function setPersonStatus(gid, emp, status){
@@ -614,7 +620,9 @@ async function setPersonStatus(gid, emp, status){
   toast(`개인 처리 — ${status}`);
   await load(); nav(VIEW);
 }
-async function delGroup(gid, label){
+async function delGroup(gid){
+  const g = ST.groups.find(x => x.group_id === gid);
+  const label = g ? gname(g) : '출장';
   if (!confirm(`잠정 계획 ‘${label}’을(를) 삭제할까요?\n실제로 가지 않는 계획은 흔적 없이 사라집니다. (되돌릴 수 없음)`)) return;
   const {ok, data} = await api('/groups/' + gid, {method: 'DELETE'});
   if (!ok) { toast((data.errors || ['삭제 실패'])[0]); return; }
