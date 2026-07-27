@@ -440,5 +440,28 @@ ok('오염 데이터 정렬 방어', _C.ledger_rows({'groups':[{'dep_dt':{}, 'tr
 for u in ('/api/export.csv', '/api/export.xls', '/api/export_budget.csv'):
     ok(f'{u[5:]} 200', c.get('/travelbudget' + u).status_code == 200)
 
+print('\n=== 19. Qwen 변환 프롬프트 (문서 ↔ 화면 동기화) ===')
+import re as _re
+_md = open('QWEN_PROMPT.md', encoding='utf-8').read()
+_app = open('servera/travelbudget/static/app.js', encoding='utf-8').read()
+_m = _re.search(r'^````text\n(.*?)^````$', _md, _re.S | _re.M)
+ok('QWEN_PROMPT.md 프롬프트 블록 존재', bool(_m))
+_pm = _m.group(1).rstrip('\n')
+_a = _re.search(r'const QWEN_PROMPT = `(.*?)`;', _app, _re.S)
+ok('app.js 에 프롬프트 주입됨', bool(_a) and len(_a.group(1)) > 3000, _a and len(_a.group(1)))
+ok('문서 ↔ 화면 프롬프트 일치 (tools/sync_prompt.py 실행 필요)', _a and _a.group(1) == _pm)
+ok('프롬프트에 백틱·치환자 없음(JS 리터럴 안전)', '`' not in _pm and '${' not in _pm and '</script' not in _pm)
+# 프롬프트가 실제 시스템 규칙과 맞는지 — 열거값·CCG팀명이 core 와 일치해야
+for _v in _C.STATUSES:
+    ok(f'프롬프트 status 표기 일치: {_v}', _v in _pm)
+for _t in _C.CCG_TEAMS:
+    ok(f'프롬프트 CCG팀 표기 일치: {_t["team"]}', _t['team'] in _pm)
+for _k in _C.KINDS:
+    ok(f'프롬프트 출장구분 일치: {_k[:14]}', _k in _pm)
+ok('프롬프트 금액 상한이 core 와 일치', str(_C.AMT_MAX) in _pm.replace(',', ''), _C.AMT_MAX)
+ok('자동계산 필드 출력 금지 명시', '출력하지 마세요' in _pm and '총합계' in _pm)
+ok('동행자 그룹 묶기 규칙 포함', '한 group 으로 합치고' in _pm)
+ok('화면에 복사 버튼 존재', '변환 프롬프트 복사' in _app and 'QWEN_CHECK' in _app)
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

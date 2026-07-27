@@ -64,6 +64,9 @@ input[readonly],.auto{background:var(--shade);color:var(--mut)}
 input[type=number],input.mny{text-align:right;font-variant-numeric:tabular-nums}
 input.bad{border-color:var(--red);background:#FFF5F5}
 .fwarn{color:var(--red);font-size:11px;font-weight:600;margin-top:4px}
+.promptbox{margin:12px 0 0;padding:12px 14px;background:#FAFBFC;border:1px solid var(--line);border-radius:2px;
+max-height:420px;overflow:auto;font-size:11.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;
+font-family:Consolas,"D2Coding","Malgun Gothic","맑은 고딕",monospace;color:var(--ink2)}
 .card.just{border-left:4px solid var(--green);background:#F4FBF6}
 .just .jt{font-weight:800;color:var(--navy);font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .just .jw{color:var(--ink2);font-size:12.5px;margin:6px 0 10px}
@@ -247,7 +250,7 @@ padding:13px 16px;margin-bottom:14px}
     { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
     { team: 'Target 소재팀', ccg: 'C1707' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
-  var APP_VERSION = 'v9.2', APP_BUILD = '2026-07-27';
+  var APP_VERSION = 'v9.3', APP_BUILD = '2026-07-27';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
@@ -1122,6 +1125,164 @@ document.addEventListener('keydown', e => {
 });
 function renderAll(){ rGuide(); rDash(); rPlan(); rActual(); rList(); rProcess(); rBudget(); rData(); }
 
+/* QWEN_PROMPT_START — QWEN_PROMPT.md 에서 자동 주입. 직접 고치지 말 것 */
+const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
+아래 [원본 데이터]를 [출력 스펙]에 맞는 JSON 하나로 변환하세요.
+설명·주석·마크다운 없이 **JSON만** 출력합니다.
+
+────────────────────────────────
+[출력 스펙]
+
+최상위 구조:
+{
+  "schema_version": "2.0",
+  "settings": { ... },
+  "budget": [ ... ],
+  "groups": [ ... ],
+  "audit_log": []
+}
+
+■ settings (그대로 사용, 수정 금지)
+{
+  "system_name": "소재 국내 출장비 관리",
+  "admin_id": "2071478",
+  "admin_pw": "2071478",
+  "mail_recipients": ["junghoon12.lee@sk.com"],
+  "reference_url": "material.skhynix.com/travelbudget"
+}
+
+■ budget[] — 분기 예산 배정 이력. 한 줄 = 한 번의 배정/증액/감액
+{ "rev_id": "B-0001", "yq": "2026-3Q", "rev_dt": "2026-07-01",
+  "rev_type": "최초배정", "amt": 9000000, "reason": "분기 정기 배정" }
+  - yq: 반드시 "YYYY-NQ" (예 2026-3Q). 1~3월=1Q, 4~6월=2Q, 7~9월=3Q, 10~12월=4Q
+  - rev_type: 최초배정 / 추가증액 / 감액 / 이월  중 하나
+  - amt: 정수(원). 감액은 반드시 음수 (예 -1000000)
+  - 원본에 예산 정보가 없으면 budget 은 [] 로 두세요. 금액을 지어내지 마세요.
+
+■ groups[] — 출장 1건 = 1개 객체. **같이 간 사람은 travelers 배열로 묶습니다**
+{
+  "group_id": "TB-0001",
+  "plan_type": "계획",
+  "status": "처리 완료",
+  "city": "청주",
+  "org": "원익머트리얼즈",
+  "purpose": "NF3 순도 관리 정기 Audit",
+  "kind": "정기 Audit",
+  "dep_dt": "2026-08-04",
+  "ret_dt": "2026-08-05",
+  "car": "자차사용",
+  "remark": "",
+  "travelers": [
+    { "name": "박영희", "emp_no": "20140508", "rank": "팀장", "ccg_nm": "Gas 소재팀",
+      "p_trans": 70000, "p_lodg": 95000, "p_meal": 65000, "p_etc": 10000,
+      "a_trans": 65000, "a_lodg": 90000, "a_meal": 60000, "a_etc": 10000 }
+  ]
+}
+
+■ 필드 매핑 (원본 열 이름 → JSON 키)
+  구분              → plan_type
+  출장도시           → city
+  출장기관&업체       → org
+  출장목적&사유       → purpose
+  출발일자           → dep_dt      (YYYY-MM-DD 로 변환)
+  복귀일자           → ret_dt      (YYYY-MM-DD 로 변환)
+  자차사용여부        → car
+  출장구분           → kind
+  비고              → remark
+  사번              → travelers[].emp_no
+  성명              → travelers[].name
+  직책              → travelers[].rank
+  CCG명             → travelers[].ccg_nm
+  계획_교통비        → travelers[].p_trans
+  계획_숙박비        → travelers[].p_lodg
+  계획_식대&잡비      → travelers[].p_meal
+  계획_기타          → travelers[].p_etc
+  실적_교통비        → travelers[].a_trans
+  실적_숙박비        → travelers[].a_lodg
+  실적_식대&잡비      → travelers[].a_meal
+  실적_기타          → travelers[].a_etc
+
+  ※ LV2, CCG(코드), 출장일수, 출장시점, 계획_총합계, 실적_총합계 는 **출력하지 마세요.**
+     시스템이 자동 계산합니다. 넣으면 오히려 틀립니다.
+
+■ 열거값 — 아래 글자와 **정확히** 일치해야 합니다 (띄어쓰기·기호 포함)
+  plan_type : 계획 / 변경 / 긴급
+  status    : 계획 등록 / 확정 예정 / 실적 입력·인폼 / 소재 이관 / 처리 완료 / 취소
+  rank      : TL / 팀장
+  car       : 미사용 / 자차사용
+  kind      : 기술교류(Live Demo, Data 분석) / 실사&사양 개선,협의 / 정기 Audit /
+              비정기 Audit(Issue/Theme) / 기타
+  ccg_nm    : Photo 소재팀 / Chemical 소재팀 / CMP 소재팀 / Gas 소재팀 /
+              Precursor 소재팀 / Wafer 소재팀 / Target 소재팀
+
+  주의 1) "실적 입력·인폼" 의 가운뎃점은 U+00B7 (·) 입니다. 마침표(.)나 중점(・) 금지.
+  주의 2) "식대&잡비", "실사&사양 개선,협의" 의 & 와 쉼표는 그대로 씁니다.
+  주의 3) 원본 값이 위 목록에 없으면 가장 가까운 값으로 매핑하고,
+          정말 애매하면 kind 는 "기타", plan_type 은 "계획" 으로 두세요.
+
+■ 변환 규칙 (중요)
+
+1) 그룹 묶기 — 원본이 "1인 1행"이면, 아래가 모두 같은 행들은 **한 group 으로 합치고**
+   각 사람을 travelers 배열에 넣습니다.
+     출장도시 + 출장기관&업체 + 출발일자 + 복귀일자 + 출장목적&사유
+   (같은 출장을 다녀온 동행자입니다. 절대 사람 수만큼 group 을 만들지 마세요.)
+
+2) group_id — "TB-0001" 부터 순번으로 부여. 전체에서 유일해야 합니다.
+
+3) emp_no — **문자열**로. 앞의 0 이 있으면 유지 ("0012345"). 같은 group 안에서 중복 금지.
+   중복이면 서로 다른 사람인지 확인하고, 정말 같은 사람이면 한 명으로 합치세요.
+
+4) 금액 — **정수(원)**. 콤마·"원"·공백 제거. 빈 칸은 0.
+   소수점이 있으면 반올림. 음수는 0 으로. 1억(100000000)을 넘는 값은 자릿수 오류이니
+   원본을 그대로 두지 말고 해당 건을 [확인필요] 목록에 올리세요.
+
+5) status 판정 — 원본에 상태 열이 없으면 이 규칙으로 정합니다.
+     실적 금액이 있고 정산/지급이 끝난 건        → "처리 완료"
+     실적 금액이 있고 아직 처리 중인 건           → "실적 입력·인폼"
+     아직 안 갔고 계획만 있는데 실제로 갈 건      → "확정 예정"
+     아직 안 갔고 갈지 미정인 건                 → "계획 등록"
+     취소된 건                                  → "취소"
+   판단 근거가 없으면: 실적 금액이 있으면 "처리 완료", 없으면 "계획 등록".
+
+6) 사람마다 처리 상태가 다른 경우 — 5명 중 3명만 처리됐다면
+   각 traveler 에 "status" 를 개별로 넣습니다. 허용값:
+     실적 입력·인폼 / 소재 이관 / 처리 완료 / 보류
+   (예: 예산 부족으로 못 넘긴 사람은 "보류")
+   전원이 같은 상태면 traveler 의 status 는 넣지 마세요.
+
+7) 날짜 — 반드시 "YYYY-MM-DD". "2026.8.4", "26/08/04", "8월 4일" 등은 모두 변환.
+   연도가 없으면 같은 시트의 다른 행이나 분기 정보로 추정하고, 추정한 건은 [확인필요]에 올리세요.
+   복귀일이 출발일보다 빠르면 안 됩니다(당일 출장은 두 날짜가 같음).
+
+8) 없는 값은 **지어내지 마세요.** 문자열은 "", 금액은 0 으로 둡니다.
+
+────────────────────────────────
+[출력 전 자가 점검 — 통과 못 하면 고쳐서 다시 출력]
+
+□ JSON 하나로 파싱되는가 (마크다운 코드펜스·설명문 없이)
+□ 최상위에 settings / budget / groups / audit_log 가 모두 있는가
+□ 모든 group 에 travelers 가 1명 이상 있는가
+□ 모든 group_id 가 유일한가
+□ 같은 group 안에 emp_no 중복이 없는가
+□ 모든 dep_dt / ret_dt 가 YYYY-MM-DD 이고, ret_dt >= dep_dt 인가
+□ status / kind / rank / car / plan_type / ccg_nm 이 전부 허용값 목록과 글자까지 같은가
+□ 모든 금액이 콤마 없는 정수인가 (0 이상, 1억 이하)
+□ LV2·CCG코드·출장일수·총합계 같은 자동계산 필드를 넣지 않았는가
+
+[출력 형식]
+1) 먼저 JSON 을 출력합니다. 다른 말은 붙이지 않습니다.
+2) JSON 이 끝난 뒤, 판단이 애매했던 건이 있으면 마지막에 이렇게만 덧붙입니다.
+
+[확인필요]
+- TB-0007 : 복귀일자 없음 → 출발일과 같게 처리
+- TB-0012 : 실적 3,200,000원 (원본 자릿수 확인 요망)
+
+────────────────────────────────
+[원본 데이터]
+
+(여기에 엑셀/CSV 내용을 붙여넣으세요)`;
+/* QWEN_PROMPT_END */
+
 /* ═══ 이용 안내 (처리 흐름) ═══ */
 function rGuide(){
   const to = (ST.settings && ST.settings.mail_recipients || []).map(esc).join(', ');
@@ -1958,8 +2119,35 @@ async function rData(){
     <div class="card"><h2>감사 로그 <span class="sub" style="font-weight:600">최근 활동 — 누가 무엇을 했는지</span></h2>
       <p class="cap">삭제·상태 변경·예산·복원 이력이 남습니다. 잠정 계획 삭제는 내용까지 기록됩니다.</p>
       <div id="auditBox"><button class="btn" onclick="loadAudit()">감사 로그 불러오기</button></div></div>
+    <div class="card"><h2>기존 데이터 변환 <span class="sub" style="font-weight:600">사내 Qwen용 프롬프트</span></h2>
+      <p class="cap">기존 엑셀·CSV를 이 시스템 형식(data.json)으로 바꿀 때 씁니다.
+        아래 프롬프트를 복사해 사내 Qwen에 붙여넣고, 맨 끝 [원본 데이터] 자리에 엑셀 내용을 붙여넣으세요.</p>
+      <div class="note">동행자 묶기(같은 출장 = 1건), 상태 판정, 금액 정수화, 열거값 표기까지 규칙이 들어 있습니다.
+        <b>서버에 넣기 전</b> 아래 검증 명령으로 <b>검증 실패 0 건</b>을 확인하세요.</div>
+      <div class="btns" style="margin-top:0">
+        <button class="btn pri" onclick="copyText(QWEN_PROMPT, '변환 프롬프트를 복사했습니다 — Qwen에 붙여넣으세요')">변환 프롬프트 복사</button>
+        <button class="btn" onclick="togglePrompt()" id="qwToggle">프롬프트 펼쳐보기</button>
+        <button class="btn" onclick="copyText(QWEN_CHECK, '검증 명령을 복사했습니다')">투입 전 검증 명령 복사</button>
+      </div>
+      <pre id="qwBox" class="promptbox" style="display:none"></pre></div>
     <div class="card"><h2>저장 위치</h2>
       <div class="note">정적(GitHub Pages) 버전 — 데이터는 이 브라우저의 localStorage에 저장됩니다(브라우저별 개별). 여러 명이 공유하는 원장은 사내 Flask 버전을 사용하세요.</div></div>`;
+}
+const QWEN_CHECK = `python3 -c "
+import json,sys; sys.path.insert(0,'.')
+from servera.travelbudget import core as C
+d=json.load(open('data.json',encoding='utf-8'))
+bad=0
+for g in d['groups']:
+    e=C.validate_group(C.normalize_group(g), require_actual=g.get('status') in C.WIP)
+    if e: bad+=1; print(g.get('group_id'), e[:3])
+print('검증 실패', bad, '건 /', len(d['groups']), '건')"`;
+function togglePrompt(){
+  const box = $('#qwBox'), btn = $('#qwToggle');
+  const open = box.style.display === 'none';
+  if (open && !box.textContent) box.textContent = QWEN_PROMPT;   // 긴 텍스트는 열 때 한 번만
+  box.style.display = open ? 'block' : 'none';
+  btn.textContent = open ? '접기' : '프롬프트 펼쳐보기';
 }
 async function loadAudit(){
   const {ok, data} = await api('/audit?n=200');

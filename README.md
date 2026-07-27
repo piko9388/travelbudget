@@ -1,4 +1,4 @@
-# 소재 국내 출장비 관리 v9.2
+# 소재 국내 출장비 관리 v9.3
 
 소재전략 국내 출장비 계획·실적·인폼·정산 관리 (Flask + data.json 단일 파일 저장)
 
@@ -63,9 +63,20 @@
 - 등록 직후 **다음 할 일 안내** (확정 / 실적 입력 / 내역 확인)
 - 인폼 카드를 닫아도 **인폼 다시 보기** — 실적 화면·출장 내역 어디서나 재발행
 
+## 기존 데이터 변환 (Qwen)
+
+화면 **데이터 관리 → 기존 데이터 변환** 에서 프롬프트를 바로 복사할 수 있습니다.
+문서(`QWEN_PROMPT.md`)가 원본이고 `tools/sync_prompt.py` 로 화면에 주입합니다 —
+둘이 어긋나면 `test_api.py` §19 가 실패합니다.
+
+```bash
+python3 tools/sync_prompt.py     # QWEN_PROMPT.md → app.js 주입
+python3 tools/build_docs.py      # 정적(GitHub Pages) 재조립
+```
+
 ## 검증
 
-API 통합 162/162 · 브라우저 E2E 73/73 · 정적 Pages E2E 19/19
+API 통합 188/188 · 브라우저 E2E 82/82 · 정적 Pages E2E 19/19
 (모바일 390px·무인증 공격·XSS·타입 오염·경로 탈출·동시성 12스레드 포함)
 ```
 python3 test_api.py        # Flask test client

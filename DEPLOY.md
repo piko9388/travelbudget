@@ -1,8 +1,8 @@
-# 사내 Flask 서버 업로드 방법 (v9.2)
+# 사내 Flask 서버 업로드 방법 (v9.3)
 
 ## 0. 준비물
 
-- 패키지 `travelbudget_flask_v9.2.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
+- 패키지 `travelbudget_flask_v9.3.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
 - 사내 서버에 Python 3.8+ 와 Flask 3.x
 
 ```
@@ -16,7 +16,7 @@ pip install -r requirements.txt      # Flask 뿐입니다
 압축을 풀면 이 구조입니다.
 
 ```
-travelbudget_flask_v9.2/
+travelbudget_flask_v9.3/
 └─ servera/
    └─ travelbudget/          ← 이 폴더 하나만 서버로 옮기면 됩니다
       ├─ __init__.py
@@ -69,7 +69,7 @@ Windows 서비스라면 서비스 환경변수에 `TB_DATA_DIR` 을 등록합니
 material.skhynix.com/travelbudget
 ```
 
-좌측 하단에 **v9.2 · 2026-07-27** 이 보이면 이 버전이 올라간 것입니다.
+좌측 하단에 **v9.3 · 2026-07-27** 이 보이면 이 버전이 올라간 것입니다.
 (버전이 안 바뀌었으면 브라우저 캐시 — `Ctrl+F5`)
 
 ---
@@ -84,17 +84,19 @@ material.skhynix.com/travelbudget
 | 백업 | `$TB_DATA_DIR/backup/` | 파일 쌓임 |
 | 관리자 | 예산 관리 → 2071478 | 화면 열림 |
 | 내보내기 | 데이터 관리 → 센터 제출 (Excel) | 파일 받아짐 |
+| 변환 프롬프트 | 데이터 관리 → 변환 프롬프트 복사 | 복사됨 토스트 |
 
 전체 자동 검증을 돌리려면:
 
 ```bash
-python3 test_api.py          # 162개 통과해야 정상
+python3 test_api.py          # 188개 통과해야 정상
 ```
 
 ---
 
 ## 6. 기존 데이터 이관
 
+변환 프롬프트는 **화면 → 데이터 관리 → 기존 데이터 변환** 에서 복사하거나 `QWEN_PROMPT.md` 를 씁니다.
 `DATA_SCHEMA.md` 형식으로 만든 `data.json` 을 `$TB_DATA_DIR/data.json` 에 덮어쓰고 재기동합니다.
 덮어쓰기 **전에 기존 파일을 백업**하세요. (변환 프롬프트는 `QWEN_PROMPT.md`)
 
