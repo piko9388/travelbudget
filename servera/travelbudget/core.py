@@ -41,7 +41,7 @@ CCG_TEAMS = [
 ]
 CCG_BY_NM = {t["team"]: t["ccg"] for t in CCG_TEAMS}
 
-APP_VERSION = "v9.1"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_VERSION = "v9.2"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-07-27"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -56,6 +56,8 @@ CSV_EXTRA = ["상태", "개인처리상태", "SAP전표번호", "리드타임(�
 # 프로세스 진행 순서 — 목록의 '프로세스별 우선 분류'에 쓰는 정렬 가중치
 STAGE_ORDER = {ST_PLAN: 0, ST_CONFIRM: 1, ST_INFORM: 2, ST_TRANSFER: 3, ST_DONE: 4, ST_CANCEL: 5}
 LEAD_DAYS_MIN = 7                        # 사전 신청 기준 (D-7)
+# 비용 1건(1인·1항목) 상한 — 업무 규칙이 아니라 오타 방어선(0을 더 찍은 값이 원장에 들어가는 것을 막음)
+AMT_MAX = 100_000_000
 
 
 # ── 유틸 ──────────────────────────────────────────────────
@@ -68,6 +70,15 @@ def num(v):
 
 def won(n):
     return format(num(n), ",d")
+
+
+def _txt(v):
+    """텍스트 필드 정규화 — dict/list/bool/None은 빈 값으로.
+    원장·CSV·정렬이 전부 '문자열'을 전제로 동작하므로, 저장 전에 여기서 형을 고정한다.
+    (JSON API라 어떤 타입이든 들어올 수 있고, str()만 씌우면 '{}' 같은 값이 원장에 남는다)"""
+    if v is None or isinstance(v, (dict, list, bool)):
+        return ""
+    return str(v).strip()
 
 
 def _d(s):
@@ -176,14 +187,24 @@ def normalize_group(g):
     g.setdefault("plan_type", "계획")
     g.setdefault("status", ST_PLAN)
     g.setdefault("lv2", "소재")
-    g.setdefault("travelers", [])
+    # travelers는 반드시 dict의 list — 아니면 여기서 안전하게 비우고 validate_group이 400으로 돌려준다.
+    # (정규화가 검증보다 먼저 도는 구조라, 여기서 막지 않으면 잘못된 형식이 500으로 터진다)
+    T = g.get("travelers")
+    g["travelers"] = [p for p in T if isinstance(p, dict)] if isinstance(T, list) else []
     g.setdefault("remark", "")
+    for k in ("plan_type", "status", "lv2", "city", "org", "purpose",
+              "kind", "car", "remark", "group_id", "sap_doc"):
+        g[k] = _txt(g.get(k))
+    for k in ("dep_dt", "ret_dt"):        # 날짜는 파싱되는 값만 남긴다 (아니면 빈 값 → 검증이 잡음)
+        g[k] = str(_d(g.get(k)) or "")
     g["days"] = trip_days(g.get("dep_dt"), g.get("ret_dt"))
     g["quarter"] = quarter(g.get("dep_dt"))
     # 분기(yq)는 항상 출발일 기준으로 재계산 — 일자 수정 시 엉뚱한 분기에 귀속되지 않도록.
     g["yq"] = year_quarter(g["dep_dt"]) if _d(g.get("dep_dt")) else (g.get("yq") or year_quarter())
     for p in g["travelers"]:
         p.setdefault("rank", "TL")
+        for k in ("name", "emp_no", "rank", "ccg_nm", "ccg"):
+            p[k] = _txt(p.get(k))
         if not p.get("ccg") and p.get("ccg_nm") in CCG_BY_NM:
             p["ccg"] = CCG_BY_NM[p["ccg_nm"]]
         # 개인 처리 상태: 유효값만 유지, 그 외/없음은 ""(그룹 상속)
@@ -254,6 +275,13 @@ def validate_group(g, require_actual=False):
             e.append(f"{i}번 출장자 CCG팀이 올바르지 않습니다.")
         if require_actual and p_sum(p, "a") < 0:
             e.append(f"{i}번 출장자 실적 비용이 올바르지 않습니다.")
+        for x, lab in (("p", "계획"), ("a", "실적")):
+            for k, kl in COST:
+                v = num(p.get(f"{x}_{k}"))
+                if v > AMT_MAX:
+                    e.append(f"{i}번 출장자 {lab} {kl} {won(v)}원이 상한({won(AMT_MAX)}원)을 넘습니다 — 자릿수를 확인하세요.")
+                elif v < 0:
+                    e.append(f"{i}번 출장자 {lab} {kl}는 음수일 수 없습니다.")
     # 실적 단계는 '그룹 합계'가 0보다 크면 통과 — 동행자 1명이 불참(0원)해도 저장 가능
     if require_actual and T and g_sum(g, "a") <= 0:
         e.append("실적 비용을 1개 이상 입력하세요.")
@@ -383,7 +411,7 @@ def center_report(data, yq):
     """센터 협의·추가 확보 요청용 요약 — 분기 배정 대비 집행·확정·부족액."""
     d = dash(data, yq)
     B = sorted([b for b in data.get("budget", []) if b.get("yq") == yq],
-               key=lambda b: b.get("rev_dt") or "")
+               key=lambda b: _txt(b.get("rev_dt")))
     used = d["done"] + d["wip"]
     need = max(0, -d["avail"])                       # 확정분까지 감안한 부족액
     rows = [dict(team=r["team"], ccg=r["ccg"], done=r["done"], wip=r["wip"],
@@ -549,7 +577,7 @@ def make_budget_csv(data, yq=None):
 def ledger_rows(data, yq=None, internal=False):
     """센터 관리 양식(정산 대장) 행 — 출장자 개인별 1행."""
     out = []
-    for raw in sorted(data.get("groups", []), key=lambda g: g.get("dep_dt", "")):
+    for raw in sorted(data.get("groups", []), key=lambda g: _txt(g.get("dep_dt"))):
         g = normalize_group(raw)
         if yq and g["yq"] != yq:
             continue

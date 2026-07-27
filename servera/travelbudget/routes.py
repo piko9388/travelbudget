@@ -35,6 +35,17 @@ def _public_settings(s):
     return {k: v for k, v in s.items() if k not in ("admin_pw",)}
 
 
+def _body():
+    """요청 본문 — 반드시 dict. JSON API라 123·[]·null 같은 본문도 들어오므로 여기서 고정한다."""
+    b = request.get_json(silent=True)
+    return b if isinstance(b, dict) else {}
+
+
+def _tlist(v):
+    """요청 본문의 travelers를 안전한 dict 리스트로 — 형식 오류는 500이 아니라 검증 400으로."""
+    return [p for p in v if isinstance(p, dict)] if isinstance(v, list) else []
+
+
 def _find(data, gid):
     return next((g for g in data["groups"] if g.get("group_id") == gid), None)
 
@@ -78,13 +89,12 @@ def api_state():
 def create_group():
     with LOCK:
         data = load_data()
-        payload = request.get_json(silent=True) or {}
+        payload = _body()
         payload["group_id"] = f"TB-{uuid.uuid4().hex[:8].upper()}"
         payload["status"] = C.ST_CONFIRM if payload.get("confirmed") else C.ST_PLAN
         payload["created_at"] = datetime.now().isoformat(timespec="seconds")
-        for p in payload.get("travelers") or []:   # 개인 처리 상태 주입 금지 (신규는 항상 빈 값)
-            if isinstance(p, dict):
-                p.pop("status", None)
+        for p in _tlist(payload.get("travelers")):   # 개인 처리 상태 주입 금지 (신규는 항상 빈 값)
+            p.pop("status", None)
         g = C.normalize_group(payload)
         errors = C.validate_group(g)
         if errors:
@@ -107,13 +117,12 @@ def update_group(gid):
             return _err("이관·처리 단계의 건은 관리자만 수정할 수 있습니다.", 401)
         # 상태는 현재 값으로 고정 — 상태 전환은 오직 게이트가 있는 /actual·/status 로만.
         # (이 라우트로 status·실적을 밀어넣어 승인 게이트를 우회하고 예산을 움직이는 경로 차단)
-        merged = {**cur, **(request.get_json(silent=True) or {}),
+        merged = {**cur, **(_body()),
                   "group_id": gid, "status": cur.get("status") or C.ST_PLAN}
         # 개인 처리 상태도 동일 — 기존 값만 사번 기준으로 이식하고 요청 값은 폐기.
         old_st = {str(p.get("emp_no")): p.get("status", "") for p in cur.get("travelers", [])}
-        for p in merged.get("travelers") or []:
-            if isinstance(p, dict):
-                p["status"] = old_st.get(str(p.get("emp_no")), "")
+        for p in _tlist(merged.get("travelers")):
+            p["status"] = old_st.get(str(p.get("emp_no")), "")
         g = C.normalize_group(merged)
         errors = C.validate_group(g, require_actual=g["status"] in C.WIP)
         if errors:
@@ -138,9 +147,9 @@ def input_actual(gid):
         # 이관·완료·보류된 인원이 있으면 실적 재입력은 관리자만 (정산 금액 사후 변조 차단)
         if C.locked(cur) and not _is_admin(data):
             return _err("이관·처리가 시작된 건의 실적은 관리자만 수정할 수 있습니다.", 401)
-        body = request.get_json(silent=True) or {}
+        body = _body()
         g = C.normalize_group(cur)
-        by_emp = {str(p.get("emp_no")): p for p in body.get("travelers", [])}
+        by_emp = {str(p.get("emp_no")): p for p in _tlist(body.get("travelers"))}
         for p in g["travelers"]:
             src = by_emp.get(str(p.get("emp_no")))
             if src:
@@ -172,7 +181,7 @@ def change_status(gid):
         cur = _find(data, gid)
         if cur is None:
             return _err("출장건을 찾을 수 없습니다.", 404)
-        body = request.get_json(silent=True) or {}
+        body = _body()
         want = body.get("status", "")
         emp = body.get("emp_no")
         admin = _is_admin(data)
@@ -314,7 +323,7 @@ def set_sap(gid):
         cur = _find(data, gid)
         if cur is None:
             return _err("출장건을 찾을 수 없습니다.", 404)
-        doc = str((request.get_json(silent=True) or {}).get("sap_doc", "")).strip()
+        doc = str((_body()).get("sap_doc", "")).strip()
         cur["sap_doc"] = doc
         cur["updated_at"] = datetime.now().isoformat(timespec="seconds")
         append_audit(data, "SAP 전표번호", f"{gid} → {doc or '(삭제)'}", actor="admin")
@@ -329,7 +338,7 @@ def set_sap(gid):
 def set_notice():
     with LOCK:
         data = load_data()
-        b = request.get_json(silent=True) or {}
+        b = _body()
         data["settings"]["notice"] = str(b.get("notice", ""))[:500].strip()
         data["settings"]["notice_sub"] = str(b.get("notice_sub", ""))[:300].strip()
         append_audit(data, "안내 문구 변경", data["settings"]["notice"][:60], actor="admin")
@@ -357,7 +366,7 @@ def audit_log():
 @travelbudget.post("/api/budget")
 @admin_required
 def add_budget():
-    b = request.get_json(silent=True) or {}
+    b = _body()
     errors = C.validate_budget(b)
     if errors:
         return _err(errors)
@@ -393,7 +402,7 @@ def del_budget(rev_id):
 @travelbudget.post("/api/admin/verify")
 def admin_verify():
     data = load_data()
-    pw = str((request.get_json(silent=True) or {}).get("pw", ""))
+    pw = str((_body()).get("pw", ""))
     return (jsonify({"ok": True}) if pw == str(data["settings"].get("admin_pw", ""))
             else _err("아이디 또는 비밀번호가 올바르지 않습니다.", 401))
 

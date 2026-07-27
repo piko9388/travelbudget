@@ -383,5 +383,62 @@ ok('실적 후 인폼 재발행 200', r.status_code==200 and '재발' in m.get('
 ok('재발행 인폼 수신자/제목 동일', bool(m.get('to')) and '재발행테스트' in m.get('subject',''), m.get('subject'))
 ok('없는 출장 인폼 404', c.get('/travelbudget/api/groups/NOPE/mail').status_code==404)
 
+print('\n=== 17. 백엔드 경계값 (500 방어 · 금액 상한) ===')
+def _mk(**kw):
+    g = dict(plan_type='계획', city='시', org='업체', purpose='목적', kind='정기 Audit',
+             dep_dt=f'{yy}-{mm}-10', ret_dt=f'{yy}-{mm}-11', car='미사용',
+             travelers=[dict(name='홍', emp_no='Z1', rank='TL', ccg_nm='Gas 소재팀', p_trans=100000)])
+    g.update(kw); return c.post('/travelbudget/api/groups', json=g)
+# travelers 형식 오류가 500으로 터지던 문제 (normalize가 validate보다 먼저 돌아서)
+for bad in ('문자열', 123, {'a': 1}, [None], ['x'], [[]]):
+    r = _mk(travelers=bad)
+    ok(f'travelers={type(bad).__name__} → 500 아님', r.status_code == 400, r.status_code)
+# 금액 상한 — 0을 더 찍은 값이 원장에 들어가지 않아야
+r = _mk(travelers=[dict(name='홍', emp_no='Z2', rank='TL', ccg_nm='Gas 소재팀', p_trans=10**15)])
+ok('천조 단위 계획비 거부', r.status_code == 400 and '자릿수' in str(r.get_json()['errors']), r.status_code)
+r = _mk(travelers=[dict(name='홍', emp_no='Z3', rank='TL', ccg_nm='Gas 소재팀', p_trans=_C.AMT_MAX)])
+ok('상한 경계값(1억)은 통과', r.status_code == 201, r.status_code)
+r = _mk(travelers=[dict(name='홍', emp_no='Z4', rank='TL', ccg_nm='Gas 소재팀', p_trans=-5000)])
+ok('음수 계획비 거부', r.status_code == 400 and '음수' in str(r.get_json()['errors']), r.status_code)
+# 실적에도 동일 적용
+gz = _mk(travelers=[dict(name='홍', emp_no='Z5', rank='TL', ccg_nm='Gas 소재팀', p_trans=100000)]).get_json()['group']['group_id']
+r = c.post(f'/travelbudget/api/groups/{gz}/actual', json={'travelers':[{'emp_no':'Z5','a_trans':10**12}]})
+ok('실적 금액 상한 적용', r.status_code == 400, r.status_code)
+# 날짜 경계
+r = _mk(dep_dt='2026-12-31', ret_dt='2027-01-02')
+g = r.get_json()['group']
+ok('연말연시 출장 일수·분기', g['days'] == 3 and g['yq'] == '2026-4Q', (g['days'], g['yq']))
+r = _mk(dep_dt='2027-02-29', ret_dt='2027-03-01')
+ok('존재하지 않는 날짜 거부', r.status_code == 400, r.status_code)
+r = _mk(dep_dt=f'{yy}-{mm}-10', ret_dt=f'{yy}-{mm}-10')
+ok('당일 출장 1일', r.get_json()['group']['days'] == 1, r.get_json()['group']['days'])
+# 백업 경로 탈출
+for badp in ('../../../etc/passwd', 'a/../../data.json'):
+    ok(f'백업 경로탈출 차단({badp[:12]})',
+       c.post(f'/travelbudget/api/backups/{badp}/restore', headers=ADM).status_code in (400, 404))
+
+print('\n=== 18. 타입 오염 방어 (원장·내보내기 보호) ===')
+# 텍스트/날짜 필드에 dict·list·bool 이 들어와도 원장에 그대로 저장되면 안 된다
+r = _mk(city={}, org=[1], purpose=True, remark=None)
+ok('비문자 텍스트 필드 거부', r.status_code == 400, r.status_code)
+r = _mk(city='이천', org='정상업체', purpose='정상목적', remark=['a'], sap_doc={'x':1})
+g = r.get_json().get('group') or {}
+ok('비고·전표 비문자 → 빈 문자열', r.status_code == 201 and g.get('remark') == '' and g.get('sap_doc') == '',
+   (g.get('remark'), g.get('sap_doc')))
+for bad in ({}, [], None, True, 0, 1e308):
+    ok(f'날짜={type(bad).__name__} 거부', _mk(dep_dt=bad).status_code == 400, bad)
+ok('저장된 dep_dt는 항상 str',
+   all(isinstance(x.get('dep_dt'), str) for x in c.get('/travelbudget/api/state').get_json()['groups']))
+# 본문이 dict가 아닌 JSON (123 / [] / null) 이어도 500 아님
+for raw in (b'123', b'[]', b'null', b'"x"', b'not json', b''):
+    for u in ('/api/groups', '/api/budget', '/api/notice'):
+        rr = c.post('/travelbudget' + u, data=raw, content_type='application/json', headers=ADM)
+        ok(f'본문 {raw[:9]!r} {u[5:]} → 500 아님', rr.status_code < 500, rr.status_code)
+# 오염된 구 데이터가 있어도 내보내기는 살아 있어야 (정렬 방어)
+ok('오염 데이터 정렬 방어', _C.ledger_rows({'groups':[{'dep_dt':{}, 'travelers':[]},
+    {'dep_dt':'2026-09-01','travelers':[]}]}, None, False) is not None)
+for u in ('/api/export.csv', '/api/export.xls', '/api/export_budget.csv'):
+    ok(f'{u[5:]} 200', c.get('/travelbudget' + u).status_code == 200)
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

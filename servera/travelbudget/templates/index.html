@@ -2,8 +2,8 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>소재 국내 출장비 관리</title>
 <style>
-:root{--bg:#F5F6F8;--white:#FFF;--ink:#111827;--ink2:#344054;--mut:#667085;--faint:#98A2B3;
---line:#D9DEE7;--line2:#EDF0F4;--soft:#EEF1F5;--shade:#F0F2F5;
+:root{--bg:#F5F6F8;--white:#FFF;--ink:#111827;--ink2:#344054;--mut:#667085;--faint:#626B7D;
+--line:#D9DEE7;--line2:#EDF0F4;--soft:#EEF1F5;--shade:#F0F2F5;--faint2:#98A2B3;
 --navy:#17365D;--navy2:#244C79;--blue:#2563A8;--red:#C23A45;--green:#17725C}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;letter-spacing:-.01em;
@@ -17,8 +17,8 @@ padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
 .nav a{display:block;margin:1px 0;padding:9px 11px;color:var(--ink2);border:1px solid transparent;
 cursor:pointer;border-radius:2px;font-size:13.5px;user-select:none}
 .nav a:hover,.nav a.on{background:var(--soft);border-color:#E3E7ED;color:var(--navy);font-weight:700}
-.nav a .lk{font-size:10px;color:var(--faint);margin-left:4px;font-weight:600}
-.ver{margin-top:auto;padding:0 10px 6px;color:var(--faint);font-size:10.5px;letter-spacing:.02em}
+.nav a .lk{font-size:11px;color:var(--faint);margin-left:4px;font-weight:600}
+.ver{margin-top:auto;padding:0 10px 6px;color:var(--faint);font-size:11.5px;letter-spacing:.02em}
 .contact{padding:14px 10px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--mut);line-height:1.65}
 .contact b{display:block;color:var(--navy);font-size:12px}
 .contact a{color:var(--navy);text-decoration:none}
@@ -55,9 +55,10 @@ display:flex;align-items:center;gap:18px;border-radius:2px}
 .c2{grid-template-columns:repeat(2,minmax(0,1fr))}.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .c4{grid-template-columns:repeat(4,minmax(0,1fr))}
 label{display:block;margin-bottom:5px;color:#475467;font-size:12px;font-weight:700}
-label .rq{color:var(--red)}label .au{color:var(--faint);font-weight:500;font-size:10.5px;margin-left:3px}
+label .rq{color:var(--red)}label .au{color:var(--faint);font-weight:500;font-size:11px;margin-left:3px}
 input,select,textarea{width:100%;border:1px solid #CFD5DF;background:#FFF;padding:8px 9px;color:var(--ink);
 font:inherit;font-size:13.5px;border-radius:2px}
+button,.btn{font-family:inherit}          /* 버튼도 본문과 같은 글꼴로 — 윈도우 기본 UI 글꼴 방지 */
 input:focus,select:focus,textarea:focus{outline:2px solid rgba(37,99,168,.13);border-color:#6F8EAF}
 input[readonly],.auto{background:var(--shade);color:var(--mut)}
 input[type=number],input.mny{text-align:right;font-variant-numeric:tabular-nums}
@@ -88,7 +89,7 @@ td .sub{color:var(--faint);font-size:11px}
 .status{display:inline-block;padding:2px 8px;border:1px solid #D6DCE5;background:#F3F5F8;color:var(--navy);font-size:11.5px;font-weight:600;border-radius:2px}
 .status.done{background:#EDF5F1;border-color:#C4DED2;color:var(--green)}
 .status.wip{background:#FDF6EC;border-color:#E8D4B0;color:#8A5A10}
-.status.cancel{background:var(--shade);color:var(--faint);text-decoration:line-through}
+.status.cancel{background:var(--shade);color:var(--mut);text-decoration:line-through}
 .status.urgent{background:#FBEDEE;border-color:#E6B7BD;color:var(--red)}
 .status.hold{background:#FBEDEE;border-color:#E6B7BD;color:var(--red)}
 .status.confirm{background:#EAF1FB;border-color:#CBDCF0;color:var(--blue)}
@@ -141,7 +142,7 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
 .notice{background:#FFF8E8;border:1px solid #E8D4B0;border-left:4px solid #C79A3A;border-radius:2px;
 padding:13px 16px;margin-bottom:14px}
 .notice .nt{color:#7A5410;font-size:13.5px;font-weight:700;line-height:1.6;white-space:pre-line}
-.notice .ns{color:#96703A;font-size:12px;margin-top:5px}
+.notice .ns{color:#845F2C;font-size:12px;margin-top:5px}
 .notice .ne{margin-top:9px}
 .notice textarea{min-height:60px;font-size:13px}
 /* 이용 안내(흐름) */
@@ -172,6 +173,13 @@ padding:13px 16px;margin-bottom:14px}
 .contact{margin-top:18px}.kpis,.grid2,.c4,.c3,.c2{grid-template-columns:1fr}main{padding:16px}
 .top select{margin-left:0}.mailcard{left:12px;right:12px;width:auto}
 .hero{flex-wrap:wrap}.hero>div{min-width:0}.hero .amount{font-size:25px}.hero .fig{word-break:keep-all;white-space:normal}}
+@media print{
+  aside,.top select,.btns,.btn,.mailcard,.modal,.filter-row,tr.filt,.nav{display:none!important}
+  .app{display:block}main{max-width:none;padding:0}
+  .card,.hero,.kpi,.scroll{border-color:#999;box-shadow:none;break-inside:avoid}
+  th,td{white-space:normal}
+  body{background:#FFF;font-size:11pt}
+}
 </style></head><body>
 <div class="app">
 <aside>
