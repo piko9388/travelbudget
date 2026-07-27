@@ -255,6 +255,19 @@ def change_status(gid):
     return jsonify({"ok": True, "group": g, "dash": dash, "mail": mail, "held": held})
 
 
+# ── 실비 이관 요청 인폼 다시 보기 (카드를 닫아도 언제든 재발행) ──
+@travelbudget.get("/api/groups/<gid>/mail")
+def group_mail(gid):
+    data = load_data()
+    cur = _find(data, gid)
+    if cur is None:
+        return _err("출장건을 찾을 수 없습니다.", 404)
+    g = C.normalize_group(cur)
+    if C.g_sum(g, "a") <= 0:
+        return _err("실적이 입력되지 않아 인폼을 만들 수 없습니다.", 400)
+    return jsonify({"ok": True, "mail": C.make_mail(g, data["settings"])})
+
+
 # ── 이관 인폼 다시 보기 (현재 '소재 이관' 상태 출장자 대상) ──
 @travelbudget.get("/api/groups/<gid>/transfer_mail")
 def transfer_mail(gid):

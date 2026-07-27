@@ -41,7 +41,7 @@ CCG_TEAMS = [
 ]
 CCG_BY_NM = {t["team"]: t["ccg"] for t in CCG_TEAMS}
 
-APP_VERSION = "v9.0"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_VERSION = "v9.1"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-07-27"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -202,13 +202,22 @@ def normalize_group(g):
     return g
 
 
+def josa(w, pair="을를"):
+    """받침 유무로 조사 선택 — '출장도시을(를)' 같은 어색한 안내를 없앤다."""
+    if not w:
+        return pair[1]
+    c = ord(w[-1])
+    has_final = 0xAC00 <= c <= 0xD7A3 and (c - 0xAC00) % 28
+    return pair[0] if has_final else pair[1]
+
+
 def validate_group(g, require_actual=False):
     e = []
     for k, label in (("city", "출장도시"), ("org", "출장기관&업체"),
                      ("purpose", "출장목적&사유"), ("dep_dt", "출발일자"),
                      ("ret_dt", "복귀일자"), ("kind", "출장구분")):
         if not str(g.get(k, "")).strip():
-            e.append(f"{label}을(를) 입력하세요.")
+            e.append(f"{label}{josa(label)} 입력하세요.")
     if g.get("plan_type") not in PLAN_TYPES:
         e.append("구분이 올바르지 않습니다.")
     if g.get("status") not in STATUSES:

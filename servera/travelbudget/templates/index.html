@@ -60,7 +60,14 @@ input,select,textarea{width:100%;border:1px solid #CFD5DF;background:#FFF;paddin
 font:inherit;font-size:13.5px;border-radius:2px}
 input:focus,select:focus,textarea:focus{outline:2px solid rgba(37,99,168,.13);border-color:#6F8EAF}
 input[readonly],.auto{background:var(--shade);color:var(--mut)}
-input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
+input[type=number],input.mny{text-align:right;font-variant-numeric:tabular-nums}
+input.bad{border-color:var(--red);background:#FFF5F5}
+.fwarn{color:var(--red);font-size:11px;font-weight:600;margin-top:4px}
+.card.just{border-left:4px solid var(--green);background:#F4FBF6}
+.just .jt{font-weight:800;color:var(--navy);font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.just .jw{color:var(--ink2);font-size:12.5px;margin:6px 0 10px}
+.nav a:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
+  outline:2px solid var(--blue);outline-offset:1px}
 textarea{min-height:66px;resize:vertical}
 .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
 .btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid #CFD5DF;background:#FFF;

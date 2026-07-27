@@ -362,5 +362,26 @@ r = c.post('/travelbudget/api/notice', json={'notice':'테스트 안내','notice
 ok('관리자 안내 문구 저장', r.status_code==200 and r.get_json()['settings']['notice']=='테스트 안내', r.status_code)
 ok('안내 문구에 admin_pw 미노출', 'admin_pw' not in r.get_json()['settings'])
 
+print('\n=== 16. 인폼 재발행 · 안내 문구 조사 ===')
+# 조사 처리 — '출장도시을(를)' 같은 어색한 안내가 없어야
+r = c.post('/travelbudget/api/groups', json={'plan_type':'정기','travelers':[]})
+msgs = ' '.join(r.get_json().get('errors', []))
+ok('안내 문구 조사 자연스러움', '을(를)' not in msgs and '출장도시를 입력' in msgs and '출장구분을 입력' in msgs, msgs[:90])
+ok('core.josa 받침 판정', (_C.josa('출장구분'), _C.josa('출장도시'), _C.josa('')) == ('을','를','를'))
+
+# 인폼 재발행 — 실적 있는 건은 카드를 닫아도 다시 받을 수 있어야
+r = c.post('/travelbudget/api/groups', json={'plan_type':'계획','city':'이천','org':'재발행테스트',
+    'purpose':'인폼 재발행','dep_dt':f'{yy}-{mm}-14','ret_dt':f'{yy}-{mm}-15','kind':'정기 Audit','car':'미사용',
+    'travelers':[{'name':'재발','emp_no':'RM1','rank':'TL','ccg_nm':'Gas 소재팀','ccg':'C1202','p_trans':80000}]})
+gidm = r.get_json()['group']['group_id']
+r = c.get(f'/travelbudget/api/groups/{gidm}/mail')
+ok('실적 전 인폼 재발행 400', r.status_code==400, r.status_code)
+c.post(f'/travelbudget/api/groups/{gidm}/actual', json={'travelers':[{'emp_no':'RM1','a_trans':77000}]})
+r = c.get(f'/travelbudget/api/groups/{gidm}/mail')
+m = r.get_json().get('mail', {})
+ok('실적 후 인폼 재발행 200', r.status_code==200 and '재발' in m.get('body_html','') and '77,000' in m.get('body_html',''), r.status_code)
+ok('재발행 인폼 수신자/제목 동일', bool(m.get('to')) and '재발행테스트' in m.get('subject',''), m.get('subject'))
+ok('없는 출장 인폼 404', c.get('/travelbudget/api/groups/NOPE/mail').status_code==404)
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

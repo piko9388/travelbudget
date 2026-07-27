@@ -60,7 +60,14 @@ input,select,textarea{width:100%;border:1px solid #CFD5DF;background:#FFF;paddin
 font:inherit;font-size:13.5px;border-radius:2px}
 input:focus,select:focus,textarea:focus{outline:2px solid rgba(37,99,168,.13);border-color:#6F8EAF}
 input[readonly],.auto{background:var(--shade);color:var(--mut)}
-input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
+input[type=number],input.mny{text-align:right;font-variant-numeric:tabular-nums}
+input.bad{border-color:var(--red);background:#FFF5F5}
+.fwarn{color:var(--red);font-size:11px;font-weight:600;margin-top:4px}
+.card.just{border-left:4px solid var(--green);background:#F4FBF6}
+.just .jt{font-weight:800;color:var(--navy);font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.just .jw{color:var(--ink2);font-size:12.5px;margin:6px 0 10px}
+.nav a:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
+  outline:2px solid var(--blue);outline-offset:1px}
 textarea{min-height:66px;resize:vertical}
 .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
 .btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid #CFD5DF;background:#FFF;
@@ -232,7 +239,7 @@ padding:13px 16px;margin-bottom:14px}
     { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
     { team: 'Target 소재팀', ccg: 'C1707' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
-  var APP_VERSION = 'v9.0', APP_BUILD = '2026-07-27';
+  var APP_VERSION = 'v9.1', APP_BUILD = '2026-07-27';
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
     '출장도시', '출장기관&업체', '출장목적&사유', '출발일자', '복귀일자',
@@ -331,11 +338,17 @@ padding:13px 16px;margin-bottom:14px}
     g.lead_days = (d0 && dp) ? Math.round((dp - d0) / 864e5) : null;
     return g;
   }
+  function josa(w, pair) {          // 받침 유무로 조사 선택
+    pair = pair || '을를';
+    if (!w) return pair[1];
+    var c = w.charCodeAt(w.length - 1);
+    return (c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28) ? pair[0] : pair[1];
+  }
   function validateGroup(g, requireActual) {
     var e = [];
     [['city', '출장도시'], ['org', '출장기관&업체'], ['purpose', '출장목적&사유'],
     ['dep_dt', '출발일자'], ['ret_dt', '복귀일자'], ['kind', '출장구분']].forEach(function (kv) {
-      if (!String(g[kv[0]] == null ? '' : g[kv[0]]).trim()) e.push(kv[1] + '을(를) 입력하세요.');
+      if (!String(g[kv[0]] == null ? '' : g[kv[0]]).trim()) e.push(kv[1] + josa(kv[1]) + ' 입력하세요.');
     });
     if (PLAN_TYPES.indexOf(g.plan_type) < 0) e.push('구분이 올바르지 않습니다.');
     if (STATUSES.indexOf(g.status) < 0) e.push('상태 값이 올바르지 않습니다.');
@@ -828,6 +841,12 @@ padding:13px 16px;margin-bottom:14px}
       if (want === ST_TRANSFER) r2.mail = makeTransferMail(g4, data.settings);
       return okr(r2);
     }
+    if ((m = path.match(/^\/groups\/([^/]+)\/mail$/)) && method === 'GET') {
+      var curM = find(data, m[1]); if (!curM) return err('출장건을 찾을 수 없습니다.', 404);
+      var gM = normalizeGroup(curM);
+      if (gSum(gM, 'a') <= 0) return err('실적이 입력되지 않아 인폼을 만들 수 없습니다.', 400);
+      return okr({ mail: makeMail(gM, data.settings) });
+    }
     if ((m = path.match(/^\/groups\/([^/]+)\/transfer_mail$/)) && method === 'GET') {
       var curT = find(data, m[1]); if (!curT) return err('출장건을 찾을 수 없습니다.', 404);
       var gT = normalizeGroup(curT);
@@ -952,6 +971,19 @@ const won = n => (Math.round(Number(n) || 0)).toLocaleString('ko-KR');
 const fmtD = d => d ? d.slice(5).replace('-', '/') : '';
 const KEYS = ['trans', 'lodg', 'meal', 'etc'];
 
+/* 금액칸 — 천단위 자동 구분(0 개수 오입력 방지). 값 읽기는 반드시 mnum() 사용 */
+const mnum = el => Number(String(el && el.value || '').replace(/[^0-9]/g, '')) || 0;
+function moneyFmt(el){
+  const before = el.value.slice(0, el.selectionStart ?? el.value.length).replace(/[^0-9]/g, '').length;
+  const raw = el.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+  el.value = raw ? Number(raw).toLocaleString('ko-KR') : '';
+  let seen = 0, pos = 0;
+  while (pos < el.value.length && seen < before) { if (el.value[pos] >= '0' && el.value[pos] <= '9') seen++; pos++; }
+  try { el.setSelectionRange(pos, pos); } catch (e) {}
+}
+const mfield = (cls, val, ph, fn) =>
+  `<input type="text" inputmode="numeric" class="mny ${cls}" value="${val ? won(val) : ''}" placeholder="${ph}" oninput="moneyFmt(this);${fn}">`;
+
 const TITLES = {guide:'이용 안내', dash:'대시보드', plan:'출장 계획 등록', actual:'출장 실적 입력',
   list:'출장 내역', process:'이관·처리 관리', budget:'예산 관리', data:'데이터 관리'};
 const SUBS = {guide:'계획 작성부터 처리 완료까지 — 한눈에 보는 처리 흐름',
@@ -967,6 +999,19 @@ async function api(path, opt = {}){
   opt.headers = Object.assign({'Content-Type':'application/json'}, opt.headers || {});
   if (adminPw()) opt.headers['X-Admin-PW'] = adminPw();
   return __localApi(path, opt);   // 정적(GitHub Pages) — 서버 대신 브라우저에서 동일 로직 처리
+}
+let BUSY = false;
+async function once(btnSel, fn){          // 연속 클릭 = 이중 등록 → 실제로 잠근다
+  if (BUSY) return;
+  BUSY = true;
+  const b = btnSel && $(btnSel);
+  const label = b && b.textContent;
+  if (b) { b.disabled = true; b.textContent = '처리 중…'; }
+  try { await fn(); }
+  finally {
+    BUSY = false;
+    if (b && b.isConnected) { b.disabled = false; b.textContent = label; }
+  }
 }
 function toast(m){ const t = document.createElement('div'); t.className = 'toast';
   t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }
@@ -1025,10 +1070,24 @@ function nav(v){
   $('#pageTitle').textContent = TITLES[v];
   $('#pageSub').textContent = SUBS[v];
 }
-$$('.nav a').forEach(a => a.onclick = () => {
-  const v = a.dataset.view;
-  if ((v === 'process' || v === 'budget') && !adminPw()) { askAdmin(() => nav(v)); return; }
-  nav(v);
+$$('.nav a').forEach(a => {
+  a.tabIndex = 0; a.setAttribute('role', 'link');   // 키보드 탭 이동·엔터 선택
+  const go = () => {
+    const v = a.dataset.view;
+    if ((v === 'process' || v === 'budget') && !adminPw()) { askAdmin(() => nav(v)); return; }
+    nav(v);
+  };
+  a.onclick = go;
+  a.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+});
+/* 엔터 = 제출 (한글 조합 중 엔터는 무시) */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.isComposing || e.shiftKey || e.ctrlKey || e.metaKey) return;
+  const el = e.target;
+  if (!el || !el.matches || !el.matches('input:not([type=checkbox]):not([readonly])')) return;
+  if (el.closest('#adminModal') || el.closest('.filter-row')) return;   // 모달·검색칸 제외
+  const fn = el.closest('#v-plan') ? submitPlan : el.closest('#v-actual') && ACT_GID ? submitActual : null;
+  if (fn) { e.preventDefault(); fn(); }
 });
 function renderAll(){ rGuide(); rDash(); rPlan(); rActual(); rList(); rProcess(); rBudget(); rData(); }
 
@@ -1218,7 +1277,7 @@ function travRow(p = {}){
     <td><select class="w-rk t-rk">${ranks}</select></td>
     <td><select class="w-tm t-tm" onchange="syncCcg(this)"><option value="">선택</option>${teams}</select></td>
     <td><input class="w-cc t-cc auto" value="${esc(p.ccg || '')}" readonly placeholder="자동"></td>
-    ${KEYS.map(k => `<td><input type="number" class="w-mn t-p-${k}" step="1000" value="${p['p_' + k] || ''}" placeholder="0" oninput="planSum()"></td>`).join('')}
+    ${KEYS.map(k => `<td>${mfield('w-mn t-p-' + k, p['p_' + k], '0', 'planSum()')}</td>`).join('')}
     <td class="num t-sum" style="font-weight:700">0</td>
     <td><button class="btn sm" onclick="this.closest('tr').remove(); planSum()">삭제</button></td>
   </tr>`;
@@ -1231,20 +1290,45 @@ function planSum(){
   let tot = 0;
   $$('#travBody tr').forEach(tr => {
     let s = 0;
-    KEYS.forEach(k => s += Number(tr.querySelector('.t-p-' + k).value) || 0);
+    KEYS.forEach(k => s += mnum(tr.querySelector('.t-p-' + k)));
     tr.querySelector('.t-sum').textContent = won(s);
     tot += s;
   });
   const el = $('#planTot'); if (el) el.textContent = won(tot) + '원';
   const d1 = $('#pl_dep')?.value, d2 = $('#pl_ret')?.value;
-  const dy = $('#pl_days');
-  if (dy) dy.value = (d1 && d2) ? Math.max(0, (new Date(d2) - new Date(d1)) / 864e5 + 1) : '';
+  const dy = $('#pl_days'), warn = $('#plDateWarn');
+  const days = (d1 && d2) ? (new Date(d2) - new Date(d1)) / 864e5 + 1 : null;
+  if (dy) dy.value = days === null ? '' : Math.max(0, days);
+  if (warn) {   // 잘못된 기간은 제출 전에 그 자리에서 알려준다
+    const bad = days !== null && days < 1;
+    warn.textContent = bad ? '복귀일자가 출발일자보다 빠릅니다' : '';
+    warn.style.display = bad ? 'block' : 'none';
+    dy?.classList.toggle('bad', bad);
+  }
+}
+let PLAN_JUST = null;
+function justPanel(){
+  const g = PLAN_JUST;
+  if (!g) return '';
+  const tentative = g.status === '계획 등록';
+  return `<div class="card just">
+    <div class="jt">✓ 등록되었습니다 — <b>${esc(gname(g))}</b> · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${(g.travelers || []).length}명
+      <span class="status ${stClass(g.status)}">${esc(dispSt(g.status))}</span></div>
+    <div class="jw">${tentative
+      ? '아직 <b>잠정</b>이라 예산이 잡히지 않았습니다. 실제로 간다면 <b>출장 확정</b>을 눌러 예산을 확보하세요.'
+      : '예산이 <b>확보</b>되었습니다. 다녀온 뒤 <b>출장 실적 입력</b>에서 실비를 넣으면 인폼이 자동 생성됩니다.'}</div>
+    <div class="btns">
+      ${tentative ? `<button class="btn pri" onclick="setStatus('${g.group_id}','확정 예정'); PLAN_JUST=null">출장 확정하기</button>` : ''}
+      <button class="btn" onclick="nav('list')">출장 내역에서 확인</button>
+      <button class="btn" onclick="nav('actual')">출장 실적 입력</button>
+      <button class="btn" onclick="PLAN_JUST=null; rPlan(); nav('plan')">닫고 새로 등록</button>
+    </div></div>`;
 }
 function rPlan(){
   const m = ST.meta;
   const copyOpts = ST.groups.filter(g => g.status !== '취소').slice(0, 30)
     .map(g => `<option value="${g.group_id}">${esc(gname(g))} · ${names(g)} · ${fmtD(g.dep_dt)}</option>`).join('');
-  $('#v-plan').innerHTML = `
+  $('#v-plan').innerHTML = justPanel() + `
     <div class="card">
       <div class="card-head"><h2>출장 계획 등록</h2>
         <select id="copySel" style="width:auto;min-width:250px" onchange="copyPlan(this.value)">
@@ -1252,22 +1336,23 @@ function rPlan(){
       <p class="cap">공통 정보는 한 번만 입력하고, 동행자는 출장자 행으로 추가합니다. 긴급 출장은 계획비 없이 등록할 수 있습니다.</p>
       <div id="planErr"></div>
       <div class="form-grid c4">
-        <div><label>구분<span class="rq">*</span></label>
+        <div><label for="pl_type">구분<span class="rq">*</span></label>
           <select id="pl_type">${m.planTypes.map(t => `<option>${t}</option>`).join('')}</select></div>
-        <div><label>출장 도시<span class="rq">*</span></label><input id="pl_city" placeholder="예: 청주"></div>
-        <div><label>출장 기관&업체<span class="rq">*</span></label><input id="pl_org" placeholder="예: 원익머트리얼즈"></div>
-        <div><label>출장 구분<span class="rq">*</span></label>
+        <div><label for="pl_city">출장 도시<span class="rq">*</span></label><input id="pl_city" placeholder="예: 청주"></div>
+        <div><label for="pl_org">출장 기관&업체<span class="rq">*</span></label><input id="pl_org" placeholder="예: 원익머트리얼즈"></div>
+        <div><label for="pl_kind">출장 구분<span class="rq">*</span></label>
           <select id="pl_kind">${m.kinds.map(k => `<option>${k}</option>`).join('')}</select></div>
       </div>
       <div class="form-grid c4">
-        <div><label>출발일자<span class="rq">*</span></label><input type="date" id="pl_dep" onchange="planSum()"></div>
-        <div><label>복귀일자<span class="rq">*</span></label><input type="date" id="pl_ret" onchange="planSum()"></div>
-        <div><label>출장일수 <span class="au">자동</span></label><input id="pl_days" class="auto" readonly></div>
-        <div><label>자차사용 여부</label>
+        <div><label for="pl_dep">출발일자<span class="rq">*</span></label><input type="date" id="pl_dep" onchange="planSum()"></div>
+        <div><label for="pl_ret">복귀일자<span class="rq">*</span></label><input type="date" id="pl_ret" onchange="planSum()"></div>
+        <div><label for="pl_days">출장일수 <span class="au">자동</span></label><input id="pl_days" class="auto" readonly>
+          <div class="fwarn" id="plDateWarn" style="display:none"></div></div>
+        <div><label for="pl_car">자차사용 여부</label>
           <select id="pl_car">${m.cars.map(c => `<option>${c}</option>`).join('')}</select></div>
       </div>
       <div class="form-grid">
-        <div><label>출장 목적&사유<span class="rq">*</span> <span class="au">소재명 포함</span></label>
+        <div><label for="pl_purpose">출장 목적&사유<span class="rq">*</span> <span class="au">소재명 포함</span></label>
           <textarea id="pl_purpose" placeholder="예: NF3 순도 관리 정기 Audit"></textarea></div>
       </div>
       <label style="margin-top:4px">출장자 <span class="au">동행자는 행 추가</span></label>
@@ -1281,12 +1366,12 @@ function rPlan(){
         <span style="margin-left:auto;font-weight:700;color:var(--navy)">계획 총합계 <span id="planTot">0원</span></span>
       </div>
       <div class="form-grid" style="margin-top:12px">
-        <div><label>비고</label><input id="pl_remark"></div>
+        <div><label for="pl_remark">비고</label><input id="pl_remark" placeholder="특이사항이 있으면 적어주세요"></div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:4px">
         <input type="checkbox" id="pl_confirm" style="width:auto;margin:0"> 이 출장은 <b style="margin:0 2px">실제로 갑니다</b> — 지금 <b style="margin:0 2px;color:var(--blue)">예산 확보(확정 예정)</b>. 미체크 시 잠정 계획으로 등록됩니다.
       </label>
-      <div class="btns"><button class="btn pri" onclick="submitPlan()">출장 계획 등록</button></div>
+      <div class="btns"><button class="btn pri" id="planBtn" onclick="submitPlan()">출장 계획 등록</button></div>
     </div>`;
   $('#travBody').innerHTML = travRow();
   planSum();
@@ -1312,11 +1397,12 @@ function collectTravelers(){
       rank: tr.querySelector('.t-rk').value,
       ccg_nm: tr.querySelector('.t-tm').value,
       ccg: tr.querySelector('.t-cc').value};
-    KEYS.forEach(k => p['p_' + k] = Number(tr.querySelector('.t-p-' + k).value) || 0);
+    KEYS.forEach(k => p['p_' + k] = mnum(tr.querySelector('.t-p-' + k)));
     return p;
   });
 }
-async function submitPlan(){
+function submitPlan(){ return once('#planBtn', _submitPlan); }
+async function _submitPlan(){
   const body = {plan_type: $('#pl_type').value, city: $('#pl_city').value.trim(),
     org: $('#pl_org').value.trim(), kind: $('#pl_kind').value,
     dep_dt: $('#pl_dep').value, ret_dt: $('#pl_ret').value, car: $('#pl_car').value,
@@ -1326,8 +1412,10 @@ async function submitPlan(){
   const {ok, data} = await api('/groups', {method: 'POST', body: JSON.stringify(body)});
   if (!ok) { showErr('#planErr', data.errors); return; }
   toast(`등록 완료 — ${dispSt(data.group.status)} · ${body.travelers.length}명`);
+  PLAN_JUST = data.group;
   YQ = data.group.yq;
   await load(); nav('plan');
+  $('#v-plan').scrollIntoView({block: 'start'});
 }
 
 /* ═══ 출장 실적 입력 ═══ */
@@ -1368,7 +1456,7 @@ function pickActual(gid){
     return `<tr data-emp="${esc(p.emp_no)}">
       <td><b>${esc(p.name)}</b> <span class="sub">${esc(p.rank)} · ${esc(p.emp_no)}</span></td>
       <td>${esc(p.ccg_nm)}</td>
-      ${KEYS.map(k => `<td><input type="number" class="a-${k}" step="1000" value="${p['a_' + k] || ''}" placeholder="계획 ${won(p['p_' + k])}" oninput="actSum()"></td>`).join('')}
+      ${KEYS.map(k => `<td>${mfield('a-' + k, p['a_' + k], '계획 ' + won(p['p_' + k]), 'actSum()')}</td>`).join('')}
       <td class="num a-sum" style="font-weight:700">0</td>
       <td class="num a-var">–</td>
     </tr>`;
@@ -1385,9 +1473,10 @@ function pickActual(gid){
         <td class="num" id="afTot">0</td><td class="num" id="afVar">–</td></tr></tfoot>
     </table></div>
     <div class="form-grid" style="margin-top:12px">
-      <div><label>비고 <span class="au">긴급 출장은 필수</span></label><input id="ac_remark" value="${esc(g.remark || '')}"></div>
+      <div><label for="ac_remark">비고 <span class="au">긴급 출장은 필수</span></label><input id="ac_remark" value="${esc(g.remark || '')}"></div>
     </div>
-    <div class="btns"><button class="btn pri" onclick="submitActual()">실적 저장 및 인폼 생성 (${g.travelers.length}명)</button></div>`;
+    <div class="btns"><button class="btn pri" id="actBtn" onclick="submitActual()">실적 저장 및 인폼 생성 (${g.travelers.length}명)</button>
+      ${g.act_tot > 0 ? `<button class="btn" onclick="reopenMail('${g.group_id}')">인폼 다시 보기</button>` : ''}</div>`;
   actSum();
 }
 function actSum(){
@@ -1399,7 +1488,7 @@ function actSum(){
     const emp = tr.dataset.emp;
     const p = g.travelers.find(x => String(x.emp_no) === emp) || {};
     let s = 0, pl = 0;
-    KEYS.forEach(k => { const v = Number(tr.querySelector('.a-' + k).value) || 0;
+    KEYS.forEach(k => { const v = mnum(tr.querySelector('.a-' + k));
       s += v; ft[k] += v; pl += p['p_' + k] || 0; });
     tot += s; planTot += pl;
     tr.querySelector('.a-sum').textContent = won(s);
@@ -1415,21 +1504,30 @@ function actSum(){
   fe.textContent = gv ? (gv > 0 ? '+' : '−') + won(Math.abs(gv)) : '–';
   fe.style.color = gv >= 0 ? 'var(--green)' : 'var(--red)';
 }
-async function submitActual(){
+function submitActual(){ return once('#actBtn', _submitActual); }
+async function _submitActual(){
   const travelers = $$('#actRows tr').map(tr => {
     const p = {emp_no: tr.dataset.emp};
-    KEYS.forEach(k => p['a_' + k] = Number(tr.querySelector('.a-' + k).value) || 0);
+    KEYS.forEach(k => p['a_' + k] = mnum(tr.querySelector('.a-' + k)));
     return p;
   });
   const {ok, data} = await api(`/groups/${ACT_GID}/actual`,
     {method: 'POST', body: JSON.stringify({travelers, remark: $('#ac_remark').value.trim()})});
   if (!ok) { showErr('#actErr', data.errors); return; }
-  showMail(data.mail);
+  const gid = ACT_GID;
   toast('실적 저장 — 상태: 실적 입력·인폼');
   await load(); nav('actual');
+  const sel = $('#actSel');                 // 저장 후에도 선택 유지 — 인폼을 다시 열 수 있게
+  if (sel) { sel.value = gid; pickActual(gid); }
+  showMail(data.mail);
 }
 
 /* ═══ 인폼 카드 ═══ */
+async function reopenMail(gid){
+  const {ok, data} = await api(`/groups/${gid}/mail`);
+  if (!ok) { toast((data.errors || ['인폼을 만들 수 없습니다'])[0]); return; }
+  showMail(data.mail);
+}
 function showMail(mail){
   document.getElementById('mailCard')?.remove();
   const el = document.createElement('div');
@@ -1552,6 +1650,8 @@ function listRowHtml(g){
     acts.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','계획 등록')">확정 해제</button>`);
     acts.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
   }
+  if (g.act_tot > 0)                       // 인폼 카드를 닫았어도 언제든 다시 발행
+    acts.push(`<button class="btn sm" onclick="reopenMail('${g.group_id}')">인폼 보기</button>`);
   return `<tr>
     <td><span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>${g.plan_type === '긴급' ? ' <span class="status urgent">긴급</span>' : ''}</td>
     <td><b>${esc(gname(g))}</b><div class="sub">${esc(g.purpose)}</div></td>
@@ -1765,7 +1865,7 @@ function rBudget(){
       <div class="form-grid c4">
         <div><label>분기</label><input id="bd_yq" value="${YQ}"></div>
         <div><label>유형</label><select id="bd_type">${ST.meta.revTypes.map(t => `<option>${t}</option>`).join('')}</select></div>
-        <div><label>금액 (원)</label><input type="number" id="bd_amt" step="100000"></div>
+        <div><label for="bd_amt">금액 (원)</label><input type="text" inputmode="numeric" class="mny" id="bd_amt" placeholder="0" oninput="moneyFmt(this)"></div>
         <div><label>반영일</label><input type="date" id="bd_dt" value="${new Date().toISOString().slice(0, 10)}"></div>
       </div>
       <div class="form-grid"><div><label>사유</label><input id="bd_reason"></div></div>
@@ -1786,7 +1886,7 @@ function rBudget(){
 }
 async function submitBudget(){
   const body = {yq: $('#bd_yq').value.trim(), rev_type: $('#bd_type').value,
-    amt: Number($('#bd_amt').value) || 0, rev_dt: $('#bd_dt').value, reason: $('#bd_reason').value.trim()};
+    amt: mnum($('#bd_amt')), rev_dt: $('#bd_dt').value, reason: $('#bd_reason').value.trim()};
   const {ok, data} = await api('/budget', {method: 'POST', body: JSON.stringify(body)});
   if (!ok) {
     if (data.errors?.[0]?.includes('인증')) { askAdmin(submitBudget); return; }
