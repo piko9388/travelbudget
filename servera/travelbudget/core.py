@@ -41,12 +41,17 @@ CCG_TEAMS = [
 ]
 CCG_BY_NM = {t["team"]: t["ccg"] for t in CCG_TEAMS}
 
-CSV_HEADERS = ["no.", "구분", "LV2", "CCG", "CCG명", "사번", "성명", "직책",
-    "출장도시", "출장기관&업체", "출장목적&사유", "출발일자", "복귀일자", "출장일수",
-    "출장시점", "자차사용여부", "출장구분", "상태", "개인처리상태",
+APP_VERSION = "v9.0"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_BUILD = "2026-07-27"
+
+# 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
+CSV_HEADERS = ["구분", "LV2", "CCG", "CCG명", "사번", "성명", "직책",
+    "출장도시", "출장기관&업체", "출장목적&사유", "출발일자", "복귀일자",
+    "출장일수", "출장시점", "자차사용여부", "출장구분",
     "계획_총합계", "계획_교통비", "계획_숙박비", "계획_식대&잡비", "계획_기타",
-    "실적_총합계", "실적_교통비", "실적_숙박비", "실적_식대&잡비", "실적_기타",
-    "SAP전표번호", "리드타임(일)", "비고"]
+    "실적_총합계", "실적_교통비", "실적_숙박비", "실적_식대&잡비", "실적_기타", "비고"]
+# 내부 관리용 추가 컬럼 (센터 제출본에는 넣지 않음)
+CSV_EXTRA = ["상태", "개인처리상태", "SAP전표번호", "리드타임(일)"]
 
 # 프로세스 진행 순서 — 목록의 '프로세스별 우선 분류'에 쓰는 정렬 가중치
 STAGE_ORDER = {ST_PLAN: 0, ST_CONFIRM: 1, ST_INFORM: 2, ST_TRANSFER: 3, ST_DONE: 4, ST_CANCEL: 5}
@@ -532,26 +537,60 @@ def make_budget_csv(data, yq=None):
     return "﻿" + buf.getvalue()
 
 
-def make_csv(data, yq=None):
-    out, no = [], 1
+def ledger_rows(data, yq=None, internal=False):
+    """센터 관리 양식(정산 대장) 행 — 출장자 개인별 1행."""
+    out = []
     for raw in sorted(data.get("groups", []), key=lambda g: g.get("dep_dt", "")):
         g = normalize_group(raw)
         if yq and g["yq"] != yq:
             continue
         for p in g["travelers"]:
-            out.append([no, g["plan_type"], "소재", p.get("ccg", ""), _csv_safe(p.get("ccg_nm", "")),
-                        _csv_safe(p.get("emp_no", "")), _csv_safe(p.get("name", "")), p.get("rank", ""),
-                        _csv_safe(g.get("city", "")), _csv_safe(g.get("org", "")), _csv_safe(g.get("purpose", "")),
-                        g.get("dep_dt", ""), g.get("ret_dt", ""), g["days"], g["quarter"],
-                        g.get("car", ""), g.get("kind", ""), group_roll(g), eff_status(p, g),
-                        p_sum(p, "p"), p["p_trans"], p["p_lodg"], p["p_meal"], p["p_etc"],
-                        p_sum(p, "a"), p["a_trans"], p["a_lodg"], p["a_meal"], p["a_etc"],
-                        _csv_safe(g.get("sap_doc", "")),
-                        "" if g.get("lead_days") is None else g["lead_days"],
-                        _csv_safe(g.get("remark", ""))])
-            no += 1
+            row = [g["plan_type"], "소재", p.get("ccg", ""), _csv_safe(p.get("ccg_nm", "")),
+                   _csv_safe(p.get("emp_no", "")), _csv_safe(p.get("name", "")), p.get("rank", ""),
+                   _csv_safe(g.get("city", "")), _csv_safe(g.get("org", "")), _csv_safe(g.get("purpose", "")),
+                   g.get("dep_dt", ""), g.get("ret_dt", ""), g["days"], g["quarter"],
+                   g.get("car", ""), g.get("kind", ""),
+                   p_sum(p, "p"), p["p_trans"], p["p_lodg"], p["p_meal"], p["p_etc"],
+                   p_sum(p, "a"), p["a_trans"], p["a_lodg"], p["a_meal"], p["a_etc"],
+                   _csv_safe(g.get("remark", ""))]
+            if internal:      # 내부 관리용에만 상태·전표·리드타임 부가
+                row += [group_roll(g), eff_status(p, g), _csv_safe(g.get("sap_doc", "")),
+                        "" if g.get("lead_days") is None else g["lead_days"]]
+            out.append(row)
+    return out
+
+
+def make_xls(data, yq=None, internal=False):
+    """엑셀 서식 포함 내보내기 — 한글 맑은 고딕 / 영문·숫자 Trebuchet MS.
+    CSV는 순수 텍스트라 글꼴을 담을 수 없어, 서식이 필요한 제출본은 이 파일을 쓴다.
+    (외부 라이브러리 없이 Excel이 그대로 여는 HTML 표 형식)"""
+    heads = CSV_HEADERS + (CSV_EXTRA if internal else [])
+    rows = ledger_rows(data, yq, internal)
+    # 영문·숫자는 Trebuchet MS, 한글은 맑은 고딕으로 떨어지도록 순서를 둔다
+    font = "'Trebuchet MS','Malgun Gothic','맑은 고딕',sans-serif"
+    th = (f"font-family:{font};font-size:10pt;font-weight:bold;background:#EEF2F8;"
+          "border:1px solid #B7C0CE;padding:4px 6px;text-align:center")
+    td = f"font-family:{font};font-size:10pt;border:1px solid #D8DEE8;padding:3px 6px"
+    tdn = td + ";mso-number-format:'#,##0';text-align:right"
+    def cell(v, i):
+        num_col = isinstance(v, int) or (heads[i].startswith(("계획_", "실적_")) or heads[i] in ("출장일수", "리드타임(일)"))
+        return f'<td style="{tdn if num_col else td}">{escape(str(v))}</td>'
+    body = "".join("<tr>" + "".join(cell(v, i) for i, v in enumerate(r)) + "</tr>" for r in rows)
+    title = f"소재 국내 출장비 정산 대장 {yq or '전체'}"
+    return ('<html xmlns:o="urn:schemas-microsoft-com:office:office" '
+            'xmlns:x="urn:schemas-microsoft-com:office:excel">'
+            '<head><meta charset="utf-8">'
+            f'<style>body,table,td,th{{font-family:{font}}}</style></head><body>'
+            f'<table border="1" cellspacing="0" cellpadding="0">'
+            f'<tr><td colspan="{len(heads)}" style="{th};font-size:12pt">{escape(title)}</td></tr>'
+            "<tr>" + "".join(f'<th style="{th}">{escape(h)}</th>' for h in heads) + "</tr>"
+            f"{body}</table></body></html>")
+
+
+def make_csv(data, yq=None, internal=False):
+    rows = ledger_rows(data, yq, internal)
     b = io.StringIO()
     w = csv.writer(b, lineterminator="\r\n")
-    w.writerow(CSV_HEADERS)
-    w.writerows(out)
+    w.writerow(CSV_HEADERS + (CSV_EXTRA if internal else []))
+    w.writerows(rows)
     return "\ufeff" + b.getvalue()

@@ -96,7 +96,10 @@ def default_data():
         "schema_version": "2.0",
         "updated_at": _now(),
         "settings": {
-            "system_name": "소재 그룹 국내 출장비 관리",
+            "system_name": "소재 국내 출장비 관리",
+            "notice": ("현재 소재 배정 예산 소진 후 센터 예산 사용 중으로, "
+                       "식비 15,000원, 회사 공용 차량 이용 통한 교통비 절감 요청 드립니다"),
+            "notice_sub": "(사용 전/후 센터 검토 시 반려될 수 있음)",
             "admin_id": "2071478",
             "admin_pw": "2071478",
             "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong.kim@sk.com",

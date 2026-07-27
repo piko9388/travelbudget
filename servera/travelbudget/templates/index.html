@@ -1,13 +1,14 @@
 <!doctype html><html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>소재 그룹 국내 출장비 관리</title>
+<title>소재 국내 출장비 관리</title>
 <style>
 :root{--bg:#F5F6F8;--white:#FFF;--ink:#111827;--ink2:#344054;--mut:#667085;--faint:#98A2B3;
 --line:#D9DEE7;--line2:#EDF0F4;--soft:#EEF1F5;--shade:#F0F2F5;
 --navy:#17365D;--navy2:#244C79;--blue:#2563A8;--red:#C23A45;--green:#17725C}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;letter-spacing:-.01em;
-font-family:Pretendard,"Pretendard Variable",-apple-system,"Apple SD Gothic Neo","Malgun Gothic","맑은 고딕","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased}
+font-family:Pretendard,"Pretendard Variable","Segoe UI",-apple-system,"Apple SD Gothic Neo",
+"Malgun Gothic","맑은 고딕","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased}
 .app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}
 aside{position:sticky;top:0;height:100vh;background:var(--white);border-right:1px solid var(--line);
 padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
@@ -17,7 +18,8 @@ padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
 cursor:pointer;border-radius:2px;font-size:13.5px;user-select:none}
 .nav a:hover,.nav a.on{background:var(--soft);border-color:#E3E7ED;color:var(--navy);font-weight:700}
 .nav a .lk{font-size:10px;color:var(--faint);margin-left:4px;font-weight:600}
-.contact{margin-top:auto;padding:14px 10px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--mut);line-height:1.65}
+.ver{margin-top:auto;padding:0 10px 6px;color:var(--faint);font-size:10.5px;letter-spacing:.02em}
+.contact{padding:14px 10px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--mut);line-height:1.65}
 .contact b{display:block;color:var(--navy);font-size:12px}
 .contact a{color:var(--navy);text-decoration:none}
 main{width:100%;max-width:1560px;padding:22px 28px 48px}
@@ -128,6 +130,13 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
 .colf{width:100%;min-width:74px;padding:4px 6px;font-size:12px;border:1px solid #DCE1E9;border-radius:2px}
 .colf::placeholder{color:#B6BECB;font-size:11px}
 @media(max-width:980px){.filter-row input,.filter-row select,.filter-row .btn{width:100%;min-width:0}}
+/* 대시보드 안내 문구 */
+.notice{background:#FFF8E8;border:1px solid #E8D4B0;border-left:4px solid #C79A3A;border-radius:2px;
+padding:13px 16px;margin-bottom:14px}
+.notice .nt{color:#7A5410;font-size:13.5px;font-weight:700;line-height:1.6;white-space:pre-line}
+.notice .ns{color:#96703A;font-size:12px;margin-top:5px}
+.notice .ne{margin-top:9px}
+.notice textarea{min-height:60px;font-size:13px}
 /* 이용 안내(흐름) */
 .g-lead{background:linear-gradient(180deg,#FBFCFE,#F2F6FB);border:1px solid var(--line);border-radius:2px;padding:17px 19px;margin-bottom:14px}
 .g-lead h2{margin:0 0 6px;color:var(--navy);font-size:16px}
@@ -159,7 +168,7 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
 </style></head><body>
 <div class="app">
 <aside>
-  <div class="brand">소재 그룹 국내 출장비 관리</div>
+  <div class="brand">소재 국내 출장비 관리</div>
   <div class="nav">
     <div class="nav-label">출장 업무</div>
     <a data-view="guide">이용 안내 <span class="lk">흐름</span></a>
@@ -172,6 +181,7 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
     <a data-view="budget">예산 관리 <span class="lk">잠금</span></a>
     <a data-view="data">데이터 관리</a>
   </div>
+  <div class="ver" id="appVer"></div>
   <div class="contact"><b>기획 · 개발</b>소재전략 이정훈 TL<br>
   <a href="mailto:junghoon12.lee@sk.com">junghoon12.lee@sk.com</a><br>010-3376-7923</div>
 </aside>

@@ -103,9 +103,12 @@ ok('관리자 삭제', r.status_code==200)
 print('\n=== 7. CSV / 백업 ===')
 r = c.get('/travelbudget/api/export.csv')
 head = r.get_data(as_text=True).split('\r\n')[0]
-ok('CSV 32필드(개인처리상태·SAP·리드타임 포함)', head.count(',')==31, head.count(',')+1)
-ok('CSV 개인처리상태 헤더', '개인처리상태' in head, head)
-ok('CSV SAP·리드타임 헤더', 'SAP전표번호' in head and '리드타임(일)' in head, head)
+ok('CSV 센터양식 27필드', head.count(',')==26, head.count(',')+1)
+ok('CSV 센터양식 헤더 순서', head.startswith('\ufeff구분,LV2,CCG,CCG명,사번,성명,직책'), head[:40])
+ok('CSV 센터양식엔 내부컬럼 없음', '상태' not in head and 'SAP' not in head, head)
+ih = c.get('/travelbudget/api/export.csv?mode=internal').get_data(as_text=True).split('\r\n')[0]
+ok('내부관리 CSV 31필드', ih.count(',')==30, ih.count(',')+1)
+ok('내부관리 CSV 부가컬럼', all(x in ih for x in ('상태','개인처리상태','SAP전표번호','리드타임(일)')), ih[-40:])
 ok('개인별 행 flatten', len(r.get_data(as_text=True).strip().split('\r\n')) > 8)
 bks = c.get('/travelbudget/api/backups').get_json()['backups']
 ok('자동 백업 누적', len(bks) >= 3, len(bks))
@@ -222,8 +225,8 @@ ok('개인 기준 예산 집계(완료 30만/처리중 20만)', sub['done']==300
 ok('보류 알림(todo.hold)', fg in dsh['todo']['hold'], dsh['todo']['hold'])
 # CSV에 개인처리상태 반영
 csvp = c.get(f'/travelbudget/api/export.csv?yq={yq}').get_data(as_text=True)
-frow = [l for l in csvp.split('\r\n') if 'F5' in l]
-ok('CSV 개인 보류 반영', frow and '보류' in frow[0], frow[:1])
+frow = [l for l in c.get(f'/travelbudget/api/export.csv?yq={yq}&mode=internal').get_data(as_text=True).split('\r\n') if 'F5' in l]
+ok('내부관리 CSV 개인 보류 반영', frow and '보류' in frow[0], frow[:1])
 
 print('\n=== 11. 이관 인폼 (예산 담당자 → 소재 담당자) ===')
 rt = c.post(f'/travelbudget/api/groups/{fg}/status', json={'status':'소재 이관','emp_no':'F4'}, headers=ADM)
@@ -338,6 +341,26 @@ ok('예산 CSV 누적액 정확', run_ok, [(r2[4], r2[5], r2[6]) for r2 in rows]
 c.post('/travelbudget/api/budget', json={'yq':yq,'rev_type':'감액','amt':100000,'reason':'=cmd|calc','rev_dt':f'{yy}-{mm}-29'}, headers=ADM)
 allb = c.get('/travelbudget/api/export_budget.csv').get_data(as_text=True)
 ok('예산 CSV 수식 인젝션 방어', "'=cmd" in allb, [l for l in allb.split('\r\n') if 'cmd' in l][:1])
+
+print('\n=== 15. 센터 양식 Excel · 안내 문구 · 버전 ===')
+r = c.get('/travelbudget/api/export.xls?yq=' + yq)
+ok('센터 Excel 200', r.status_code==200, r.status_code)
+xls = r.get_data(as_text=True)
+ok('Excel 글꼴 맑은고딕/Trebuchet', 'Malgun Gothic' in xls and 'Trebuchet MS' in xls)
+ok('Excel 센터양식 27열', xls.count('<th ')==27, xls.count('<th '))
+ok('Excel 헤더 latin-1 안전', all(ord(ch)<256 for ch in r.headers.get('Content-Disposition','')))
+ri = c.get('/travelbudget/api/export.xls?yq=' + yq + '&mode=internal')
+ok('Excel 내부관리 31열', ri.get_data(as_text=True).count('<th ')==31, ri.get_data(as_text=True).count('<th '))
+# 안내 문구
+stt = c.get('/travelbudget/api/state').get_json()
+ok('시드 안내 문구 존재', '센터 예산 사용 중' in stt['settings'].get('notice',''), stt['settings'].get('notice','')[:30])
+ok('시스템 명칭 간소화', stt['settings']['system_name']=='소재 국내 출장비 관리', stt['settings']['system_name'])
+ok('버전 노출', stt.get('version',{}).get('v','').startswith('v'), stt.get('version'))
+r = c.post('/travelbudget/api/notice', json={'notice':'무인증 변경','notice_sub':'x'})
+ok('무인증 안내 문구 변경 401', r.status_code==401, r.status_code)
+r = c.post('/travelbudget/api/notice', json={'notice':'테스트 안내','notice_sub':'(보조)'}, headers=ADM)
+ok('관리자 안내 문구 저장', r.status_code==200 and r.get_json()['settings']['notice']=='테스트 안내', r.status_code)
+ok('안내 문구에 admin_pw 미노출', 'admin_pw' not in r.get_json()['settings'])
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

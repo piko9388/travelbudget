@@ -66,6 +66,7 @@ def api_state():
         "groups": groups,
         "budget": sorted([b for b in data["budget"] if b.get("yq") == yq],
                          key=lambda b: b.get("rev_dt") or ""),
+        "version": {"v": C.APP_VERSION, "build": C.APP_BUILD},
         "meta": {"planTypes": C.PLAN_TYPES, "ranks": C.RANKS, "kinds": C.KINDS,
                  "cars": C.CARS, "revTypes": C.REV_TYPES, "statuses": C.STATUSES,
                  "cost": [{"k": k, "label": l} for k, l in C.COST]},
@@ -309,6 +310,21 @@ def set_sap(gid):
     return jsonify({"ok": True, "group": g})
 
 
+# ── 대시보드 안내 문구 (관리자) ───────────────────────────
+@travelbudget.post("/api/notice")
+@admin_required
+def set_notice():
+    with LOCK:
+        data = load_data()
+        b = request.get_json(silent=True) or {}
+        data["settings"]["notice"] = str(b.get("notice", ""))[:500].strip()
+        data["settings"]["notice_sub"] = str(b.get("notice_sub", ""))[:300].strip()
+        append_audit(data, "안내 문구 변경", data["settings"]["notice"][:60], actor="admin")
+        save_data(data)
+        st = _public_settings(data["settings"])
+    return jsonify({"ok": True, "settings": st})
+
+
 # ── 센터 제출 리포트 / 감사 로그 ──────────────────────────
 @travelbudget.get("/api/report")
 def center_report():
@@ -373,12 +389,28 @@ def admin_verify():
 @travelbudget.get("/api/export.csv")
 def export_csv():
     yq = request.args.get("yq") or None
-    content = C.make_csv(load_data(), yq)
-    fn = f"국내출장비_{yq or '전체'}_{datetime.now().strftime('%Y%m%d')}.csv"
+    internal = request.args.get("mode") == "internal"
+    content = C.make_csv(load_data(), yq, internal)
+    kind = "내부관리" if internal else "센터제출"
+    fn = f"소재국내출장비_{kind}_{yq or '전체'}_{datetime.now().strftime('%Y%m%d')}.csv"
     # RFC 5987: 헤더는 latin-1만 허용 — 한글 파일명을 percent-encoding 해야 실서버에서 안 죽는다.
     return Response(content, mimetype="text/csv; charset=utf-8",
                     headers={"Content-Disposition":
                              "attachment; filename=travelbudget.csv; "
+                             f"filename*=UTF-8''{quote(fn, safe='')}"})
+
+
+@travelbudget.get("/api/export.xls")
+def export_xls():
+    """엑셀 서식(맑은 고딕/Trebuchet MS) 포함 제출본."""
+    yq = request.args.get("yq") or None
+    internal = request.args.get("mode") == "internal"
+    content = C.make_xls(load_data(), yq, internal)
+    kind = "내부관리" if internal else "센터제출"
+    fn = f"소재국내출장비_{kind}_{yq or '전체'}_{datetime.now().strftime('%Y%m%d')}.xls"
+    return Response(content, mimetype="application/vnd.ms-excel; charset=utf-8",
+                    headers={"Content-Disposition":
+                             "attachment; filename=travelbudget.xls; "
                              f"filename*=UTF-8''{quote(fn, safe='')}"})
 
 

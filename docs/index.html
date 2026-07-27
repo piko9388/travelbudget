@@ -1,13 +1,14 @@
 <!doctype html><html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>소재 그룹 국내 출장비 관리</title>
+<title>소재 국내 출장비 관리</title>
 <style>
 :root{--bg:#F5F6F8;--white:#FFF;--ink:#111827;--ink2:#344054;--mut:#667085;--faint:#98A2B3;
 --line:#D9DEE7;--line2:#EDF0F4;--soft:#EEF1F5;--shade:#F0F2F5;
 --navy:#17365D;--navy2:#244C79;--blue:#2563A8;--red:#C23A45;--green:#17725C}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;letter-spacing:-.01em;
-font-family:Pretendard,"Pretendard Variable",-apple-system,"Apple SD Gothic Neo","Malgun Gothic","맑은 고딕","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased}
+font-family:Pretendard,"Pretendard Variable","Segoe UI",-apple-system,"Apple SD Gothic Neo",
+"Malgun Gothic","맑은 고딕","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased}
 .app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}
 aside{position:sticky;top:0;height:100vh;background:var(--white);border-right:1px solid var(--line);
 padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
@@ -17,7 +18,8 @@ padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
 cursor:pointer;border-radius:2px;font-size:13.5px;user-select:none}
 .nav a:hover,.nav a.on{background:var(--soft);border-color:#E3E7ED;color:var(--navy);font-weight:700}
 .nav a .lk{font-size:10px;color:var(--faint);margin-left:4px;font-weight:600}
-.contact{margin-top:auto;padding:14px 10px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--mut);line-height:1.65}
+.ver{margin-top:auto;padding:0 10px 6px;color:var(--faint);font-size:10.5px;letter-spacing:.02em}
+.contact{padding:14px 10px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--mut);line-height:1.65}
 .contact b{display:block;color:var(--navy);font-size:12px}
 .contact a{color:var(--navy);text-decoration:none}
 main{width:100%;max-width:1560px;padding:22px 28px 48px}
@@ -128,6 +130,13 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
 .colf{width:100%;min-width:74px;padding:4px 6px;font-size:12px;border:1px solid #DCE1E9;border-radius:2px}
 .colf::placeholder{color:#B6BECB;font-size:11px}
 @media(max-width:980px){.filter-row input,.filter-row select,.filter-row .btn{width:100%;min-width:0}}
+/* 대시보드 안내 문구 */
+.notice{background:#FFF8E8;border:1px solid #E8D4B0;border-left:4px solid #C79A3A;border-radius:2px;
+padding:13px 16px;margin-bottom:14px}
+.notice .nt{color:#7A5410;font-size:13.5px;font-weight:700;line-height:1.6;white-space:pre-line}
+.notice .ns{color:#96703A;font-size:12px;margin-top:5px}
+.notice .ne{margin-top:9px}
+.notice textarea{min-height:60px;font-size:13px}
 /* 이용 안내(흐름) */
 .g-lead{background:linear-gradient(180deg,#FBFCFE,#F2F6FB);border:1px solid var(--line);border-radius:2px;padding:17px 19px;margin-bottom:14px}
 .g-lead h2{margin:0 0 6px;color:var(--navy);font-size:16px}
@@ -159,7 +168,7 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
 </style></head><body>
 <div class="app">
 <aside>
-  <div class="brand">소재 그룹 국내 출장비 관리</div>
+  <div class="brand">소재 국내 출장비 관리</div>
   <div class="nav">
     <div class="nav-label">출장 업무</div>
     <a data-view="guide">이용 안내 <span class="lk">흐름</span></a>
@@ -172,6 +181,7 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
     <a data-view="budget">예산 관리 <span class="lk">잠금</span></a>
     <a data-view="data">데이터 관리</a>
   </div>
+  <div class="ver" id="appVer"></div>
   <div class="contact"><b>기획 · 개발</b>소재전략 이정훈 TL<br>
   <a href="mailto:junghoon12.lee@sk.com">junghoon12.lee@sk.com</a><br>010-3376-7923</div>
 </aside>
@@ -222,12 +232,14 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
     { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
     { team: 'Target 소재팀', ccg: 'C1707' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
-  var CSV_HEADERS = ['no.', '구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
-    '출장도시', '출장기관&업체', '출장목적&사유', '출발일자', '복귀일자', '출장일수',
-    '출장시점', '자차사용여부', '출장구분', '상태', '개인처리상태',
+  var APP_VERSION = 'v9.0', APP_BUILD = '2026-07-27';
+  // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
+  var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
+    '출장도시', '출장기관&업체', '출장목적&사유', '출발일자', '복귀일자',
+    '출장일수', '출장시점', '자차사용여부', '출장구분',
     '계획_총합계', '계획_교통비', '계획_숙박비', '계획_식대&잡비', '계획_기타',
-    '실적_총합계', '실적_교통비', '실적_숙박비', '실적_식대&잡비', '실적_기타',
-    'SAP전표번호', '리드타임(일)', '비고'];
+    '실적_총합계', '실적_교통비', '실적_숙박비', '실적_식대&잡비', '실적_기타', '비고'];
+  var CSV_EXTRA = ['상태', '개인처리상태', 'SAP전표번호', '리드타임(일)'];
   var STAGE_ORDER = {}; STAGE_ORDER[ST_PLAN]=0; STAGE_ORDER[ST_CONFIRM]=1; STAGE_ORDER[ST_INFORM]=2;
   STAGE_ORDER[ST_TRANSFER]=3; STAGE_ORDER[ST_DONE]=4; STAGE_ORDER[ST_CANCEL]=5;
 
@@ -511,26 +523,53 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
   // ── CSV ──
   function csvCell(v) { var s = String(v == null ? '' : v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   function csvSafe(v) { var s = v == null ? '' : String(v); return (s.length && '=+-@\t\r'.indexOf(s.charAt(0)) >= 0) ? "'" + s : s; }
-  function makeCsv(data, yq) {
-    var out = [], no = 1;
+  function ledgerRows(data, yq, internal) {
+    var out = [];
     var groups = (data.groups || []).slice().sort(function (a, b) { return String(a.dep_dt || '').localeCompare(String(b.dep_dt || '')); });
     groups.forEach(function (raw) {
       var g = normalizeGroup(raw); if (yq && g.yq !== yq) return;
       g.travelers.forEach(function (p) {
-        out.push([no, g.plan_type, '소재', p.ccg || '', csvSafe(p.ccg_nm || ''),
+        var row = [g.plan_type, '소재', p.ccg || '', csvSafe(p.ccg_nm || ''),
           csvSafe(p.emp_no || ''), csvSafe(p.name || ''), p.rank || '',
           csvSafe(g.city || ''), csvSafe(g.org || ''), csvSafe(g.purpose || ''),
-          g.dep_dt || '', g.ret_dt || '', g.days, g.quarter, g.car || '', g.kind || '', groupRoll(g), effStatus(p, g),
+          g.dep_dt || '', g.ret_dt || '', g.days, g.quarter, g.car || '', g.kind || '',
           pSum(p, 'p'), p.p_trans, p.p_lodg, p.p_meal, p.p_etc,
           pSum(p, 'a'), p.a_trans, p.a_lodg, p.a_meal, p.a_etc,
-          csvSafe(g.sap_doc || ''), (g.lead_days === null || g.lead_days === undefined) ? '' : g.lead_days,
-          csvSafe(g.remark || '')]);
-        no++;
+          csvSafe(g.remark || '')];
+        if (internal) row = row.concat([groupRoll(g), effStatus(p, g), csvSafe(g.sap_doc || ''),
+          (g.lead_days === null || g.lead_days === undefined) ? '' : g.lead_days]);
+        out.push(row);
       });
     });
-    var lines = [CSV_HEADERS.map(csvCell).join(',')];
-    out.forEach(function (r) { lines.push(r.map(csvCell).join(',')); });
-    return '﻿' + lines.join('\r\n') + '\r\n';
+    return out;
+  }
+  function makeCsv(data, yq, internal) {
+    var heads = CSV_HEADERS.concat(internal ? CSV_EXTRA : []);
+    var lines = [heads.map(csvCell).join(',')];
+    ledgerRows(data, yq, internal).forEach(function (r) { lines.push(r.map(csvCell).join(',')); });
+    return '\ufeff' + lines.join('\r\n') + '\r\n';
+  }
+  // 엑셀 서식(맑은 고딕/Trebuchet MS) 포함 — CSV는 글꼴을 담을 수 없어 제출본은 이 파일
+  function makeXls(data, yq, internal) {
+    var heads = CSV_HEADERS.concat(internal ? CSV_EXTRA : []);
+    var font = "'Trebuchet MS','Malgun Gothic','맑은 고딕',sans-serif";
+    var th = 'font-family:' + font + ';font-size:10pt;font-weight:bold;background:#EEF2F8;border:1px solid #B7C0CE;padding:4px 6px;text-align:center';
+    var td = 'font-family:' + font + ';font-size:10pt;border:1px solid #D8DEE8;padding:3px 6px';
+    var tdn = td + ";mso-number-format:'#,##0';text-align:right";
+    var body = ledgerRows(data, yq, internal).map(function (r) {
+      return '<tr>' + r.map(function (v, i) {
+        var isNum = typeof v === 'number' || heads[i].indexOf('계획_') === 0 || heads[i].indexOf('실적_') === 0
+          || heads[i] === '출장일수' || heads[i] === '리드타임(일)';
+        return '<td style="' + (isNum ? tdn : td) + '">' + escapeHtml(String(v)) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    var title = '소재 국내 출장비 정산 대장 ' + (yq || '전체');
+    return '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">'
+      + '<head><meta charset="utf-8"><style>body,table,td,th{font-family:' + font + '}</style></head><body>'
+      + '<table border="1" cellspacing="0" cellpadding="0">'
+      + '<tr><td colspan="' + heads.length + '" style="' + th + ';font-size:12pt">' + escapeHtml(title) + '</td></tr>'
+      + '<tr>' + heads.map(function (h) { return '<th style="' + th + '">' + escapeHtml(h) + '</th>'; }).join('') + '</tr>'
+      + body + '</table></body></html>';
   }
 
   var BUDGET_CSV_HEADERS = ['no.', '분기', 'REV', '반영일', '유형', '증감액', '누적액', '사유'];
@@ -610,7 +649,10 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
     return {
       schema_version: '2.0', updated_at: nowISO(),
       settings: {
-        system_name: '소재 그룹 국내 출장비 관리', admin_id: '2071478', admin_pw: '2071478',
+        system_name: '소재 국내 출장비 관리',
+        notice: '현재 소재 배정 예산 소진 후 센터 예산 사용 중으로, 식비 15,000원, 회사 공용 차량 이용 통한 교통비 절감 요청 드립니다',
+        notice_sub: '(사용 전/후 센터 검토 시 반려될 수 있음)',
+        admin_id: '2071478', admin_pw: '2071478',
         mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong.kim@sk.com', 'geonyoung.kim@sk.com', 'jeewoung.chun@sk.com'],
         reference_url: 'material.skhynix.com/travelbudget'
       },
@@ -687,6 +729,7 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
       var groups = (data.groups || []).map(normalizeGroup).sort(function (a, b) { return (b.dep_dt || '') < (a.dep_dt || '') ? -1 : (b.dep_dt || '') > (a.dep_dt || '') ? 1 : 0; });
       return okr({
         yq: yq, yqList: yqList(), settings: publicSettings(data.settings), ccg: CCG_TEAMS,
+        version: { v: APP_VERSION, build: APP_BUILD },
         dash: dash(data, yq), groups: groups,
         budget: (data.budget || []).filter(function (b) { return b.yq === yq; }).sort(function (a, b) { return (a.rev_dt || '') < (b.rev_dt || '') ? -1 : 1; }),
         meta: { planTypes: PLAN_TYPES, ranks: RANKS, kinds: KINDS, cars: CARS, revTypes: REV_TYPES, statuses: STATUSES, cost: COST.map(function (c) { return { k: c[0], label: c[1] }; }) }
@@ -833,6 +876,14 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
       Store.save(data);
       return okr({ group: normalizeGroup(curS) });
     }
+    if (path === '/notice' && method === 'POST') {
+      if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
+      data.settings.notice = String(body.notice || '').slice(0, 500).trim();
+      data.settings.notice_sub = String(body.notice_sub || '').slice(0, 300).trim();
+      appendAudit(data, '안내 문구 변경', data.settings.notice.slice(0, 60), 'admin');
+      Store.save(data);
+      return okr({ settings: publicSettings(data.settings) });
+    }
     if (path === '/report' && method === 'GET') {
       return okr({ report: centerReport(data, qp('yq') || yearQuarter()) });
     }
@@ -854,7 +905,7 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
   var API = {
     localApi: localApi, Store: Store, makeCsv: makeCsv,
     // 테스트/재사용용 내부 함수
-    makeBudgetCsv: makeBudgetCsv,
+    makeBudgetCsv: makeBudgetCsv, makeXls: makeXls,
     _: { num: num, won: won, tripDays: tripDays, quarter: quarter, yearQuarter: yearQuarter, yqList: yqList,
       normalizeGroup: normalizeGroup, validateGroup: validateGroup, validateBudget: validateBudget,
       dash: dash, makeMail: makeMail, seedData: seedData, CCG_TEAMS: CCG_TEAMS, CSV_HEADERS: CSV_HEADERS,
@@ -870,11 +921,19 @@ tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   };
-  root.downloadCsv = function (yq) {
-    var text = makeCsv(Store.load(), yq || null);
+  root.downloadXls = function (yq, internal) {
+    var text = makeXls(Store.load(), yq || null, !!internal);
+    var blob = new Blob(['\ufeff' + text], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = '소재국내출장비_' + (internal ? '내부관리' : '센터제출') + '_' + (yq || '전체') + '_' + todayISO().replace(/-/g, '') + '.xls';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  };
+  root.downloadCsv = function (yq, internal) {
+    var text = makeCsv(Store.load(), yq || null, !!internal);
     var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
     var url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = '국내출장비_' + (yq || '전체') + '_' + todayISO().replace(/-/g, '') + '.csv';
+    a.href = url; a.download = '소재국내출장비_' + (internal ? '내부관리' : '센터제출') + '_' + (yq || '전체') + '_' + todayISO().replace(/-/g, '') + '.csv';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   };
@@ -947,6 +1006,8 @@ async function load(){
   const qs = $('#qsel');
   const opts = [...new Set([...data.yqList, YQ])];
   qs.innerHTML = opts.map(q => `<option${q === YQ ? ' selected' : ''}>${q}</option>`).join('');
+  const vEl = $('#appVer');
+  if (vEl && data.version) vEl.textContent = `${data.version.v} · ${data.version.build}`;
   qs.onchange = e => {
     const dirty = ($('#travBody')?.querySelector('.t-nm')?.value.trim()) || ACT_GID;
     if (dirty && !confirm('입력 중인 내용이 저장되지 않았습니다. 분기를 변경하면 사라집니다. 계속할까요?')) {
@@ -1055,7 +1116,7 @@ function rDash(){
         <div class="msg">${d.short
           ? '확정·집행이 예산을 초과했습니다 — 센터 검토 및 추가 확보 필요'
           : d.noBudget ? '이 분기 예산이 아직 배정되지 않았습니다 — 예산 관리에서 배정하세요'
-          : '소재 그룹 국내 출장비 잔액이 있어 정상 운영 중입니다'}</div>
+          : '소재 국내 출장비 잔액이 있어 정상 운영 중입니다'}</div>
         <div class="fig">총예산 <b>${won(d.alloc)}원</b> − 처리완료 <b>${won(d.done)}원</b> − 처리중 <b>${won(d.wip)}원</b> − 확정예정 <b>${won(d.commit || 0)}원</b> = 가용 <b style="color:${av < 0 ? 'var(--red)' : 'var(--navy)'}">${av < 0 ? '−' : ''}${won(Math.abs(av))}원</b></div>
         <div class="fig" style="color:var(--faint)">잠정 계획 ${won(d.planAmt)}원은 참고(예산 미반영) · 확정 시 위 ‘확정예정’으로 선확보됩니다</div>
       </div>
@@ -1064,6 +1125,26 @@ function rDash(){
         <div class="amount">${av < 0 ? '−' : ''}${won(Math.abs(av))}원</div>
       </div>
     </div>`;
+  const nt = (ST.settings && ST.settings.notice) || '';
+  const ns = (ST.settings && ST.settings.notice_sub) || '';
+  const notice = (nt || ns || adminPw()) ? `
+    <div class="notice">
+      <div id="noticeView" ${NOTICE_EDIT ? 'style="display:none"' : ''}>
+        <div class="nt">${nt ? esc(nt) : '<span style="color:var(--faint);font-weight:500">안내 문구가 없습니다 — 예산 담당자가 등록할 수 있습니다.</span>'}</div>
+        ${ns ? `<div class="ns">${esc(ns)}</div>` : ''}
+        <div class="ne"><button class="btn sm" onclick="editNotice(true)">안내 문구 수정</button></div>
+      </div>
+      <div id="noticeEdit" ${NOTICE_EDIT ? '' : 'style="display:none"'}>
+        <label>안내 문구 (대시보드 상단 노출)</label>
+        <textarea id="nt_main">${esc(nt)}</textarea>
+        <label style="margin-top:8px">보조 문구 (괄호 안내 등)</label>
+        <input id="nt_sub" value="${esc(ns)}">
+        <div class="btns" style="margin-top:9px">
+          <button class="btn pri sm" onclick="saveNotice()">저장</button>
+          <button class="btn sm" onclick="editNotice(false)">취소</button>
+        </div>
+      </div>
+    </div>` : '';
   const kpi = `
     <div class="kpis">
       <div class="kpi"><span>총 예산</span><b>${won(d.alloc)}</b><small>리비전 ${ST.budget.length}회</small></div>
@@ -1106,7 +1187,22 @@ function rDash(){
         <td class="num">${won(tot.total)}</td><td class="num">${tot.total ? '100.0%' : '–'}</td><td class="num">${won(tot.commit)}</td><td class="num">${won(tot.plan)}</td>
         <td class="num">${tot.groups}</td><td class="num">${tot.people}</td></tr></tfoot>
     </table></div></div>`;
-  $('#v-dash').innerHTML = hero + kpi + todo + ccg;
+  $('#v-dash').innerHTML = notice + hero + kpi + todo + ccg;
+}
+let NOTICE_EDIT = false;
+function editNotice(on){
+  if (on && !adminPw()) { askAdmin(() => { NOTICE_EDIT = true; rDash(); nav('dash'); }); return; }
+  NOTICE_EDIT = on; rDash(); nav('dash');
+}
+async function saveNotice(){
+  const body = {notice: $('#nt_main').value, notice_sub: $('#nt_sub').value};
+  const {ok, data} = await api('/notice', {method: 'POST', body: JSON.stringify(body)});
+  if (!ok) {
+    if (data.errors?.[0]?.includes('인증')) { askAdmin(saveNotice); return; }
+    toast((data.errors || ['저장 실패'])[0]); return;
+  }
+  NOTICE_EDIT = false; toast('안내 문구를 저장했습니다');
+  await load(); nav('dash');
 }
 function goProcess(){ if (!adminPw()) { askAdmin(() => nav('process')); return; } nav('process'); }
 
@@ -1716,8 +1812,10 @@ async function rData(){
   $('#v-data').innerHTML = `
     <div class="card"><h2>내보내기</h2>
       <div class="btns" style="margin-top:6px">
-        <button class="btn pri" onclick="downloadCsv(YQ)">${YQ} 출장 CSV</button>
+        <button class="btn pri" onclick="downloadXls(YQ)">${YQ} 센터 제출 (Excel)</button>
+        <button class="btn" onclick="downloadCsv(YQ)">${YQ} 출장 CSV</button>
         <button class="btn" onclick="downloadCsv(null)">전체 출장 CSV</button>
+        <button class="btn" onclick="downloadCsv(YQ,true)">${YQ} 내부관리 CSV</button>
         <button class="btn" onclick="downloadBudgetCsv(YQ)">${YQ} 예산 CSV</button>
         <button class="btn" onclick="downloadBudgetCsv(null)">전체 예산 CSV</button></div></div>
     <div class="card"><h2>자동 백업 (최근 30개 유지)</h2>
@@ -1755,7 +1853,7 @@ async function showReport(){
     <td class="num"><b>${won(x.total)}</b></td><td class="num">${x.groups}</td><td class="num">${x.people}</td></tr>`).join('');
   const revs = r.revisions.map(b => `<tr><td class="num">${esc(b.rev_dt)}</td><td>${esc(b.rev_type)}</td>
     <td class="num">${b.amt >= 0 ? '+' : '−'}${won(Math.abs(b.amt))}</td><td>${esc(b.reason || '')}</td></tr>`).join('');
-  const text = [`[${r.yq} 소재 그룹 국내 출장비 집행 현황]`, '',
+  const text = [`[${r.yq} 소재 국내 출장비 집행 현황]`, '',
     `배정 ${won(r.alloc)}원 / 집행 ${won(r.used)}원 (완료 ${won(r.done)} + 처리중 ${won(r.wip)})`,
     `확정 예정(확보) ${won(r.commit)}원 · 소진율 ${(r.burn * 100).toFixed(1)}%`,
     `가용 잔여 ${won(r.avail)}원` + (r.need > 0 ? ` · 추가 필요 예상 ${won(r.need)}원` : ''), '',

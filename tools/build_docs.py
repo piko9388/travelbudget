@@ -15,10 +15,14 @@ app = s1(app, """  const r = await fetch(API + path, opt);
 """  return __localApi(path, opt);   // 정적(GitHub Pages) — 서버 대신 브라우저에서 동일 로직 처리""", "api")
 app = s1(app, '<a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">CSV 다운로드</a></div>',
               '<button class="btn" onclick="downloadCsv(YQ)">CSV 다운로드</button></div>', "list-csv")
-app = s1(app, """        <a class="btn pri" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">${YQ} 출장 CSV</a>
-        <a class="btn" href="${API}/export.csv">전체 출장 CSV</a>""",
-"""        <button class="btn pri" onclick="downloadCsv(YQ)">${YQ} 출장 CSV</button>
-        <button class="btn" onclick="downloadCsv(null)">전체 출장 CSV</button>""", "data-csv")
+app = s1(app, """        <a class="btn pri" href="${API}/export.xls?yq=${encodeURIComponent(YQ)}">${YQ} 센터 제출 (Excel)</a>
+        <a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">${YQ} 출장 CSV</a>
+        <a class="btn" href="${API}/export.csv">전체 출장 CSV</a>
+        <a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}&mode=internal">${YQ} 내부관리 CSV</a>""",
+"""        <button class="btn pri" onclick="downloadXls(YQ)">${YQ} 센터 제출 (Excel)</button>
+        <button class="btn" onclick="downloadCsv(YQ)">${YQ} 출장 CSV</button>
+        <button class="btn" onclick="downloadCsv(null)">전체 출장 CSV</button>
+        <button class="btn" onclick="downloadCsv(YQ,true)">${YQ} 내부관리 CSV</button>""", "data-csv")
 app = s1(app, """    <div class="card"><h2>정본 위치</h2>
       <div class="note">servera/travelbudget/data_json/data.json — 백업: data_json/backup/<br>
       운영 시 <b>TB_DATA_DIR</b> 환경변수로 앱 폴더 밖(예: /var/lib/travelbudget)을 지정하면 배포 시 덮어써도 데이터가 보존됩니다.</div></div>`;""",

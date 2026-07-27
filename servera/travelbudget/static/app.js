@@ -64,6 +64,8 @@ async function load(){
   const qs = $('#qsel');
   const opts = [...new Set([...data.yqList, YQ])];
   qs.innerHTML = opts.map(q => `<option${q === YQ ? ' selected' : ''}>${q}</option>`).join('');
+  const vEl = $('#appVer');
+  if (vEl && data.version) vEl.textContent = `${data.version.v} · ${data.version.build}`;
   qs.onchange = e => {
     const dirty = ($('#travBody')?.querySelector('.t-nm')?.value.trim()) || ACT_GID;
     if (dirty && !confirm('입력 중인 내용이 저장되지 않았습니다. 분기를 변경하면 사라집니다. 계속할까요?')) {
@@ -172,7 +174,7 @@ function rDash(){
         <div class="msg">${d.short
           ? '확정·집행이 예산을 초과했습니다 — 센터 검토 및 추가 확보 필요'
           : d.noBudget ? '이 분기 예산이 아직 배정되지 않았습니다 — 예산 관리에서 배정하세요'
-          : '소재 그룹 국내 출장비 잔액이 있어 정상 운영 중입니다'}</div>
+          : '소재 국내 출장비 잔액이 있어 정상 운영 중입니다'}</div>
         <div class="fig">총예산 <b>${won(d.alloc)}원</b> − 처리완료 <b>${won(d.done)}원</b> − 처리중 <b>${won(d.wip)}원</b> − 확정예정 <b>${won(d.commit || 0)}원</b> = 가용 <b style="color:${av < 0 ? 'var(--red)' : 'var(--navy)'}">${av < 0 ? '−' : ''}${won(Math.abs(av))}원</b></div>
         <div class="fig" style="color:var(--faint)">잠정 계획 ${won(d.planAmt)}원은 참고(예산 미반영) · 확정 시 위 ‘확정예정’으로 선확보됩니다</div>
       </div>
@@ -181,6 +183,26 @@ function rDash(){
         <div class="amount">${av < 0 ? '−' : ''}${won(Math.abs(av))}원</div>
       </div>
     </div>`;
+  const nt = (ST.settings && ST.settings.notice) || '';
+  const ns = (ST.settings && ST.settings.notice_sub) || '';
+  const notice = (nt || ns || adminPw()) ? `
+    <div class="notice">
+      <div id="noticeView" ${NOTICE_EDIT ? 'style="display:none"' : ''}>
+        <div class="nt">${nt ? esc(nt) : '<span style="color:var(--faint);font-weight:500">안내 문구가 없습니다 — 예산 담당자가 등록할 수 있습니다.</span>'}</div>
+        ${ns ? `<div class="ns">${esc(ns)}</div>` : ''}
+        <div class="ne"><button class="btn sm" onclick="editNotice(true)">안내 문구 수정</button></div>
+      </div>
+      <div id="noticeEdit" ${NOTICE_EDIT ? '' : 'style="display:none"'}>
+        <label>안내 문구 (대시보드 상단 노출)</label>
+        <textarea id="nt_main">${esc(nt)}</textarea>
+        <label style="margin-top:8px">보조 문구 (괄호 안내 등)</label>
+        <input id="nt_sub" value="${esc(ns)}">
+        <div class="btns" style="margin-top:9px">
+          <button class="btn pri sm" onclick="saveNotice()">저장</button>
+          <button class="btn sm" onclick="editNotice(false)">취소</button>
+        </div>
+      </div>
+    </div>` : '';
   const kpi = `
     <div class="kpis">
       <div class="kpi"><span>총 예산</span><b>${won(d.alloc)}</b><small>리비전 ${ST.budget.length}회</small></div>
@@ -223,7 +245,22 @@ function rDash(){
         <td class="num">${won(tot.total)}</td><td class="num">${tot.total ? '100.0%' : '–'}</td><td class="num">${won(tot.commit)}</td><td class="num">${won(tot.plan)}</td>
         <td class="num">${tot.groups}</td><td class="num">${tot.people}</td></tr></tfoot>
     </table></div></div>`;
-  $('#v-dash').innerHTML = hero + kpi + todo + ccg;
+  $('#v-dash').innerHTML = notice + hero + kpi + todo + ccg;
+}
+let NOTICE_EDIT = false;
+function editNotice(on){
+  if (on && !adminPw()) { askAdmin(() => { NOTICE_EDIT = true; rDash(); nav('dash'); }); return; }
+  NOTICE_EDIT = on; rDash(); nav('dash');
+}
+async function saveNotice(){
+  const body = {notice: $('#nt_main').value, notice_sub: $('#nt_sub').value};
+  const {ok, data} = await api('/notice', {method: 'POST', body: JSON.stringify(body)});
+  if (!ok) {
+    if (data.errors?.[0]?.includes('인증')) { askAdmin(saveNotice); return; }
+    toast((data.errors || ['저장 실패'])[0]); return;
+  }
+  NOTICE_EDIT = false; toast('안내 문구를 저장했습니다');
+  await load(); nav('dash');
 }
 function goProcess(){ if (!adminPw()) { askAdmin(() => nav('process')); return; } nav('process'); }
 
@@ -833,8 +870,10 @@ async function rData(){
   $('#v-data').innerHTML = `
     <div class="card"><h2>내보내기</h2>
       <div class="btns" style="margin-top:6px">
-        <a class="btn pri" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">${YQ} 출장 CSV</a>
+        <a class="btn pri" href="${API}/export.xls?yq=${encodeURIComponent(YQ)}">${YQ} 센터 제출 (Excel)</a>
+        <a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">${YQ} 출장 CSV</a>
         <a class="btn" href="${API}/export.csv">전체 출장 CSV</a>
+        <a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}&mode=internal">${YQ} 내부관리 CSV</a>
         <a class="btn" href="${API}/export_budget.csv?yq=${encodeURIComponent(YQ)}">${YQ} 예산 CSV</a>
         <a class="btn" href="${API}/export_budget.csv">전체 예산 CSV</a></div></div>
     <div class="card"><h2>자동 백업 (최근 30개 유지)</h2>
@@ -873,7 +912,7 @@ async function showReport(){
     <td class="num"><b>${won(x.total)}</b></td><td class="num">${x.groups}</td><td class="num">${x.people}</td></tr>`).join('');
   const revs = r.revisions.map(b => `<tr><td class="num">${esc(b.rev_dt)}</td><td>${esc(b.rev_type)}</td>
     <td class="num">${b.amt >= 0 ? '+' : '−'}${won(Math.abs(b.amt))}</td><td>${esc(b.reason || '')}</td></tr>`).join('');
-  const text = [`[${r.yq} 소재 그룹 국내 출장비 집행 현황]`, '',
+  const text = [`[${r.yq} 소재 국내 출장비 집행 현황]`, '',
     `배정 ${won(r.alloc)}원 / 집행 ${won(r.used)}원 (완료 ${won(r.done)} + 처리중 ${won(r.wip)})`,
     `확정 예정(확보) ${won(r.commit)}원 · 소진율 ${(r.burn * 100).toFixed(1)}%`,
     `가용 잔여 ${won(r.avail)}원` + (r.need > 0 ? ` · 추가 필요 예상 ${won(r.need)}원` : ''), '',
