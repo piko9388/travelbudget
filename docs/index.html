@@ -121,6 +121,12 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
 tr.grp-head td{background:#EEF2F8;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
 padding:7px 9px;color:var(--navy)}
 tr.grp-head:hover td{background:#EEF2F8}
+th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+th.sortable:hover{background:#E8EDF5;color:var(--navy)}
+th .sic{color:var(--blue);font-size:10px}
+tr.filt th{background:#FAFBFC;padding:5px 5px;border-bottom:1px solid var(--line)}
+.colf{width:100%;min-width:74px;padding:4px 6px;font-size:12px;border:1px solid #DCE1E9;border-radius:2px}
+.colf::placeholder{color:#B6BECB;font-size:11px}
 @media(max-width:980px){.filter-row input,.filter-row select,.filter-row .btn{width:100%;min-width:0}}
 /* 이용 안내(흐름) */
 .g-lead{background:linear-gradient(180deg,#FBFCFE,#F2F6FB);border:1px solid var(--line);border-radius:2px;padding:17px 19px;margin-bottom:14px}
@@ -1368,40 +1374,89 @@ function showMail(mail){
 
 /* ═══ 출장 내역 ═══ */
 /* 목록 정렬·필터·검색 상태 (출장 내역 / 예산 관리 공용) */
-const LQ = {q:'', st:'', sort:'stage', dir:'desc'};   // stage=프로세스 우선, date=일자
+// 컬럼 정의 — 머리글 클릭 정렬 + 컬럼별 검색창
+const LCOLS = [
+  {k:'stage', th:'상태',     f:'sel'},
+  {k:'name',  th:'출장',     f:'txt', ph:'도시·업체·목적'},
+  {k:'trav',  th:'출장자',   f:'txt', ph:'성명·사번·팀'},
+  {k:'date',  th:'기간',     f:'txt', ph:'예: 07/25', num:true},
+  {k:'plan',  th:'계획',     f:'min', ph:'≥금액', num:true},
+  {k:'act',   th:'실적',     f:'min', ph:'≥금액', num:true},
+  {k:'sap',   th:'전표번호', f:'txt', ph:'전표', num:true},
+];
+const LQ = {q:'', sort:'stage', dir:'desc', group:true, col:{}};
 const BQ = {q:'', type:'', dir:'desc'};
-function setLQ(k, v){ LQ[k] = v; rList(); nav('list'); }
-function toggleLDir(){ LQ.dir = LQ.dir === 'asc' ? 'desc' : 'asc'; rList(); nav('list'); }
 function setBQ(k, v){ BQ[k] = v; rBudget(); nav('budget'); }
 function toggleBDir(){ BQ.dir = BQ.dir === 'asc' ? 'desc' : 'asc'; rBudget(); nav('budget'); }
 const dirIcon = d => d === 'asc' ? '▲ 오름차순' : '▼ 내림차순';
 
-function rList(){
+function lVal(g, k){
+  if (k === 'stage') return g.stage;
+  if (k === 'name')  return gname(g) + ' ' + (g.purpose || '');
+  if (k === 'trav')  return (g.travelers || []).map(p => `${p.name} ${p.emp_no} ${p.ccg_nm || ''}`).join(' ');
+  if (k === 'date')  return g.dep_dt || '';
+  if (k === 'plan')  return g.plan_tot || 0;
+  if (k === 'act')   return g.act_tot || 0;
+  if (k === 'sap')   return g.sap_doc || '';
+  return '';
+}
+function listRows(){
   const all = ST.groups.filter(g => g.yq === YQ);
   const q = LQ.q.trim().toLowerCase();
-  // 검색은 '데이터'만 대상 — 버튼 문구가 걸리던 문제 해소
+  // 전체 검색은 '데이터'만 대상 — 관리 버튼 문구가 걸리지 않도록
   const hay = g => [g.city, g.org, g.purpose, g.roll, g.plan_type, g.sap_doc,
     ...(g.travelers || []).flatMap(p => [p.name, p.emp_no, p.ccg_nm])]
     .filter(Boolean).join(' ').toLowerCase();
-  let G = all.filter(g => (!LQ.st || g.roll === LQ.st) && (!q || hay(g).includes(q)));
-  const sgn = LQ.dir === 'asc' ? 1 : -1;
-  const byDate = (a, b) => ((a.dep_dt || '') < (b.dep_dt || '') ? -1 : (a.dep_dt || '') > (b.dep_dt || '') ? 1 : 0);
-  G = G.slice().sort(LQ.sort === 'stage'
-    // 프로세스별 우선 분류 → 같은 프로세스 안에서 일자 순차 배열
-    ? (a, b) => (a.stage - b.stage) || sgn * byDate(a, b)
-    : (a, b) => sgn * byDate(a, b));
-  const acts = g => {
-    const b = [];
-    if (g.status === '계획 등록') {          // 잠정: 확정하거나 흔적 없이 삭제
-      b.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','확정 예정')">출장 확정</button>`);
-      b.push(`<button class="btn sm" onclick="delGroup('${g.group_id}')">삭제</button>`);
-    } else if (g.status === '확정 예정') {   // 확정: 예산 확보됨
-      b.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','계획 등록')">확정 해제</button>`);
-      b.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
+  const G = all.filter(g => {
+    if (q && !hay(g).includes(q)) return false;
+    for (const c of LCOLS) {                       // 컬럼별 검색창
+      const v = String(LQ.col[c.k] || '').trim();
+      if (!v) continue;
+      if (c.k === 'stage') { if (g.roll !== v) return false; continue; }
+      if (c.f === 'min') {
+        if ((Number(lVal(g, c.k)) || 0) < (Number(v.replace(/[^0-9-]/g, '')) || 0)) return false;
+        continue;
+      }
+      if (c.k === 'date') {
+        const period = `${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} ${g.dep_dt} ${g.ret_dt}`;
+        if (!period.includes(v)) return false;
+        continue;
+      }
+      if (!String(lVal(g, c.k)).toLowerCase().includes(v.toLowerCase())) return false;
     }
-    return b.join(' ') || '<span class="sub">진행/처리 단계</span>';
-  };
-  const row = g => `<tr>
+    return true;
+  });
+  const sgn = LQ.dir === 'asc' ? 1 : -1;
+  const cmpCol = (a, b, k) => { const x = lVal(a, k), y = lVal(b, k);
+    return (typeof x === 'number' && typeof y === 'number') ? x - y
+      : (String(x) < String(y) ? -1 : String(x) > String(y) ? 1 : 0); };
+  const sorted = G.slice().sort((a, b) => {
+    if (LQ.group) { const d = a.stage - b.stage; if (d) return d; }   // 프로세스별 우선 분류
+    const k = (LQ.sort === 'stage' && LQ.group) ? 'date' : LQ.sort;
+    return sgn * cmpCol(a, b, k) || cmpCol(a, b, 'date');
+  });
+  return {all, G: sorted};
+}
+function sortList(k){
+  if (LQ.sort === k) LQ.dir = LQ.dir === 'asc' ? 'desc' : 'asc';
+  else { LQ.sort = k; LQ.dir = (k === 'plan' || k === 'act') ? 'desc' : 'asc'; }
+  renderListBody();
+}
+function setCol(k, v){ LQ.col[k] = v; renderListBody(); }   // 본문만 갱신 → 입력 포커스 유지
+function clearList(){ LQ.q = ''; LQ.col = {}; rList(); nav('list'); }
+function toggleGroup(on){ LQ.group = on; renderListBody(); }
+function toggleLDir(){ LQ.dir = LQ.dir === 'asc' ? 'desc' : 'asc'; renderListBody(); }
+
+function listRowHtml(g){
+  const acts = [];
+  if (g.status === '계획 등록') {          // 잠정: 확정하거나 흔적 없이 삭제
+    acts.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','확정 예정')">출장 확정</button>`);
+    acts.push(`<button class="btn sm" onclick="delGroup('${g.group_id}')">삭제</button>`);
+  } else if (g.status === '확정 예정') {   // 확정: 예산 확보됨
+    acts.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','계획 등록')">확정 해제</button>`);
+    acts.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
+  }
+  return `<tr>
     <td><span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>${g.plan_type === '긴급' ? ' <span class="status urgent">긴급</span>' : ''}</td>
     <td><b>${esc(gname(g))}</b><div class="sub">${esc(g.purpose)}</div></td>
     <td>${names(g)} <span class="sub">${g.travelers.length}명</span>${procTag(g)}</td>
@@ -1409,45 +1464,70 @@ function rList(){
     <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
     <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td>
     <td class="num">${g.sap_doc ? esc(g.sap_doc) : '–'}</td>
-    <td>${acts(g)}</td></tr>`;
-  // 프로세스별 우선 분류 — 단계가 바뀔 때마다 구분 머리행
+    <td>${acts.join(' ') || '<span class="sub">진행/처리 단계</span>'}</td></tr>`;
+}
+function renderListBody(){
+  const {all, G} = listRows();
   let body = '', last = null;
   G.forEach(g => {
-    if (LQ.sort === 'stage' && g.roll !== last) {
+    if (LQ.group && g.roll !== last) {          // 프로세스가 바뀔 때마다 구분 머리행
       last = g.roll;
       const n = G.filter(x => x.roll === g.roll).length;
       body += `<tr class="grp-head"><td colspan="8">
         <span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>
-        <b style="margin-left:6px">${n}건</b>
-        <span class="sub">· 출발일 ${LQ.dir === 'asc' ? '빠른' : '늦은'} 순</span></td></tr>`;
+        <b style="margin-left:6px">${n}건</b></td></tr>`;
     }
-    body += row(g);
+    body += listRowHtml(g);
   });
+  const tb = $('#listBody');
+  if (!tb) return;
+  tb.innerHTML = body || '<tr class="empty"><td colspan="8" style="color:var(--faint);text-align:center;padding:18px">조건에 맞는 출장이 없습니다.</td></tr>';
+  const cnt = $('#listCount');
+  if (cnt) cnt.textContent = `${G.length}/${all.length}건 · 잠정 ${ST.dash.nPlan || 0} · 확정 ${ST.dash.nConfirm || 0}`;
+  $$('#v-list .sic').forEach(el => {            // 정렬 표시(▲▼)
+    el.textContent = el.dataset.k === LQ.sort ? (LQ.dir === 'asc' ? ' ▲' : ' ▼') : '';
+  });
+  const dirBtn = $('#listDir');
+  if (dirBtn) dirBtn.textContent = dirIcon(LQ.dir);
+}
+function rList(){
   const opt = (v, cur, label) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label || v || '전체')}</option>`;
-  const nP = ST.dash.nPlan || 0, nC = ST.dash.nConfirm || 0;
+  // 머리글: 클릭하면 그 컬럼 기준 정렬 (다시 누르면 오름/내림 전환)
+  const ths = LCOLS.map(c =>
+    `<th class="sortable${c.num ? ' num' : ''}" onclick="sortList('${c.k}')" title="클릭: ${esc(c.th)} 기준 정렬">`
+    + `${esc(c.th)}<span class="sic" data-k="${c.k}"></span></th>`).join('');
+  // 컬럼별 검색창 — 상태는 선택, 금액은 '이상', 나머지는 포함 검색
+  const filts = LCOLS.map(c => {
+    if (c.f === 'sel') return `<th><select class="colf" onchange="setCol('stage',this.value)">`
+      + [''].concat(ST.meta.statuses).map(x => opt(x, LQ.col.stage || '', x ? dispSt(x) : '전체')).join('')
+      + `</select></th>`;
+    return `<th class="${c.num ? 'num' : ''}"><input class="colf" value="${esc(LQ.col[c.k] || '')}"`
+      + ` placeholder="${esc(c.ph || '')}" oninput="setCol('${c.k}',this.value)"></th>`;
+  }).join('');
   $('#v-list').innerHTML = `
     <div class="note">‘<b>계획(잠정)</b>’은 참고용 리스트 — 실제로 안 가면 <b>삭제</b>(흔적 없이 사라짐). 실제로 갈 건 ‘<b>출장 확정</b>’ 하면 계획 금액만큼 <b>예산이 미리 확보</b>됩니다. (확정 이후 취소는 기록으로 남습니다)</div>
     <div class="card">
-      <div class="card-head"><h2>${YQ} 출장 내역 <span class="sub" style="font-weight:600">${G.length}/${all.length}건 · 잠정 ${nP} · 확정 ${nC}</span></h2>
+      <div class="card-head"><h2>${YQ} 출장 내역 <span class="sub" id="listCount" style="font-weight:600"></span></h2>
         <button class="btn" onclick="downloadCsv(YQ)">CSV 다운로드</button></div>
       <div class="filter-row" style="margin-top:12px">
-        <input id="listFilter" value="${esc(LQ.q)}" placeholder="🔍 성명·사번·업체·도시·목적·전표번호"
-          oninput="LQ.q=this.value; clearTimeout(window._lt); window._lt=setTimeout(()=>{rList();nav('list');document.getElementById('listFilter').focus();},250)">
-        <select onchange="setLQ('st',this.value)">
-          ${[''].concat(ST.meta.statuses).map(s => opt(s, LQ.st, s ? dispSt(s) : '전체 프로세스')).join('')}
-        </select>
-        <select onchange="setLQ('sort',this.value)">
-          ${opt('stage', LQ.sort, '프로세스별 → 일자순')}${opt('date', LQ.sort, '일자순')}
-        </select>
-        <button class="btn" onclick="toggleLDir()">${dirIcon(LQ.dir)}</button>
-        ${(LQ.q || LQ.st) ? `<button class="btn" onclick="LQ.q='';LQ.st='';rList();nav('list')">필터 해제</button>` : ''}
+        <input id="listFilter" value="${esc(LQ.q)}" placeholder="🔍 전체 검색 (성명·사번·업체·도시·목적·전표번호)"
+          oninput="LQ.q=this.value; renderListBody()">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:600;margin:0;white-space:nowrap">
+          <input type="checkbox" style="width:auto;margin:0" ${LQ.group ? 'checked' : ''}
+            onchange="toggleGroup(this.checked)"> 프로세스별 묶기</label>
+        <button class="btn" id="listDir" onclick="toggleLDir()">${dirIcon(LQ.dir)}</button>
+        <button class="btn" onclick="clearList()">필터 해제</button>
       </div>
+      <p class="cap" style="margin:-4px 0 10px">표 머리글을 누르면 그 항목 기준으로 정렬되고, 머리글 아래 칸에 입력하면 컬럼별로 검색됩니다.</p>
       <div class="scroll"><table>
-        <thead><tr><th>상태</th><th>출장</th><th>출장자</th><th class="num">기간</th>
-          <th class="num">계획</th><th class="num">실적</th><th class="num">전표번호</th><th>관리</th></tr></thead>
-        <tbody id="listBody">${body || '<tr class="empty"><td colspan="8" style="color:var(--faint);text-align:center;padding:18px">조건에 맞는 출장이 없습니다.</td></tr>'}</tbody>
+        <thead>
+          <tr>${ths}<th>관리</th></tr>
+          <tr class="filt">${filts}<th></th></tr>
+        </thead>
+        <tbody id="listBody"></tbody>
       </table></div>
     </div>`;
+  renderListBody();
 }
 
 /* ═══ 이관·처리 관리 (관리자) — 출장자 개인별 처리 ═══ */
