@@ -1,8 +1,8 @@
-# 사내 Flask 서버 업로드 방법 (v9.4)
+# 사내 Flask 서버 업로드 방법 (v9.5)
 
 ## 0. 준비물
 
-- 패키지 `travelbudget_flask_v9.4.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
+- 패키지 `travelbudget_flask_v9.5.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
 - 사내 서버에 Python 3.8+ 와 Flask 3.x
 
 ```
@@ -16,13 +16,13 @@ pip install -r requirements.txt      # Flask 뿐입니다
 압축을 풀면 이 구조입니다.
 
 ```
-travelbudget_flask_v9.4/
+travelbudget_flask_v9.5/
 └─ servera/
    └─ travelbudget/          ← 이 폴더 하나만 서버로 옮기면 됩니다
       ├─ __init__.py
       ├─ core.py             계산 엔진 (잔여 공식·검증·인폼·CSV)
       ├─ store.py            data.json 저장 + 자동백업 30개 + 감사로그
-      ├─ routes.py           API 22개
+      ├─ routes.py           API 23개
       ├─ templates/index.html
       └─ static/app.js
 ```
@@ -83,7 +83,7 @@ Windows 서비스라면 서비스 환경변수에 `TB_DATA_DIR` 을 등록합니
 material.skhynix.com/travelbudget
 ```
 
-좌측 하단에 **v9.4 · 2026-07-27** 이 보이면 이 버전이 올라간 것입니다.
+좌측 하단에 **v9.5 · 2026-07-27** 이 보이면 이 버전이 올라간 것입니다.
 (버전이 안 바뀌었으면 브라우저 캐시 — `Ctrl+F5`)
 
 ---
@@ -99,6 +99,7 @@ material.skhynix.com/travelbudget
 | 예산 담당자 모드 | 예산 관리 → 2071478 | 화면 열림 |
 | 내보내기 | 데이터 관리 → 센터 제출 (Excel) | 파일 받아짐 |
 | 변환 프롬프트 | 데이터 관리 → 변환 프롬프트 복사 | 복사됨 토스트 |
+| 출장자 안내 | `/travelbudget/guide` 접속 | 4단계 안내 표시 |
 | 빈 원장 확인 | 첫 접속 시 대시보드 | 예시 출장이 **없어야** 정상 |
 
 올린 서버가 정상인지 확인하려면 — **운영 데이터를 전혀 바꾸지 않는** 스모크 테스트를 쓰세요.

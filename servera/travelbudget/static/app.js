@@ -315,6 +315,8 @@ function rGuide(){
     </div>`;
   const lead = `
     <div class="g-lead">
+      <a class="btn sm" href="/travelbudget/guide" target="_blank" rel="noopener"
+         style="float:right;margin-left:12px">출장자용 안내 (인쇄·메일용) ↗</a>
       <h2>출장비, 이렇게 흘러갑니다</h2>
       <p>출장자는 <b>계획</b>과 <b>실적</b>만 입력하면 됩니다. 인폼(메일)·이관·정산·이력은 시스템과 <b>소재 출장 예산 담당자</b>가 이어받습니다.
       입력은 한 번, 실비 이관 인폼은 <b>그룹당 한 통</b>이에요.</p>

@@ -44,3 +44,8 @@ assert tpl.count(marker) == 1
 out = tpl.replace(marker, "<script>\n" + backend + "\n</script>\n<script>\n" + app + "\n</script>")
 (REPO/'docs/index.html').write_text(out, encoding='utf-8')
 print(f"docs/index.html 조립 완료 ({len(out):,} chars)")
+
+# 출장자용 안내 — 템플릿이 원본, docs/ 는 GitHub Pages 용 사본
+guide = (REPO/'servera/travelbudget/templates/traveler_guide.html').read_text(encoding='utf-8')
+(REPO/'docs/traveler_guide.html').write_text(guide, encoding='utf-8')
+print(f"docs/traveler_guide.html 복사 완료 ({len(guide):,} chars)")

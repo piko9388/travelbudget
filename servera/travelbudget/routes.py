@@ -85,6 +85,12 @@ def index():
     return render_template("index.html")
 
 
+# ── 출장자용 인쇄 가능 안내 (독립 HTML — 메일 첨부·사내 게시용) ──
+@travelbudget.get("/guide")
+def traveler_guide():
+    return render_template("traveler_guide.html")
+
+
 @travelbudget.get("/favicon.ico")
 def favicon():
     return ("", 204)

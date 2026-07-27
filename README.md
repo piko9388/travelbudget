@@ -1,4 +1,4 @@
-# 소재 국내 출장비 관리 v9.4
+# 소재 국내 출장비 관리 v9.5
 
 소재전략 국내 출장비 계획·실적·인폼·정산 관리 (Flask + data.json 단일 파일 저장)
 
@@ -20,12 +20,21 @@
 |---|---|
 | `core.py` | 계산 엔진 SSOT — 잔여 공식·검증·인폼 생성·CSV |
 | `store.py` | data.json 원자적 저장 + 자동백업 30개 + 감사로그 |
-| `routes.py` | API 22개 (예산 담당자 행위는 X-Admin-PW 서버 검증, `core.locked` 경계) |
+| `routes.py` | API 23개 (예산 담당자 행위는 X-Admin-PW 서버 검증, `core.locked` 경계) |
 | `templates/index.html` | 화이트+네이비 테마, Pretendard |
 | `static/app.js` | 전 화면 (대시보드/계획/실적/내역/이관·처리/예산/데이터) |
 | `data_json/data.json` | 정본 (백업: `data_json/backup/`) — 운영은 **`TB_DATA_DIR`** 로 앱 밖 지정 권장 |
 
 > 신규 설치는 **빈 원장**으로 시작합니다. 예시 데이터가 필요하면 `data.example.json` 을 복사해 쓰세요.
+
+## 출장자용 안내
+
+`servera/travelbudget/templates/traveler_guide.html` — 계획 등록부터 인폼 발송까지 4단계.
+화면 문구·버튼 이름을 실제 화면에서 그대로 가져왔고, 어긋나면 `test_api.py` §23 이 실패합니다.
+
+- 화면에서: **이용 안내 → 출장자용 안내 (인쇄·메일용)**
+- 직접 링크: `material.skhynix.com/travelbudget/guide`
+- 파일로 배포: 그 HTML 하나만 보내면 됩니다 (외부 CDN·이미지 없음, 인쇄 스타일 포함)
 
 ## 핵심 규칙
 

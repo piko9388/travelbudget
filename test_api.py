@@ -624,5 +624,38 @@ ok('프롬프트: 근거 없는 처리 완료 추론 금지', '추론하지 마�
 ok('_confirm_needed 키가 있어도 로드 정상',
    _store.validate_root({'settings': {}, 'budget': [], 'groups': [], '_confirm_needed': ['x']}) is None)
 
+print('\n=== 23. 출장자 안내 HTML ↔ 실제 화면 일치 ===')
+_gd = open('servera/travelbudget/templates/traveler_guide.html', encoding='utf-8').read()
+ok('안내 라우트 /guide 200', c.get('/travelbudget/guide').status_code == 200,
+   c.get('/travelbudget/guide').status_code)
+ok('안내가 화면에서 열림(이용 안내에 링크)', '/travelbudget/guide' in _appjs)
+ok('docs 사본 = 템플릿 원본 (tools/build_docs.py 실행 필요)',
+   (not os.path.exists('docs/traveler_guide.html')) or
+   open('docs/traveler_guide.html', encoding='utf-8').read() == _gd)
+_tpl2 = open('servera/travelbudget/templates/index.html', encoding='utf-8').read()
+_rt = open('servera/travelbudget/routes.py', encoding='utf-8').read()
+# 안내가 가리키는 메뉴·버튼이 실제로 존재해야 한다
+for _m in ('출장 계획 등록', '출장 실적 입력', '출장 내역', '이용 안내'):
+    ok(f'안내의 메뉴 "{_m}" 실재', _m in _gd and _m in _tpl2)
+for _b in ('출장 확정', '실적 저장 및 인폼 생성', '메일 열기 (Outlook)', '표 포함 복사',
+           '인폼 다시 보기', '인폼 보기', '+ 동행자 추가', '출장 취소'):
+    ok(f'안내의 버튼 "{_b}" 실재', _b in _gd and _b in _appjs)
+# 상태 표기가 화면 표기와 같아야 한다
+for _s in ('계획(잠정)', '출장 확정 · 예산 반영', '실적 입력·인폼', '소재 이관', '처리 완료'):
+    ok(f'안내의 상태 "{_s}" 표기 일치', _s in _gd and (_s in _appjs or _s in str(_C.STATUSES)))
+# 안내가 설명하는 동작이 실제 동작과 같아야 한다
+ok('안내: 예산 부족을 막지 않음 = 실제와 일치', '계속 확정' in _gd and '계속 확정하시겠습니까' in _appjs)
+ok('안내: 긴급은 비고 필수 = 실제와 일치', '비고(사유)' in _gd and '긴급 출장은 비고(사유)가 필수입니다' in _C.__doc__ or
+   '긴급 출장은 비고(사유)가 필수입니다' in open('servera/travelbudget/core.py', encoding='utf-8').read())
+ok('안내: 실적 후 수정은 담당자만 = 실제와 일치',
+   '예산 담당자' in _gd and '예산 담당자 모드에서만 수정' in _rt)
+ok('안내: 인폼 수신자 2명 = 실제와 일치',
+   '이정훈 · 김은정' in _gd and len(_store.default_data()['settings']['mail_recipients']) == 2)
+# 없는 기능을 안내하면 안 된다 (SAP 는 v9.4 에서 화면에서 뺐다)
+for _ghost in ('SAP', '전표', '승인', '반려'):
+    ok(f'안내에 없는 기능 "{_ghost}" 미언급', _ghost not in _gd)
+ok('안내는 자체 완결(외부 CDN 없음)', 'http://' not in _gd and 'cdn' not in _gd.lower())
+ok('안내 글꼴 = 화면과 동일 스택', 'Malgun Gothic' in _gd and 'Pretendard' in _gd)
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

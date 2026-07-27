@@ -1,0 +1,275 @@
+<title>출장 가시는 분께 — 소재 국내 출장비 관리 이용 안내</title>
+<style>
+/* 화면(templates/index.html)과 같은 토큰·글꼴을 씁니다 — 안내와 실제 화면이 따로 놀지 않도록.
+   외부 웹폰트를 쓰지 않습니다(사내망 차단 환경 안전). */
+:root{
+  --bg:#F5F6F8; --card:#FFF; --ink:#111827; --ink2:#344054; --mut:#667085; --faint:#626B7D;
+  --line:#D9DEE7; --line2:#EDF0F4; --soft:#EEF1F5; --shade:#F0F2F5;
+  --navy:#17365D; --navy2:#244C79; --blue:#2563A8; --red:#C23A45; --green:#17725C; --amber:#8A5A10;
+  --chip-bg:#F3F5F8; --chip-line:#D6DCE5; --on-navy:#FFF;
+  --confirm-bg:#EAF1FB; --confirm-line:#CBDCF0;
+  --wip-bg:#FDF6EC; --wip-line:#E8D4B0;
+  --done-bg:#EDF5F1; --done-line:#C4DED2;
+  --warn-bg:#FFF8E8; --warn-line:#E8D4B0; --warn-bar:#C79A3A; --warn-ink:#7A5410;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#12161C; --card:#191F27; --ink:#E9EDF3; --ink2:#C3CBD6; --mut:#93A0B0; --faint:#8593A4;
+    --line:#2B3542; --line2:#232C37; --soft:#212A34; --shade:#1E262F;
+    --navy:#9FC0E8; --navy2:#B6D0F0; --blue:#7FB0E8; --red:#F08A93; --green:#66C9A8; --amber:#E0B463;
+    --chip-bg:#212A34; --chip-line:#33404F; --on-navy:#12161C;
+    --confirm-bg:#1B2836; --confirm-line:#31465E;
+    --wip-bg:#2A2317; --wip-line:#4D3F24;
+    --done-bg:#16271F; --done-line:#2A4638;
+    --warn-bg:#2A2317; --warn-line:#4D3F24; --warn-bar:#C79A3A; --warn-ink:#E7C98D;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12161C; --card:#191F27; --ink:#E9EDF3; --ink2:#C3CBD6; --mut:#93A0B0; --faint:#8593A4;
+  --line:#2B3542; --line2:#232C37; --soft:#212A34; --shade:#1E262F;
+  --navy:#9FC0E8; --navy2:#B6D0F0; --blue:#7FB0E8; --red:#F08A93; --green:#66C9A8; --amber:#E0B463;
+  --chip-bg:#212A34; --chip-line:#33404F; --on-navy:#12161C;
+  --confirm-bg:#1B2836; --confirm-line:#31465E;
+  --wip-bg:#2A2317; --wip-line:#4D3F24;
+  --done-bg:#16271F; --done-line:#2A4638;
+  --warn-bg:#2A2317; --warn-line:#4D3F24; --warn-bar:#C79A3A; --warn-ink:#E7C98D;
+}
+:root[data-theme="light"]{
+  --bg:#F5F6F8; --card:#FFF; --ink:#111827; --ink2:#344054; --mut:#667085; --faint:#626B7D;
+  --line:#D9DEE7; --line2:#EDF0F4; --soft:#EEF1F5; --shade:#F0F2F5;
+  --navy:#17365D; --navy2:#244C79; --blue:#2563A8; --red:#C23A45; --green:#17725C; --amber:#8A5A10;
+  --chip-bg:#F3F5F8; --chip-line:#D6DCE5;
+  --confirm-bg:#EAF1FB; --confirm-line:#CBDCF0;
+  --wip-bg:#FDF6EC; --wip-line:#E8D4B0;
+  --done-bg:#EDF5F1; --done-line:#C4DED2;
+  --warn-bg:#FFF8E8; --warn-line:#E8D4B0; --warn-bar:#C79A3A; --warn-ink:#7A5410;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;letter-spacing:-.01em;
+  word-break:keep-all;overflow-wrap:break-word;   /* 한국어는 단어 중간에서 끊지 않는다 */
+  font-family:Pretendard,"Pretendard Variable","Segoe UI",-apple-system,"Apple SD Gothic Neo",
+  "Malgun Gothic","맑은 고딕","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:840px;margin:0 auto;padding:32px 22px 56px;display:flex;flex-direction:column;gap:16px}
+
+/* 머리말 */
+.head{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--navy);
+  border-radius:2px;padding:24px 26px;display:flex;flex-direction:column;gap:8px}
+.eyebrow{color:var(--faint);font-size:11.5px;font-weight:700;letter-spacing:.06em}
+h1{margin:0;color:var(--navy);font-size:26px;font-weight:800;letter-spacing:-.03em;line-height:1.25;text-wrap:balance}
+.lead{margin:0;color:var(--ink2);font-size:14.5px;max-width:62ch}
+.lead b{color:var(--navy)}
+
+/* 단계 — 실제 처리 순서라 번호가 의미를 가집니다 */
+.steps{display:flex;flex-direction:column;gap:12px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:18px 20px;
+  display:grid;grid-template-columns:34px minmax(0,1fr);gap:0 14px;align-items:start}
+.n{grid-row:1/span 3;width:30px;height:30px;border-radius:50%;background:var(--navy);color:var(--on-navy);
+  display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;
+  font-variant-numeric:tabular-nums}
+.step h2{margin:0 0 2px;color:var(--navy);font-size:16.5px;font-weight:800;letter-spacing:-.02em}
+.where{color:var(--faint);font-size:12px;font-weight:700;margin-bottom:9px}
+.where .m{display:inline-block;background:var(--chip-bg);border:1px solid var(--chip-line);
+  color:var(--navy);border-radius:2px;padding:1px 7px;font-weight:700}
+.step ul{margin:0;padding-left:17px;color:var(--ink2);display:flex;flex-direction:column;gap:3px}
+.step li::marker{color:var(--faint)}
+.step b{color:var(--ink)}
+.press{margin-top:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  color:var(--faint);font-size:12px;font-weight:700}
+.btn{display:inline-flex;align-items:center;background:var(--navy);color:var(--on-navy);border-radius:2px;
+  padding:5px 13px;font-size:12.5px;font-weight:700;letter-spacing:-.01em}
+.btn.g{background:transparent;color:var(--navy);border:1px solid var(--chip-line)}
+.tip{margin-top:10px;padding:9px 12px;background:var(--soft);border-left:3px solid var(--blue);
+  border-radius:2px;color:var(--ink2);font-size:12.5px}
+.tip b{color:var(--navy)}
+
+/* 예산 안내 — 색만이 아니라 글자로도 구분 */
+.warn{background:var(--warn-bg);border:1px solid var(--warn-line);border-left:4px solid var(--warn-bar);
+  border-radius:2px;padding:13px 16px;color:var(--warn-ink);font-size:13px}
+.warn b{font-weight:800}
+
+/* 인계 밴드 */
+.hand{background:var(--shade);border:1px solid var(--line);border-radius:2px;padding:15px 18px;
+  color:var(--ink2);font-size:13.5px}
+.hand b{color:var(--navy)}
+.hand .t{display:block;color:var(--navy);font-weight:800;font-size:14px;margin-bottom:3px}
+
+/* 상태 표 */
+.card{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:18px 20px}
+.card > h2{margin:0 0 3px;color:var(--navy);font-size:16.5px;font-weight:800;letter-spacing:-.02em}
+.card > .cap{margin:0 0 13px;color:var(--faint);font-size:12.5px}
+.tbl{width:100%;border-collapse:collapse}
+.tbl td{padding:8px 4px;border-bottom:1px solid var(--line2);vertical-align:top;
+  color:var(--ink2);font-size:13px}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td:first-child{width:1%;white-space:nowrap;padding-right:14px}
+.st{display:inline-block;padding:2px 9px;border:1px solid var(--chip-line);background:var(--chip-bg);
+  color:var(--navy);font-size:11.5px;font-weight:700;border-radius:2px;white-space:nowrap}
+.st.confirm{background:var(--confirm-bg);border-color:var(--confirm-line);color:var(--blue)}
+.st.wip{background:var(--wip-bg);border-color:var(--wip-line);color:var(--amber)}
+.st.done{background:var(--done-bg);border-color:var(--done-line);color:var(--green)}
+.st.cancel{background:var(--shade);color:var(--faint);text-decoration:line-through}
+
+/* 자주 묻는 것 */
+.qa{display:flex;flex-direction:column;gap:11px;margin-top:2px}
+.q{color:var(--navy);font-weight:800;font-size:13.5px;margin-bottom:1px}
+.a{color:var(--ink2);font-size:13px}
+.a b{color:var(--ink)}
+
+.foot{color:var(--faint);font-size:12px;text-align:center;padding-top:4px;line-height:1.7}
+.foot b{color:var(--mut)}
+
+@media (max-width:560px){
+  .wrap{padding:20px 14px 40px}
+  h1{font-size:22px}
+  .step{grid-template-columns:1fr;gap:10px}
+  .n{grid-row:auto}
+}
+@media print{
+  body{background:#fff;font-size:11pt}
+  .wrap{max-width:none;padding:0;gap:10px}
+  .step,.card,.head,.hand,.warn{break-inside:avoid;box-shadow:none}
+}
+</style>
+
+<div class="wrap">
+
+  <header class="head">
+    <span class="eyebrow">소재 국내 출장비 관리 · material.skhynix.com/travelbudget</span>
+    <h1>출장 가시는 분께 — 4단계면 끝납니다</h1>
+    <p class="lead">
+      출장자가 하는 일은 <b>계획 등록</b>과 <b>실적 입력</b> 둘뿐입니다.
+      메일 만들기·이관·정산은 시스템과 <b>소재 출장 예산 담당자</b>가 이어받습니다.
+    </p>
+  </header>
+
+  <div class="steps">
+
+    <section class="step">
+      <div class="n">1</div>
+      <h2>출장 계획을 등록합니다</h2>
+      <div class="where">좌측 메뉴 <span class="m">출장 계획 등록</span></div>
+      <div>
+        <ul>
+          <li><b>출장 도시 · 기관&amp;업체 · 목적&amp;사유 · 출발/복귀일자</b>를 입력합니다. 출장일수는 자동으로 계산됩니다.</li>
+          <li>아래 출장자 표에 <b>성명 · 사번 · 직책 · CCG팀</b>을 넣습니다. CCG No.는 팀을 고르면 자동으로 채워집니다.</li>
+          <li>계획 비용은 <b>교통비 · 숙박비 · 식대&amp;잡비 · 기타</b> 네 칸입니다.</li>
+          <li>같이 가는 사람이 있으면 <b>+ 동행자 추가</b>로 행을 늘리세요. <b>한 건으로 등록</b>해야 인폼도 한 통으로 나갑니다.</li>
+        </ul>
+        <div class="press">누르는 버튼 <span class="btn">출장 계획 등록</span></div>
+        <div class="tip">금액칸은 숫자만 치면 <b>1,250,000</b>처럼 콤마가 자동으로 붙습니다. 0 개수를 눈으로 확인하세요.</div>
+      </div>
+    </section>
+
+    <section class="step">
+      <div class="n">2</div>
+      <h2>실제로 간다면 ‘확정’을 눌러야 예산이 잡힙니다</h2>
+      <div class="where">등록 화면의 체크박스 &nbsp;또는&nbsp; 좌측 메뉴 <span class="m">출장 내역</span></div>
+      <div>
+        <ul>
+          <li>그냥 등록만 하면 <span class="st">계획(잠정)</span> 입니다 — <b>예산은 아직 잡히지 않습니다.</b></li>
+          <li>실제로 가는 출장이면 등록할 때 <b>“이 출장은 실제로 갑니다”</b>에 체크하세요.
+              바로 <span class="st confirm">출장 확정 · 예산 반영</span> 이 됩니다.</li>
+          <li>나중에 확정해도 됩니다. <b>출장 내역</b>에서 그 건의 <b>출장 확정</b>을 누르면 됩니다.</li>
+        </ul>
+        <div class="press">누르는 버튼 <span class="btn g">출장 확정</span></div>
+        <div class="warn">
+          <b>예산이 모자라도 막지 않습니다.</b> 확정했을 때 잔액이 마이너스가 되면
+          “예산 부족을 인지한 상태로 계속 확정하시겠습니까?” 확인창만 뜹니다.
+          <b>계속 확정</b>을 누르면 그대로 등록되고, 실적 입력과 처리도 정상 진행됩니다.
+        </div>
+      </div>
+    </section>
+
+    <section class="step">
+      <div class="n">3</div>
+      <h2>다녀온 뒤 실적을 입력합니다</h2>
+      <div class="where">좌측 메뉴 <span class="m">출장 실적 입력</span></div>
+      <div>
+        <ul>
+          <li>위쪽 <b>검색창</b>에 성명·업체·도시를 치면 대상 출장을 빨리 찾을 수 있습니다.</li>
+          <li>실제로 쓴 금액을 넣습니다. 각 칸에 <b>계획액이 흐리게</b> 보이고, 옆에 <b>계획 대비 차액</b>이 바로 표시됩니다.</li>
+          <li>동행자가 있으면 <b>사람마다 따로</b> 입력합니다. 한 명이 안 갔다면 그 사람은 0으로 두면 됩니다.</li>
+          <li>긴급 출장이었다면 <b>비고(사유)</b>가 필수입니다.</li>
+        </ul>
+        <div class="press">누르는 버튼 <span class="btn">실적 저장 및 인폼 생성</span></div>
+        <div class="tip">저장하는 순간 <b>실비 이관 요청 메일</b>이 자동으로 만들어집니다. 출장 1건 = 메일 1통입니다.</div>
+      </div>
+    </section>
+
+    <section class="step">
+      <div class="n">4</div>
+      <h2>만들어진 인폼 메일을 보냅니다</h2>
+      <div class="where">화면 오른쪽 아래에 뜨는 <span class="m">인폼 카드</span></div>
+      <div>
+        <ul>
+          <li><b>메일 열기 (Outlook)</b>를 누르면 새 메일이 열립니다.</li>
+          <li>표 서식까지 그대로 옮기려면 <b>표 포함 복사</b> 후 메일에 붙여넣으세요.</li>
+          <li>수신자는 이미 채워져 있습니다 — <b>이정훈 · 김은정</b>.</li>
+          <li>카드를 닫았어도 없어지지 않습니다. 실적 화면의 <b>인폼 다시 보기</b>,
+              또는 출장 내역의 <b>인폼 보기</b>로 언제든 다시 열 수 있습니다.</li>
+        </ul>
+        <div class="press">누르는 버튼
+          <span class="btn">메일 열기 (Outlook)</span>
+          <span class="btn g">표 포함 복사</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="hand">
+    <span class="t">여기까지가 출장자 몫입니다</span>
+    이후는 <b>소재 출장 예산 담당자</b>가 이관 결재를 올리고, 소재 담당자가 비용을 처리합니다.
+    출장자가 따로 하실 일은 없습니다.
+  </div>
+
+  <section class="card">
+    <h2>내 출장이 지금 어디까지 왔나</h2>
+    <p class="cap">좌측 메뉴 <b>출장 내역</b>에서 상태 배지로 확인합니다. 검색·정렬로 내 건만 골라볼 수 있습니다.</p>
+    <table class="tbl">
+      <tr><td><span class="st">계획(잠정)</span></td><td>등록만 된 상태. <b>예산에 반영되지 않습니다.</b> 실제로 간다면 확정하세요.</td></tr>
+      <tr><td><span class="st confirm">출장 확정 · 예산 반영</span></td><td>실제로 가는 출장. 계획액만큼 <b>예산이 확보</b>되어 있습니다.</td></tr>
+      <tr><td><span class="st wip">실적 입력·인폼</span></td><td>실적을 넣었고 인폼이 발행된 상태. 담당자 이관을 기다립니다.</td></tr>
+      <tr><td><span class="st">소재 이관</span></td><td>담당자가 이관 결재를 올린 상태.</td></tr>
+      <tr><td><span class="st done">처리 완료</span></td><td>비용 처리까지 끝났습니다.</td></tr>
+      <tr><td><span class="st cancel">취소</span></td><td>가지 않기로 한 건. 기록으로는 남습니다.</td></tr>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>자주 묻는 것</h2>
+    <div class="qa">
+      <div>
+        <div class="q">계획을 잘못 냈어요.</div>
+        <div class="a">출장 내역에서 그 건의 <b>수정</b>을 누르세요. 실적을 넣기 전이면 바로 고칠 수 있습니다.
+          실적을 이미 넣은 뒤라면 <b>예산 담당자</b>에게 요청하세요. 수정 내역은 기록에 남습니다.</div>
+      </div>
+      <div>
+        <div class="q">출장을 안 가게 됐어요.</div>
+        <div class="a">아직 <b>계획(잠정)</b>이면 <b>삭제</b>하면 됩니다. 이미 확정했다면 <b>출장 취소</b>를 누르세요 —
+          확보됐던 예산이 풀립니다.</div>
+      </div>
+      <div>
+        <div class="q">5명이 같이 갔는데 저만 처리가 안 됐어요.</div>
+        <div class="a">사람별로 따로 처리됩니다. 예산이 모자라 넘기지 못한 사람은 <b>보류</b>로 표시되고,
+          나머지는 그대로 완료됩니다. 출장 내역에서 <b>(완료 3 · 보류 1)</b>처럼 함께 보입니다.</div>
+      </div>
+      <div>
+        <div class="q">급하게 다녀와서 계획을 못 냈어요.</div>
+        <div class="a">등록할 때 <b>구분</b>을 <b>긴급</b>으로 고르면 계획비 없이 등록됩니다.
+          대신 실적을 넣을 때 <b>비고(사유)</b>가 필수입니다.</div>
+      </div>
+      <div>
+        <div class="q">숙박비가 계획보다 많이 나왔어요.</div>
+        <div class="a">그대로 실제 쓴 금액을 넣으시면 됩니다. 차액 사유를 강제로 적게 하지 않습니다.
+          필요하면 <b>비고</b>에 한 줄 남겨주세요.</div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">
+    처음이시면 시스템 좌측 메뉴의 <b>이용 안내</b>에서 같은 흐름을 화면으로 보며 따라갈 수 있습니다.<br>
+    문의 — 소재전략 이정훈 TL · 소재 출장 예산 담당자
+  </p>
+
+</div>

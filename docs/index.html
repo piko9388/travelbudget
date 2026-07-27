@@ -250,7 +250,7 @@ padding:13px 16px;margin-bottom:14px}
     { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
     { team: 'Target 소재팀', ccg: 'C1707' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
-  var APP_VERSION = 'v9.4', APP_BUILD = '2026-07-27';
+  var APP_VERSION = 'v9.5', APP_BUILD = '2026-07-27';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
@@ -1310,6 +1310,8 @@ function rGuide(){
     </div>`;
   const lead = `
     <div class="g-lead">
+      <a class="btn sm" href="/travelbudget/guide" target="_blank" rel="noopener"
+         style="float:right;margin-left:12px">출장자용 안내 (인쇄·메일용) ↗</a>
       <h2>출장비, 이렇게 흘러갑니다</h2>
       <p>출장자는 <b>계획</b>과 <b>실적</b>만 입력하면 됩니다. 인폼(메일)·이관·정산·이력은 시스템과 <b>소재 출장 예산 담당자</b>가 이어받습니다.
       입력은 한 번, 실비 이관 인폼은 <b>그룹당 한 통</b>이에요.</p>
