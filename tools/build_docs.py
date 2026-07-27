@@ -20,7 +20,8 @@ app = s1(app, """        <a class="btn pri" href="${API}/export.csv?yq=${encodeU
 """        <button class="btn pri" onclick="downloadCsv(YQ)">${YQ} CSV</button>
         <button class="btn" onclick="downloadCsv(null)">전체 CSV</button></div></div>""", "data-csv")
 app = s1(app, """    <div class="card"><h2>정본 위치</h2>
-      <div class="note">servera/travelbudget/data_json/data.json — 백업: data_json/backup/</div></div>`;""",
+      <div class="note">servera/travelbudget/data_json/data.json — 백업: data_json/backup/<br>
+      운영 시 <b>TB_DATA_DIR</b> 환경변수로 앱 폴더 밖(예: /var/lib/travelbudget)을 지정하면 배포 시 덮어써도 데이터가 보존됩니다.</div></div>`;""",
 """    <div class="card"><h2>저장 위치</h2>
       <div class="note">정적(GitHub Pages) 버전 — 데이터는 이 브라우저의 localStorage에 저장됩니다(브라우저별 개별). 여러 명이 공유하는 원장은 사내 Flask 버전을 사용하세요.</div></div>`;""", "data-note")
 marker = '<script src="/travelbudget/static/app.js"></script>'

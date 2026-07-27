@@ -44,10 +44,6 @@ function stClass(s){ return s === '처리 완료' ? 'done' : s === '취소' ? 'c
   : s === '확정 예정' ? 'confirm'
   : (s === '실적 입력·인폼' || s === '소재 이관') ? 'wip' : ''; }
 function dispSt(s){ return s === '계획 등록' ? '계획(잠정)' : s; }   // 잠정/확정 구분 명확히
-function badge(g){
-  const urgent = g.plan_type === '긴급' ? ' <span class="status urgent">긴급</span>' : '';
-  return `<span class="status ${stClass(g.status)}">${esc(dispSt(g.status))}</span>${urgent}`;
-}
 function gname(g){ return [g.city, g.org].filter(Boolean).join(' '); }
 function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); }
 function procTag(g){   // 부분 처리(개인별 상태 분리) 표시 — 섞여 있을 때만
@@ -175,6 +171,7 @@ function rDash(){
       <div style="flex:1">
         <div class="msg">${d.short
           ? '확정·집행이 예산을 초과했습니다 — 센터 검토 및 추가 확보 필요'
+          : d.noBudget ? '이 분기 예산이 아직 배정되지 않았습니다 — 예산 관리에서 배정하세요'
           : '소재 그룹 국내 출장비 잔액이 있어 정상 운영 중입니다'}</div>
         <div class="fig">총예산 <b>${won(d.alloc)}원</b> − 처리완료 <b>${won(d.done)}원</b> − 처리중 <b>${won(d.wip)}원</b> − 확정예정 <b>${won(d.commit || 0)}원</b> = 가용 <b style="color:${av < 0 ? 'var(--red)' : 'var(--navy)'}">${av < 0 ? '−' : ''}${won(Math.abs(av))}원</b></div>
         <div class="fig" style="color:var(--faint)">잠정 계획 ${won(d.planAmt)}원은 참고(예산 미반영) · 확정 시 위 ‘확정예정’으로 선확보됩니다</div>
@@ -198,7 +195,10 @@ function rDash(){
         ${aw ? `<button class="btn pri" onclick="nav('actual')">실적 입력 대기 ${aw}건 → 실적 입력</button>` : ''}
         ${pw ? `<button class="btn" onclick="goProcess()">이관·처리 대기 ${pw}건 → 처리 관리</button>` : ''}
         ${hd ? `<button class="btn red" onclick="goProcess()">보류 ${d.nHold}명 (예산부족 등) → 처리 관리</button>` : ''}
-      </div></div>` : '';
+        <button class="btn" onclick="showReport()">센터 제출 리포트</button>
+      </div></div>` : `
+    <div class="card"><h2>바로 할 일</h2><p class="cap">지금 처리할 건이 없습니다.</p>
+      <div class="btns" style="margin-top:0"><button class="btn" onclick="showReport()">센터 제출 리포트</button></div></div>`;
   const rows = d.byCcg.map(r => `<tr>
     <td><b>${esc(r.team)}</b> <span class="sub">${r.ccg}</span></td>
     <td class="num">${won(r.done)}</td><td class="num">${won(r.wip)}</td>
@@ -220,7 +220,7 @@ function rDash(){
         <th class="num">출장 그룹</th><th class="num">참여 인원</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td>합계</td><td class="num">${won(tot.done)}</td><td class="num">${won(tot.wip)}</td>
-        <td class="num">${won(tot.total)}</td><td class="num">100%</td><td class="num">${won(tot.commit)}</td><td class="num">${won(tot.plan)}</td>
+        <td class="num">${won(tot.total)}</td><td class="num">${tot.total ? '100.0%' : '–'}</td><td class="num">${won(tot.commit)}</td><td class="num">${won(tot.plan)}</td>
         <td class="num">${tot.groups}</td><td class="num">${tot.people}</td></tr></tfoot>
     </table></div></div>`;
   $('#v-dash').innerHTML = hero + kpi + todo + ccg;
@@ -354,7 +354,7 @@ async function submitPlan(){
 /* ═══ 출장 실적 입력 ═══ */
 let ACT_GID = null;
 function rActual(){
-  const targets = ST.groups.filter(g => ['계획 등록', '확정 예정', '실적 입력·인폼'].includes(g.status));
+  const targets = ST.groups.filter(g => g.yq === YQ && ['계획 등록', '확정 예정', '실적 입력·인폼'].includes(g.status));
   const opts = targets.map(g =>
     `<option value="${g.group_id}">${esc(gname(g))} · ${names(g)} · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${g.status}${g.plan_type === '긴급' ? ' [긴급]' : ''}</option>`).join('');
   $('#v-actual').innerHTML = `
@@ -490,8 +490,29 @@ function showMail(mail){
 }
 
 /* ═══ 출장 내역 ═══ */
+/* 목록 정렬·필터·검색 상태 (출장 내역 / 예산 관리 공용) */
+const LQ = {q:'', st:'', sort:'stage', dir:'desc'};   // stage=프로세스 우선, date=일자
+const BQ = {q:'', type:'', dir:'desc'};
+function setLQ(k, v){ LQ[k] = v; rList(); nav('list'); }
+function toggleLDir(){ LQ.dir = LQ.dir === 'asc' ? 'desc' : 'asc'; rList(); nav('list'); }
+function setBQ(k, v){ BQ[k] = v; rBudget(); nav('budget'); }
+function toggleBDir(){ BQ.dir = BQ.dir === 'asc' ? 'desc' : 'asc'; rBudget(); nav('budget'); }
+const dirIcon = d => d === 'asc' ? '▲ 오름차순' : '▼ 내림차순';
+
 function rList(){
-  const G = ST.groups.filter(g => g.yq === YQ);
+  const all = ST.groups.filter(g => g.yq === YQ);
+  const q = LQ.q.trim().toLowerCase();
+  // 검색은 '데이터'만 대상 — 버튼 문구가 걸리던 문제 해소
+  const hay = g => [g.city, g.org, g.purpose, g.roll, g.plan_type, g.sap_doc,
+    ...(g.travelers || []).flatMap(p => [p.name, p.emp_no, p.ccg_nm])]
+    .filter(Boolean).join(' ').toLowerCase();
+  let G = all.filter(g => (!LQ.st || g.roll === LQ.st) && (!q || hay(g).includes(q)));
+  const sgn = LQ.dir === 'asc' ? 1 : -1;
+  const byDate = (a, b) => ((a.dep_dt || '') < (b.dep_dt || '') ? -1 : (a.dep_dt || '') > (b.dep_dt || '') ? 1 : 0);
+  G = G.slice().sort(LQ.sort === 'stage'
+    // 프로세스별 우선 분류 → 같은 프로세스 안에서 일자 순차 배열
+    ? (a, b) => (a.stage - b.stage) || sgn * byDate(a, b)
+    : (a, b) => sgn * byDate(a, b));
   const acts = g => {
     const b = [];
     if (g.status === '계획 등록') {          // 잠정: 확정하거나 흔적 없이 삭제
@@ -510,25 +531,46 @@ function rList(){
     <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
     <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
     <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td>
+    <td class="num">${g.sap_doc ? esc(g.sap_doc) : '–'}</td>
     <td>${acts(g)}</td></tr>`;
+  // 프로세스별 우선 분류 — 단계가 바뀔 때마다 구분 머리행
+  let body = '', last = null;
+  G.forEach(g => {
+    if (LQ.sort === 'stage' && g.roll !== last) {
+      last = g.roll;
+      const n = G.filter(x => x.roll === g.roll).length;
+      body += `<tr class="grp-head"><td colspan="8">
+        <span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>
+        <b style="margin-left:6px">${n}건</b>
+        <span class="sub">· 출발일 ${LQ.dir === 'asc' ? '빠른' : '늦은'} 순</span></td></tr>`;
+    }
+    body += row(g);
+  });
+  const opt = (v, cur, label) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label || v || '전체')}</option>`;
   const nP = ST.dash.nPlan || 0, nC = ST.dash.nConfirm || 0;
   $('#v-list').innerHTML = `
     <div class="note">‘<b>계획(잠정)</b>’은 참고용 리스트 — 실제로 안 가면 <b>삭제</b>(흔적 없이 사라짐). 실제로 갈 건 ‘<b>출장 확정</b>’ 하면 계획 금액만큼 <b>예산이 미리 확보</b>됩니다. (확정 이후 취소는 기록으로 남습니다)</div>
     <div class="card">
-      <div class="card-head"><h2>${YQ} 출장 내역 (${G.length}건) <span class="sub" style="font-weight:600">· 잠정 ${nP} · 확정 ${nC}</span></h2>
+      <div class="card-head"><h2>${YQ} 출장 내역 <span class="sub" style="font-weight:600">${G.length}/${all.length}건 · 잠정 ${nP} · 확정 ${nC}</span></h2>
         <a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">CSV 다운로드</a></div>
       <div class="filter-row" style="margin-top:12px">
-        <input id="listFilter" placeholder="성명·업체·도시·목적으로 검색" oninput="filterList()"></div>
+        <input id="listFilter" value="${esc(LQ.q)}" placeholder="🔍 성명·사번·업체·도시·목적·전표번호"
+          oninput="LQ.q=this.value; clearTimeout(window._lt); window._lt=setTimeout(()=>{rList();nav('list');document.getElementById('listFilter').focus();},250)">
+        <select onchange="setLQ('st',this.value)">
+          ${[''].concat(ST.meta.statuses).map(s => opt(s, LQ.st, s ? dispSt(s) : '전체 프로세스')).join('')}
+        </select>
+        <select onchange="setLQ('sort',this.value)">
+          ${opt('stage', LQ.sort, '프로세스별 → 일자순')}${opt('date', LQ.sort, '일자순')}
+        </select>
+        <button class="btn" onclick="toggleLDir()">${dirIcon(LQ.dir)}</button>
+        ${(LQ.q || LQ.st) ? `<button class="btn" onclick="LQ.q='';LQ.st='';rList();nav('list')">필터 해제</button>` : ''}
+      </div>
       <div class="scroll"><table>
         <thead><tr><th>상태</th><th>출장</th><th>출장자</th><th class="num">기간</th>
-          <th class="num">계획</th><th class="num">실적</th><th>관리</th></tr></thead>
-        <tbody id="listBody">${G.map(row).join('') || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">해당 분기 출장이 없습니다.</td></tr>'}</tbody>
+          <th class="num">계획</th><th class="num">실적</th><th class="num">전표번호</th><th>관리</th></tr></thead>
+        <tbody id="listBody">${body || '<tr class="empty"><td colspan="8" style="color:var(--faint);text-align:center;padding:18px">조건에 맞는 출장이 없습니다.</td></tr>'}</tbody>
       </table></div>
     </div>`;
-}
-function filterList(){
-  const q = $('#listFilter').value.trim();
-  $$('#listBody tr').forEach(tr => tr.hidden = q && !tr.textContent.includes(q));
 }
 
 /* ═══ 이관·처리 관리 (관리자) — 출장자 개인별 처리 ═══ */
@@ -601,6 +643,7 @@ function rProcess(){
     </div>`;
 }
 async function setStatus(gid, status){
+  if (status === '취소' && !confirm('이 출장을 취소할까요?\n취소 건은 기록으로 남으며, 되돌리려면 관리자 인증이 필요합니다.')) return;
   const {ok, data} = await api(`/groups/${gid}/status`, {method: 'POST', body: JSON.stringify({status})});
   if (!ok) {
     if (data.errors?.[0]?.includes('인증')) { askAdmin(() => setStatus(gid, status)); return; }
@@ -636,14 +679,32 @@ async function openTransferMail(gid){
 
 /* ═══ 예산 관리 (관리자) ═══ */
 function rBudget(){
+  // 누적은 항상 일자 오름차순 기준으로 계산하고, 표시 순서만 정렬 옵션을 따른다
+  const asc = ST.budget.slice().sort((a, b) => (a.rev_dt || '') < (b.rev_dt || '') ? -1 : 1);
   let run = 0;
-  const rows = ST.budget.map(b => { run += Number(b.amt) || 0; return `<tr>
+  const withRun = asc.map(b => { run += Number(b.amt) || 0; return {...b, run}; });
+  const bq = BQ.q.trim().toLowerCase();
+  let BR = withRun.filter(b => (!BQ.type || b.rev_type === BQ.type)
+    && (!bq || [b.rev_id, b.rev_dt, b.rev_type, b.reason].filter(Boolean).join(' ').toLowerCase().includes(bq)));
+  if (BQ.dir === 'desc') BR = BR.slice().reverse();
+  const rows = BR.map(b => `<tr>
     <td>${esc(b.rev_id)}</td><td class="num">${esc(b.rev_dt)}</td>
     <td><span class="status">${esc(b.rev_type)}</span></td>
     <td class="num" style="color:${b.amt >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700">${b.amt >= 0 ? '+' : '−'}${won(Math.abs(b.amt))}</td>
-    <td class="num"><b>${won(run)}</b></td>
+    <td class="num"><b>${won(b.run)}</b></td>
     <td>${esc(b.reason || '')}</td>
-    <td><button class="btn sm red" onclick="delBudget('${esc(b.rev_id)}')">삭제</button></td></tr>`; }).join('');
+    <td><button class="btn sm red" onclick="delBudget('${esc(b.rev_id)}')">삭제</button></td></tr>`).join('');
+  const bopt = (v, cur, label) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label || v || '전체')}</option>`;
+  const bctl = `
+      <div class="filter-row" style="margin-top:10px">
+        <input value="${esc(BQ.q)}" placeholder="🔍 REV·유형·사유·반영일"
+          oninput="BQ.q=this.value; clearTimeout(window._bt); window._bt=setTimeout(()=>{rBudget();nav('budget')},250)">
+        <select onchange="setBQ('type',this.value)">
+          ${[''].concat(ST.meta.revTypes).map(t => bopt(t, BQ.type, t || '전체 유형')).join('')}
+        </select>
+        <button class="btn" onclick="toggleBDir()">반영일 ${dirIcon(BQ.dir)}</button>
+        ${(BQ.q || BQ.type) ? `<button class="btn" onclick="BQ.q='';BQ.type='';rBudget();nav('budget')">필터 해제</button>` : ''}
+      </div>`;
   $('#v-budget').innerHTML = `
     <div class="card"><h2>예산 리비전 등록</h2>
       <p class="cap">감액은 금액을 자동으로 음수 처리합니다.</p>
@@ -657,11 +718,12 @@ function rBudget(){
       <div class="form-grid"><div><label>사유</label><input id="bd_reason"></div></div>
       <div class="btns"><button class="btn pri" onclick="submitBudget()">리비전 반영</button></div>
     </div>
-    <div class="card"><h2>${YQ} 리비전 이력 · 누적 ${won(ST.dash.alloc)}원</h2>
+    <div class="card"><h2>${YQ} 리비전 이력 <span class="sub" style="font-weight:600">${BR.length}/${withRun.length}건 · 누적 ${won(ST.dash.alloc)}원</span></h2>
+      ${bctl}
       <div class="scroll" style="margin-top:10px"><table>
         <thead><tr><th>REV</th><th class="num">반영일</th><th>유형</th><th class="num">증감액</th>
           <th class="num">누적</th><th>사유</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">등록된 예산이 없습니다.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">조건에 맞는 리비전이 없습니다.</td></tr>'}</tbody>
       </table></div></div>`;
 }
 async function submitBudget(){
@@ -700,9 +762,67 @@ async function rData(){
         <thead><tr><th>파일</th><th class="num">크기</th><th class="num">시각</th><th></th></tr></thead>
         <tbody>${rows || '<tr><td colspan="4" style="color:var(--faint);text-align:center;padding:18px">백업이 없습니다.</td></tr>'}</tbody>
       </table></div></div>
+    <div class="card"><h2>감사 로그 <span class="sub" style="font-weight:600">최근 활동 — 누가 무엇을 했는지</span></h2>
+      <p class="cap">삭제·상태 변경·예산·복원 이력이 남습니다. 잠정 계획 삭제는 내용까지 기록됩니다.</p>
+      <div id="auditBox"><button class="btn" onclick="loadAudit()">감사 로그 불러오기</button></div></div>
     <div class="card"><h2>정본 위치</h2>
-      <div class="note">servera/travelbudget/data_json/data.json — 백업: data_json/backup/</div></div>`;
+      <div class="note">servera/travelbudget/data_json/data.json — 백업: data_json/backup/<br>
+      운영 시 <b>TB_DATA_DIR</b> 환경변수로 앱 폴더 밖(예: /var/lib/travelbudget)을 지정하면 배포 시 덮어써도 데이터가 보존됩니다.</div></div>`;
 }
+async function loadAudit(){
+  const {ok, data} = await api('/audit?n=200');
+  if (!ok) { toast('감사 로그를 불러오지 못했습니다'); return; }
+  const rows = (data.audit || []).map(a => `<tr>
+    <td class="num">${esc(String(a.timestamp || '').replace('T', ' '))}</td>
+    <td>${esc(a.actor || '-')}</td><td>${esc(a.action || '')}</td>
+    <td>${esc(a.detail || '')}</td></tr>`).join('');
+  $('#auditBox').innerHTML = `<div class="scroll"><table>
+    <thead><tr><th class="num">시각</th><th>행위자</th><th>동작</th><th>내용</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="4" style="color:var(--faint);text-align:center;padding:18px">기록이 없습니다.</td></tr>'}</tbody>
+  </table></div>`;
+}
+
+/* ═══ 센터 제출 리포트 ═══ */
+async function showReport(){
+  const {ok, data} = await api('/report?yq=' + encodeURIComponent(YQ));
+  if (!ok) { toast('리포트를 만들지 못했습니다'); return; }
+  const r = data.report;
+  const rows = r.byCcg.map(x => `<tr><td>${esc(x.team)} <span class="sub">${esc(x.ccg)}</span></td>
+    <td class="num">${won(x.done)}</td><td class="num">${won(x.wip)}</td><td class="num">${won(x.commit)}</td>
+    <td class="num"><b>${won(x.total)}</b></td><td class="num">${x.groups}</td><td class="num">${x.people}</td></tr>`).join('');
+  const revs = r.revisions.map(b => `<tr><td class="num">${esc(b.rev_dt)}</td><td>${esc(b.rev_type)}</td>
+    <td class="num">${b.amt >= 0 ? '+' : '−'}${won(Math.abs(b.amt))}</td><td>${esc(b.reason || '')}</td></tr>`).join('');
+  const text = [`[${r.yq} 소재 그룹 국내 출장비 집행 현황]`, '',
+    `배정 ${won(r.alloc)}원 / 집행 ${won(r.used)}원 (완료 ${won(r.done)} + 처리중 ${won(r.wip)})`,
+    `확정 예정(확보) ${won(r.commit)}원 · 소진율 ${(r.burn * 100).toFixed(1)}%`,
+    `가용 잔여 ${won(r.avail)}원` + (r.need > 0 ? ` · 추가 필요 예상 ${won(r.need)}원` : ''), '',
+    `출장 ${r.nDone + r.nWip + r.nConfirm}건 (완료 ${r.nDone} · 진행 ${r.nWip} · 확정 ${r.nConfirm}) · 연인원 ${r.nPeople}명`].join('\n');
+  document.getElementById('mailCard')?.remove();
+  const el = document.createElement('div');
+  el.className = 'mailcard'; el.id = 'mailCard'; el.style.width = '760px';
+  el.innerHTML = `<div class="mh"><span>센터 제출 리포트 · ${esc(r.yq)}</span>
+      <button onclick="this.closest('.mailcard').remove()">×</button></div>
+    <div class="body">
+      <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="kpi"><span>배정</span><b>${won(r.alloc)}</b></div>
+        <div class="kpi"><span>집행(완료+처리중)</span><b>${won(r.used)}</b></div>
+        <div class="kpi"><span>확정 예정</span><b>${won(r.commit)}</b></div>
+        <div class="kpi"><span>${r.need > 0 ? '추가 필요' : '가용 잔여'}</span><b style="color:${r.need > 0 ? 'var(--red)' : 'var(--navy)'}">${won(r.need > 0 ? r.need : r.avail)}</b></div>
+      </div>
+      <p class="cap" style="margin:6px 0 10px">소진율 ${(r.burn * 100).toFixed(1)}% · 출장 ${r.nDone + r.nWip + r.nConfirm}건 · 연인원 ${r.nPeople}명</p>
+      <table style="width:100%"><thead><tr><th>CCG팀</th><th class="num">완료</th><th class="num">처리중</th>
+        <th class="num">확정예정</th><th class="num">합계</th><th class="num">건</th><th class="num">인원</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--faint);padding:14px">집행 없음</td></tr>'}</tbody></table>
+      <h2 style="font-size:13px;margin:14px 0 6px;color:var(--navy)">예산 리비전</h2>
+      <table style="width:100%"><thead><tr><th class="num">반영일</th><th>유형</th><th class="num">증감</th><th>사유</th></tr></thead>
+        <tbody>${revs || '<tr><td colspan="4" style="text-align:center;color:var(--faint);padding:14px">없음</td></tr>'}</tbody></table>
+    </div>
+    <div class="mf"><button class="btn sm pri" id="rptCopy">요약 복사</button>
+      <button class="btn sm" onclick="downloadCsv(YQ)">상세 CSV</button></div>`;
+  document.body.appendChild(el);
+  $('#rptCopy').onclick = () => copyText(text, '센터 제출용 요약을 복사했습니다');
+}
+
 async function restoreBackup(fn){
   if (!confirm(`${fn}\n이 시점으로 복원할까요? 현재 데이터는 백업 후 교체됩니다.`)) return;
   const {ok, data} = await api(`/backups/${encodeURIComponent(fn)}/restore`, {method: 'POST'});

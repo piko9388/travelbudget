@@ -123,6 +123,7 @@
 | `car` | enum | **예** | `미사용` / `자차사용` |
 | `remark` | string | 조건부 | 비고. **긴급 출장 실적 입력 시 필수** |
 | `travelers` | array | **예** | 1명 이상 |
+| `sap_doc` | string | 아니오 | 소재팀 **SAP 전표번호**(비용 처리 근거). 관리자가 화면에서 입력하며 CSV에도 나갑니다 |
 | `created_at`/`updated_at`/`inform_at`/`settle_at` | string(ISO) | 아니오 | 서버 관리. 생략 가능 |
 
 ### traveler 필드 (개인별)
@@ -197,6 +198,8 @@
 | `lv2` | `"소재"` 고정 |
 | `ccg` | `ccg_nm` → 코드 매핑 |
 | `plan_tot` / `act_tot` | 각 traveler `p_*` / `a_*` 합계 |
+| `stage` | 프로세스 정렬 가중치(계획0·확정1·인폼2·이관3·완료4·취소5) |
+| `lead_days` | 등록일 → 출발일 리드타임(사전 신청 기준 D-7 판단용) |
 
 ---
 

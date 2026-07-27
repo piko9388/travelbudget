@@ -115,8 +115,13 @@ background:#FFF;border:1px solid #CDD4DF;box-shadow:0 8px 24px rgba(16,24,40,.16
 .modal-box .merr{color:var(--red);font-size:11.5px;margin-bottom:9px;display:none}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#182C46;color:#FFF;
 padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px}
-.filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
 .filter-row input,.filter-row select{width:auto;min-width:170px}
+.filter-row input{flex:1;min-width:200px}
+tr.grp-head td{background:#EEF2F8;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+padding:7px 9px;color:var(--navy)}
+tr.grp-head:hover td{background:#EEF2F8}
+@media(max-width:980px){.filter-row input,.filter-row select,.filter-row .btn{width:100%;min-width:0}}
 /* 이용 안내(흐름) */
 .g-lead{background:linear-gradient(180deg,#FBFCFE,#F2F6FB);border:1px solid var(--line);border-radius:2px;padding:17px 19px;margin-bottom:14px}
 .g-lead h2{margin:0 0 6px;color:var(--navy);font-size:16px}
@@ -215,7 +220,10 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     '출장도시', '출장기관&업체', '출장목적&사유', '출발일자', '복귀일자', '출장일수',
     '출장시점', '자차사용여부', '출장구분', '상태', '개인처리상태',
     '계획_총합계', '계획_교통비', '계획_숙박비', '계획_식대&잡비', '계획_기타',
-    '실적_총합계', '실적_교통비', '실적_숙박비', '실적_식대&잡비', '실적_기타', '비고'];
+    '실적_총합계', '실적_교통비', '실적_숙박비', '실적_식대&잡비', '실적_기타',
+    'SAP전표번호', '리드타임(일)', '비고'];
+  var STAGE_ORDER = {}; STAGE_ORDER[ST_PLAN]=0; STAGE_ORDER[ST_CONFIRM]=1; STAGE_ORDER[ST_INFORM]=2;
+  STAGE_ORDER[ST_TRANSFER]=3; STAGE_ORDER[ST_DONE]=4; STAGE_ORDER[ST_CANCEL]=5;
 
   // ── 유틸 ──
   function num(v) { var n = Math.round(Number(String(v == null ? 0 : v).replace(/,/g, ''))); return isFinite(n) ? n : 0; }
@@ -299,6 +307,10 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     });
     g.plan_tot = gSum(g, 'p'); g.act_tot = gSum(g, 'a');
     g.roll = groupRoll(g); g.proc = procCounts(g);
+    g.stage = STAGE_ORDER[g.roll] === undefined ? 9 : STAGE_ORDER[g.roll];
+    g.sap_doc = String(g.sap_doc || '').trim();
+    var d0 = parseD(g.created_at), dp = parseD(g.dep_dt);
+    g.lead_days = (d0 && dp) ? Math.round((dp - d0) / 864e5) : null;
     return g;
   }
   function validateGroup(g, requireActual) {
@@ -313,6 +325,8 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     if (String(g.car || '').trim() && CARS.indexOf(g.car) < 0) e.push('자차사용여부가 올바르지 않습니다.');
     if (g.dep_dt && g.ret_dt && tripDays(g.dep_dt, g.ret_dt) < 1) e.push('복귀일자는 출발일자보다 빠를 수 없습니다.');
     var T = g.travelers || [];
+    if (!Array.isArray(T) || T.some(function (p) { return !p || typeof p !== 'object'; }))
+      return e.concat(['출장자 형식이 올바르지 않습니다.']);
     if (!T.length) e.push('출장자를 1명 이상 입력하세요.');
     var seen = {}, valid = {}; Object.keys(CCG_BY_NM).forEach(function (k) { valid[CCG_BY_NM[k]] = 1; });
     T.forEach(function (p, idx) {
@@ -326,8 +340,9 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
       var ccg = String(p.ccg == null ? '' : p.ccg).trim();
       if (!ccg) e.push(i + '번 출장자 CCG팀을 선택하세요.');
       else if (!valid[ccg]) e.push(i + '번 출장자 CCG팀이 올바르지 않습니다.');
-      if (requireActual && pSum(p, 'a') <= 0) e.push(i + '번 출장자 실적 비용을 입력하세요.');
+      if (requireActual && pSum(p, 'a') < 0) e.push(i + '번 출장자 실적 비용이 올바르지 않습니다.');
     });
+    if (requireActual && T.length && gSum(g, 'a') <= 0) e.push('실적 비용을 1개 이상 입력하세요.');
     if (g.plan_type !== '긴급' && PRE.indexOf(g.status) >= 0 && gSum(g, 'p') <= 0) e.push('계획 비용을 1개 이상 입력하세요.');
     if (g.plan_type === '긴급' && requireActual && !String(g.remark == null ? '' : g.remark).trim()) e.push('긴급 출장은 비고(사유)가 필수입니다.');
     return e;
@@ -348,13 +363,14 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     var alloc = B.reduce(function (s, b) { return s + num(b.amt); }, 0);
     var doneAmt = 0, wipAmt = 0, planAmt = 0, commitAmt = 0, nDone = 0, nWip = 0, nPlan = 0, nConfirm = 0, nCancel = 0, nPeople = 0;
     var map = {}; CCG_TEAMS.forEach(function (t) { map[t.ccg] = { team: t.team, ccg: t.ccg, done: 0, wip: 0, commit: 0, plan: 0, groups: {}, people: 0 }; });
+    map._ETC = { team: '기타(미등록 CCG)', ccg: '-', done: 0, wip: 0, commit: 0, plan: 0, groups: {}, people: 0 };
     // 확정 예정 = 계획 금액 선확보(가용 차감), 잠정 = 참고. 실적 이후는 개인 실효 상태 기준.
     G.forEach(function (g) {
       var gs = g.status;
       if (gs === ST_CANCEL) { nCancel++; return; }
       if (gs === ST_PLAN) nPlan++; else if (gs === ST_CONFIRM) nConfirm++; else if (g.roll === ST_DONE) nDone++; else nWip++;
       g.travelers.forEach(function (p) {
-        nPeople++; var row = map[p.ccg];
+        nPeople++; var row = map[p.ccg] || map._ETC;
         if (gs === ST_PLAN) { var pl = pSum(p, 'p'); planAmt += pl; if (row) row.plan += pl; }
         else if (gs === ST_CONFIRM) { var pc = pSum(p, 'p'); commitAmt += pc; if (row) row.commit += pc; }
         else {
@@ -375,13 +391,14 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     byCcg.sort(function (a, b) { return (b.total + b.commit) - (a.total + a.commit); });
     var td = today();
     var todo = {
-      actual_wait: G.filter(function (g) { return PRE.indexOf(g.status) >= 0; }).filter(function (g) { var r = parseD(g.ret_dt); return r && r < td; }).map(function (g) { return g.group_id; }),
+      actual_wait: G.filter(function (g) { return g.status === ST_CONFIRM; }).filter(function (g) { var r = parseD(g.ret_dt); return r && r < td; }).map(function (g) { return g.group_id; }),
       process_wait: G.filter(function (g) { return PRE.indexOf(g.status) < 0 && g.status !== ST_CANCEL && g.roll !== ST_DONE; }).map(function (g) { return g.group_id; }),
       hold: G.filter(function (g) { return g.proc.hold > 0; }).map(function (g) { return g.group_id; })
     };
     return {
       yq: yq, alloc: alloc, done: doneAmt, wip: wipAmt, commit: commitAmt, remain: remain, avail: avail, planAmt: planAmt,
-      short: avail < 0,
+      short: avail < 0 && alloc > 0,
+      noBudget: alloc <= 0 && (doneAmt + wipAmt + commitAmt) > 0,
       nDone: nDone, nWip: nWip, nPlan: nPlan, nConfirm: nConfirm, nCancel: nCancel, nPeople: nPeople,
       nHold: G.reduce(function (s, g) { return s + g.proc.hold; }, 0),
       byCcg: byCcg, todo: todo
@@ -463,6 +480,28 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     return { to: to, subject: subject, trip_name: name, kind: 'transfer', heading: '이관 결재 상신 · 비용 처리 요청 인폼', body_text: L.join('\n'), body_html: lead + info + table + ref };
   }
 
+  // ── 센터 제출 리포트 ──
+  function centerReport(data, yq) {
+    var d = dash(data, yq);
+    var B = (data.budget || []).filter(function (b) { return b.yq === yq; })
+      .sort(function (a, b) { return (a.rev_dt || '') < (b.rev_dt || '') ? -1 : 1; });
+    var used = d.done + d.wip;
+    return {
+      yq: yq, alloc: d.alloc, done: d.done, wip: d.wip, commit: d.commit, used: used,
+      avail: d.avail, need: Math.max(0, -d.avail),
+      burn: d.alloc ? (used + d.commit) / d.alloc : 0,
+      nDone: d.nDone, nWip: d.nWip, nConfirm: d.nConfirm, nPlan: d.nPlan, nPeople: d.nPeople,
+      byCcg: d.byCcg.map(function (r) {
+        return { team: r.team, ccg: r.ccg, done: r.done, wip: r.wip, commit: r.commit,
+                 plan: r.plan, total: r.done + r.wip + r.commit, groups: r.groups, people: r.people };
+      }),
+      revisions: B.map(function (b) {
+        return { rev_id: b.rev_id || '', rev_dt: b.rev_dt || '', rev_type: b.rev_type || '',
+                 amt: num(b.amt), reason: b.reason || '' };
+      })
+    };
+  }
+
   // ── CSV ──
   function csvCell(v) { var s = String(v == null ? '' : v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   function csvSafe(v) { var s = v == null ? '' : String(v); return (s.length && '=+-@\t\r'.indexOf(s.charAt(0)) >= 0) ? "'" + s : s; }
@@ -477,7 +516,9 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
           csvSafe(g.city || ''), csvSafe(g.org || ''), csvSafe(g.purpose || ''),
           g.dep_dt || '', g.ret_dt || '', g.days, g.quarter, g.car || '', g.kind || '', groupRoll(g), effStatus(p, g),
           pSum(p, 'p'), p.p_trans, p.p_lodg, p.p_meal, p.p_etc,
-          pSum(p, 'a'), p.a_trans, p.a_lodg, p.a_meal, p.a_etc, csvSafe(g.remark || '')]);
+          pSum(p, 'a'), p.a_trans, p.a_lodg, p.a_meal, p.a_etc,
+          csvSafe(g.sap_doc || ''), (g.lead_days === null || g.lead_days === undefined) ? '' : g.lead_days,
+          csvSafe(g.remark || '')]);
         no++;
       });
     });
@@ -611,7 +652,8 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
     var qs = ''; var qi = path.indexOf('?'); if (qi >= 0) { qs = path.slice(qi + 1); path = path.slice(0, qi); }
     function qp(k) { var m = qs.match(new RegExp('(?:^|&)' + k + '=([^&]*)')); return m ? decodeURIComponent(m[1]) : null; }
     var data = Store.load();
-    var isAdmin = String(headers['X-Admin-PW'] || '') === String(data.settings.admin_pw == null ? '' : data.settings.admin_pw);
+    var _pw = String(data.settings.admin_pw == null ? '' : data.settings.admin_pw);
+    var isAdmin = !!_pw && String(headers['X-Admin-PW'] || '') === _pw;
     var m;
 
     if (path === '/state' && method === 'GET') {
@@ -729,7 +771,10 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
       if (curD.status !== ST_PLAN) return err('잠정 계획(계획 등록) 건만 삭제할 수 있습니다. 확정·진행 건은 취소를 쓰세요.');
       var yqD = normalizeGroup(curD).yq;
       data.groups = data.groups.filter(function (x) { return x.group_id !== m[1]; });
-      appendAudit(data, '잠정 계획 삭제', m[1] + ' ' + (curD.org || ''));
+      var whoD = (curD.travelers || []).map(function (p) { return p.name || ''; }).join(', ');
+      appendAudit(data, '잠정 계획 삭제',
+        m[1] + ' ' + (curD.city || '') + ' ' + (curD.org || '') + ' · ' + whoD +
+        ' · 계획 ' + won(gSum(normalizeGroup(curD), 'p')) + '원', isAdmin ? 'admin' : 'user');
       Store.save(data);
       return okr({ dash: dash(data, yqD) });
     }
@@ -753,6 +798,20 @@ padding:10px 17px;z-index:200;font-size:12.5px;font-weight:600;border-radius:2px
       data.budget = data.budget.filter(function (b) { return b.rev_id !== m[1]; });
       if (data.budget.length === before) return err('리비전을 찾을 수 없습니다.', 404);
       appendAudit(data, '예산 이력 삭제', m[1], 'admin'); Store.save(data); return okr({});
+    }
+    if ((m = path.match(/^\/groups\/([^/]+)\/sap$/)) && method === 'POST') {
+      if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
+      var curS = find(data, m[1]); if (!curS) return err('출장건을 찾을 수 없습니다.', 404);
+      curS.sap_doc = String(body.sap_doc || '').trim(); curS.updated_at = nowISO();
+      appendAudit(data, 'SAP 전표번호', m[1] + ' → ' + (curS.sap_doc || '(삭제)'), 'admin');
+      Store.save(data);
+      return okr({ group: normalizeGroup(curS) });
+    }
+    if (path === '/report' && method === 'GET') {
+      return okr({ report: centerReport(data, qp('yq') || yearQuarter()) });
+    }
+    if (path === '/audit' && method === 'GET') {
+      return okr({ audit: (data.audit_log || []).slice().reverse().slice(0, 200) });
     }
     if (path === '/backups' && method === 'GET') { return okr({ backups: Store.backups() }); }
     if ((m = path.match(/^\/backups\/([^/]+)\/restore$/)) && method === 'POST') {
@@ -833,10 +892,6 @@ function stClass(s){ return s === '처리 완료' ? 'done' : s === '취소' ? 'c
   : s === '확정 예정' ? 'confirm'
   : (s === '실적 입력·인폼' || s === '소재 이관') ? 'wip' : ''; }
 function dispSt(s){ return s === '계획 등록' ? '계획(잠정)' : s; }   // 잠정/확정 구분 명확히
-function badge(g){
-  const urgent = g.plan_type === '긴급' ? ' <span class="status urgent">긴급</span>' : '';
-  return `<span class="status ${stClass(g.status)}">${esc(dispSt(g.status))}</span>${urgent}`;
-}
 function gname(g){ return [g.city, g.org].filter(Boolean).join(' '); }
 function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); }
 function procTag(g){   // 부분 처리(개인별 상태 분리) 표시 — 섞여 있을 때만
@@ -964,6 +1019,7 @@ function rDash(){
       <div style="flex:1">
         <div class="msg">${d.short
           ? '확정·집행이 예산을 초과했습니다 — 센터 검토 및 추가 확보 필요'
+          : d.noBudget ? '이 분기 예산이 아직 배정되지 않았습니다 — 예산 관리에서 배정하세요'
           : '소재 그룹 국내 출장비 잔액이 있어 정상 운영 중입니다'}</div>
         <div class="fig">총예산 <b>${won(d.alloc)}원</b> − 처리완료 <b>${won(d.done)}원</b> − 처리중 <b>${won(d.wip)}원</b> − 확정예정 <b>${won(d.commit || 0)}원</b> = 가용 <b style="color:${av < 0 ? 'var(--red)' : 'var(--navy)'}">${av < 0 ? '−' : ''}${won(Math.abs(av))}원</b></div>
         <div class="fig" style="color:var(--faint)">잠정 계획 ${won(d.planAmt)}원은 참고(예산 미반영) · 확정 시 위 ‘확정예정’으로 선확보됩니다</div>
@@ -987,7 +1043,10 @@ function rDash(){
         ${aw ? `<button class="btn pri" onclick="nav('actual')">실적 입력 대기 ${aw}건 → 실적 입력</button>` : ''}
         ${pw ? `<button class="btn" onclick="goProcess()">이관·처리 대기 ${pw}건 → 처리 관리</button>` : ''}
         ${hd ? `<button class="btn red" onclick="goProcess()">보류 ${d.nHold}명 (예산부족 등) → 처리 관리</button>` : ''}
-      </div></div>` : '';
+        <button class="btn" onclick="showReport()">센터 제출 리포트</button>
+      </div></div>` : `
+    <div class="card"><h2>바로 할 일</h2><p class="cap">지금 처리할 건이 없습니다.</p>
+      <div class="btns" style="margin-top:0"><button class="btn" onclick="showReport()">센터 제출 리포트</button></div></div>`;
   const rows = d.byCcg.map(r => `<tr>
     <td><b>${esc(r.team)}</b> <span class="sub">${r.ccg}</span></td>
     <td class="num">${won(r.done)}</td><td class="num">${won(r.wip)}</td>
@@ -1009,7 +1068,7 @@ function rDash(){
         <th class="num">출장 그룹</th><th class="num">참여 인원</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td>합계</td><td class="num">${won(tot.done)}</td><td class="num">${won(tot.wip)}</td>
-        <td class="num">${won(tot.total)}</td><td class="num">100%</td><td class="num">${won(tot.commit)}</td><td class="num">${won(tot.plan)}</td>
+        <td class="num">${won(tot.total)}</td><td class="num">${tot.total ? '100.0%' : '–'}</td><td class="num">${won(tot.commit)}</td><td class="num">${won(tot.plan)}</td>
         <td class="num">${tot.groups}</td><td class="num">${tot.people}</td></tr></tfoot>
     </table></div></div>`;
   $('#v-dash').innerHTML = hero + kpi + todo + ccg;
@@ -1143,7 +1202,7 @@ async function submitPlan(){
 /* ═══ 출장 실적 입력 ═══ */
 let ACT_GID = null;
 function rActual(){
-  const targets = ST.groups.filter(g => ['계획 등록', '확정 예정', '실적 입력·인폼'].includes(g.status));
+  const targets = ST.groups.filter(g => g.yq === YQ && ['계획 등록', '확정 예정', '실적 입력·인폼'].includes(g.status));
   const opts = targets.map(g =>
     `<option value="${g.group_id}">${esc(gname(g))} · ${names(g)} · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${g.status}${g.plan_type === '긴급' ? ' [긴급]' : ''}</option>`).join('');
   $('#v-actual').innerHTML = `
@@ -1279,8 +1338,29 @@ function showMail(mail){
 }
 
 /* ═══ 출장 내역 ═══ */
+/* 목록 정렬·필터·검색 상태 (출장 내역 / 예산 관리 공용) */
+const LQ = {q:'', st:'', sort:'stage', dir:'desc'};   // stage=프로세스 우선, date=일자
+const BQ = {q:'', type:'', dir:'desc'};
+function setLQ(k, v){ LQ[k] = v; rList(); nav('list'); }
+function toggleLDir(){ LQ.dir = LQ.dir === 'asc' ? 'desc' : 'asc'; rList(); nav('list'); }
+function setBQ(k, v){ BQ[k] = v; rBudget(); nav('budget'); }
+function toggleBDir(){ BQ.dir = BQ.dir === 'asc' ? 'desc' : 'asc'; rBudget(); nav('budget'); }
+const dirIcon = d => d === 'asc' ? '▲ 오름차순' : '▼ 내림차순';
+
 function rList(){
-  const G = ST.groups.filter(g => g.yq === YQ);
+  const all = ST.groups.filter(g => g.yq === YQ);
+  const q = LQ.q.trim().toLowerCase();
+  // 검색은 '데이터'만 대상 — 버튼 문구가 걸리던 문제 해소
+  const hay = g => [g.city, g.org, g.purpose, g.roll, g.plan_type, g.sap_doc,
+    ...(g.travelers || []).flatMap(p => [p.name, p.emp_no, p.ccg_nm])]
+    .filter(Boolean).join(' ').toLowerCase();
+  let G = all.filter(g => (!LQ.st || g.roll === LQ.st) && (!q || hay(g).includes(q)));
+  const sgn = LQ.dir === 'asc' ? 1 : -1;
+  const byDate = (a, b) => ((a.dep_dt || '') < (b.dep_dt || '') ? -1 : (a.dep_dt || '') > (b.dep_dt || '') ? 1 : 0);
+  G = G.slice().sort(LQ.sort === 'stage'
+    // 프로세스별 우선 분류 → 같은 프로세스 안에서 일자 순차 배열
+    ? (a, b) => (a.stage - b.stage) || sgn * byDate(a, b)
+    : (a, b) => sgn * byDate(a, b));
   const acts = g => {
     const b = [];
     if (g.status === '계획 등록') {          // 잠정: 확정하거나 흔적 없이 삭제
@@ -1299,25 +1379,46 @@ function rList(){
     <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
     <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
     <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td>
+    <td class="num">${g.sap_doc ? esc(g.sap_doc) : '–'}</td>
     <td>${acts(g)}</td></tr>`;
+  // 프로세스별 우선 분류 — 단계가 바뀔 때마다 구분 머리행
+  let body = '', last = null;
+  G.forEach(g => {
+    if (LQ.sort === 'stage' && g.roll !== last) {
+      last = g.roll;
+      const n = G.filter(x => x.roll === g.roll).length;
+      body += `<tr class="grp-head"><td colspan="8">
+        <span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>
+        <b style="margin-left:6px">${n}건</b>
+        <span class="sub">· 출발일 ${LQ.dir === 'asc' ? '빠른' : '늦은'} 순</span></td></tr>`;
+    }
+    body += row(g);
+  });
+  const opt = (v, cur, label) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label || v || '전체')}</option>`;
   const nP = ST.dash.nPlan || 0, nC = ST.dash.nConfirm || 0;
   $('#v-list').innerHTML = `
     <div class="note">‘<b>계획(잠정)</b>’은 참고용 리스트 — 실제로 안 가면 <b>삭제</b>(흔적 없이 사라짐). 실제로 갈 건 ‘<b>출장 확정</b>’ 하면 계획 금액만큼 <b>예산이 미리 확보</b>됩니다. (확정 이후 취소는 기록으로 남습니다)</div>
     <div class="card">
-      <div class="card-head"><h2>${YQ} 출장 내역 (${G.length}건) <span class="sub" style="font-weight:600">· 잠정 ${nP} · 확정 ${nC}</span></h2>
+      <div class="card-head"><h2>${YQ} 출장 내역 <span class="sub" style="font-weight:600">${G.length}/${all.length}건 · 잠정 ${nP} · 확정 ${nC}</span></h2>
         <button class="btn" onclick="downloadCsv(YQ)">CSV 다운로드</button></div>
       <div class="filter-row" style="margin-top:12px">
-        <input id="listFilter" placeholder="성명·업체·도시·목적으로 검색" oninput="filterList()"></div>
+        <input id="listFilter" value="${esc(LQ.q)}" placeholder="🔍 성명·사번·업체·도시·목적·전표번호"
+          oninput="LQ.q=this.value; clearTimeout(window._lt); window._lt=setTimeout(()=>{rList();nav('list');document.getElementById('listFilter').focus();},250)">
+        <select onchange="setLQ('st',this.value)">
+          ${[''].concat(ST.meta.statuses).map(s => opt(s, LQ.st, s ? dispSt(s) : '전체 프로세스')).join('')}
+        </select>
+        <select onchange="setLQ('sort',this.value)">
+          ${opt('stage', LQ.sort, '프로세스별 → 일자순')}${opt('date', LQ.sort, '일자순')}
+        </select>
+        <button class="btn" onclick="toggleLDir()">${dirIcon(LQ.dir)}</button>
+        ${(LQ.q || LQ.st) ? `<button class="btn" onclick="LQ.q='';LQ.st='';rList();nav('list')">필터 해제</button>` : ''}
+      </div>
       <div class="scroll"><table>
         <thead><tr><th>상태</th><th>출장</th><th>출장자</th><th class="num">기간</th>
-          <th class="num">계획</th><th class="num">실적</th><th>관리</th></tr></thead>
-        <tbody id="listBody">${G.map(row).join('') || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">해당 분기 출장이 없습니다.</td></tr>'}</tbody>
+          <th class="num">계획</th><th class="num">실적</th><th class="num">전표번호</th><th>관리</th></tr></thead>
+        <tbody id="listBody">${body || '<tr class="empty"><td colspan="8" style="color:var(--faint);text-align:center;padding:18px">조건에 맞는 출장이 없습니다.</td></tr>'}</tbody>
       </table></div>
     </div>`;
-}
-function filterList(){
-  const q = $('#listFilter').value.trim();
-  $$('#listBody tr').forEach(tr => tr.hidden = q && !tr.textContent.includes(q));
 }
 
 /* ═══ 이관·처리 관리 (관리자) — 출장자 개인별 처리 ═══ */
@@ -1390,6 +1491,7 @@ function rProcess(){
     </div>`;
 }
 async function setStatus(gid, status){
+  if (status === '취소' && !confirm('이 출장을 취소할까요?\n취소 건은 기록으로 남으며, 되돌리려면 관리자 인증이 필요합니다.')) return;
   const {ok, data} = await api(`/groups/${gid}/status`, {method: 'POST', body: JSON.stringify({status})});
   if (!ok) {
     if (data.errors?.[0]?.includes('인증')) { askAdmin(() => setStatus(gid, status)); return; }
@@ -1425,14 +1527,32 @@ async function openTransferMail(gid){
 
 /* ═══ 예산 관리 (관리자) ═══ */
 function rBudget(){
+  // 누적은 항상 일자 오름차순 기준으로 계산하고, 표시 순서만 정렬 옵션을 따른다
+  const asc = ST.budget.slice().sort((a, b) => (a.rev_dt || '') < (b.rev_dt || '') ? -1 : 1);
   let run = 0;
-  const rows = ST.budget.map(b => { run += Number(b.amt) || 0; return `<tr>
+  const withRun = asc.map(b => { run += Number(b.amt) || 0; return {...b, run}; });
+  const bq = BQ.q.trim().toLowerCase();
+  let BR = withRun.filter(b => (!BQ.type || b.rev_type === BQ.type)
+    && (!bq || [b.rev_id, b.rev_dt, b.rev_type, b.reason].filter(Boolean).join(' ').toLowerCase().includes(bq)));
+  if (BQ.dir === 'desc') BR = BR.slice().reverse();
+  const rows = BR.map(b => `<tr>
     <td>${esc(b.rev_id)}</td><td class="num">${esc(b.rev_dt)}</td>
     <td><span class="status">${esc(b.rev_type)}</span></td>
     <td class="num" style="color:${b.amt >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700">${b.amt >= 0 ? '+' : '−'}${won(Math.abs(b.amt))}</td>
-    <td class="num"><b>${won(run)}</b></td>
+    <td class="num"><b>${won(b.run)}</b></td>
     <td>${esc(b.reason || '')}</td>
-    <td><button class="btn sm red" onclick="delBudget('${esc(b.rev_id)}')">삭제</button></td></tr>`; }).join('');
+    <td><button class="btn sm red" onclick="delBudget('${esc(b.rev_id)}')">삭제</button></td></tr>`).join('');
+  const bopt = (v, cur, label) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label || v || '전체')}</option>`;
+  const bctl = `
+      <div class="filter-row" style="margin-top:10px">
+        <input value="${esc(BQ.q)}" placeholder="🔍 REV·유형·사유·반영일"
+          oninput="BQ.q=this.value; clearTimeout(window._bt); window._bt=setTimeout(()=>{rBudget();nav('budget')},250)">
+        <select onchange="setBQ('type',this.value)">
+          ${[''].concat(ST.meta.revTypes).map(t => bopt(t, BQ.type, t || '전체 유형')).join('')}
+        </select>
+        <button class="btn" onclick="toggleBDir()">반영일 ${dirIcon(BQ.dir)}</button>
+        ${(BQ.q || BQ.type) ? `<button class="btn" onclick="BQ.q='';BQ.type='';rBudget();nav('budget')">필터 해제</button>` : ''}
+      </div>`;
   $('#v-budget').innerHTML = `
     <div class="card"><h2>예산 리비전 등록</h2>
       <p class="cap">감액은 금액을 자동으로 음수 처리합니다.</p>
@@ -1446,11 +1566,12 @@ function rBudget(){
       <div class="form-grid"><div><label>사유</label><input id="bd_reason"></div></div>
       <div class="btns"><button class="btn pri" onclick="submitBudget()">리비전 반영</button></div>
     </div>
-    <div class="card"><h2>${YQ} 리비전 이력 · 누적 ${won(ST.dash.alloc)}원</h2>
+    <div class="card"><h2>${YQ} 리비전 이력 <span class="sub" style="font-weight:600">${BR.length}/${withRun.length}건 · 누적 ${won(ST.dash.alloc)}원</span></h2>
+      ${bctl}
       <div class="scroll" style="margin-top:10px"><table>
         <thead><tr><th>REV</th><th class="num">반영일</th><th>유형</th><th class="num">증감액</th>
           <th class="num">누적</th><th>사유</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">등록된 예산이 없습니다.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">조건에 맞는 리비전이 없습니다.</td></tr>'}</tbody>
       </table></div></div>`;
 }
 async function submitBudget(){
@@ -1489,9 +1610,66 @@ async function rData(){
         <thead><tr><th>파일</th><th class="num">크기</th><th class="num">시각</th><th></th></tr></thead>
         <tbody>${rows || '<tr><td colspan="4" style="color:var(--faint);text-align:center;padding:18px">백업이 없습니다.</td></tr>'}</tbody>
       </table></div></div>
+    <div class="card"><h2>감사 로그 <span class="sub" style="font-weight:600">최근 활동 — 누가 무엇을 했는지</span></h2>
+      <p class="cap">삭제·상태 변경·예산·복원 이력이 남습니다. 잠정 계획 삭제는 내용까지 기록됩니다.</p>
+      <div id="auditBox"><button class="btn" onclick="loadAudit()">감사 로그 불러오기</button></div></div>
     <div class="card"><h2>저장 위치</h2>
       <div class="note">정적(GitHub Pages) 버전 — 데이터는 이 브라우저의 localStorage에 저장됩니다(브라우저별 개별). 여러 명이 공유하는 원장은 사내 Flask 버전을 사용하세요.</div></div>`;
 }
+async function loadAudit(){
+  const {ok, data} = await api('/audit?n=200');
+  if (!ok) { toast('감사 로그를 불러오지 못했습니다'); return; }
+  const rows = (data.audit || []).map(a => `<tr>
+    <td class="num">${esc(String(a.timestamp || '').replace('T', ' '))}</td>
+    <td>${esc(a.actor || '-')}</td><td>${esc(a.action || '')}</td>
+    <td>${esc(a.detail || '')}</td></tr>`).join('');
+  $('#auditBox').innerHTML = `<div class="scroll"><table>
+    <thead><tr><th class="num">시각</th><th>행위자</th><th>동작</th><th>내용</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="4" style="color:var(--faint);text-align:center;padding:18px">기록이 없습니다.</td></tr>'}</tbody>
+  </table></div>`;
+}
+
+/* ═══ 센터 제출 리포트 ═══ */
+async function showReport(){
+  const {ok, data} = await api('/report?yq=' + encodeURIComponent(YQ));
+  if (!ok) { toast('리포트를 만들지 못했습니다'); return; }
+  const r = data.report;
+  const rows = r.byCcg.map(x => `<tr><td>${esc(x.team)} <span class="sub">${esc(x.ccg)}</span></td>
+    <td class="num">${won(x.done)}</td><td class="num">${won(x.wip)}</td><td class="num">${won(x.commit)}</td>
+    <td class="num"><b>${won(x.total)}</b></td><td class="num">${x.groups}</td><td class="num">${x.people}</td></tr>`).join('');
+  const revs = r.revisions.map(b => `<tr><td class="num">${esc(b.rev_dt)}</td><td>${esc(b.rev_type)}</td>
+    <td class="num">${b.amt >= 0 ? '+' : '−'}${won(Math.abs(b.amt))}</td><td>${esc(b.reason || '')}</td></tr>`).join('');
+  const text = [`[${r.yq} 소재 그룹 국내 출장비 집행 현황]`, '',
+    `배정 ${won(r.alloc)}원 / 집행 ${won(r.used)}원 (완료 ${won(r.done)} + 처리중 ${won(r.wip)})`,
+    `확정 예정(확보) ${won(r.commit)}원 · 소진율 ${(r.burn * 100).toFixed(1)}%`,
+    `가용 잔여 ${won(r.avail)}원` + (r.need > 0 ? ` · 추가 필요 예상 ${won(r.need)}원` : ''), '',
+    `출장 ${r.nDone + r.nWip + r.nConfirm}건 (완료 ${r.nDone} · 진행 ${r.nWip} · 확정 ${r.nConfirm}) · 연인원 ${r.nPeople}명`].join('\n');
+  document.getElementById('mailCard')?.remove();
+  const el = document.createElement('div');
+  el.className = 'mailcard'; el.id = 'mailCard'; el.style.width = '760px';
+  el.innerHTML = `<div class="mh"><span>센터 제출 리포트 · ${esc(r.yq)}</span>
+      <button onclick="this.closest('.mailcard').remove()">×</button></div>
+    <div class="body">
+      <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="kpi"><span>배정</span><b>${won(r.alloc)}</b></div>
+        <div class="kpi"><span>집행(완료+처리중)</span><b>${won(r.used)}</b></div>
+        <div class="kpi"><span>확정 예정</span><b>${won(r.commit)}</b></div>
+        <div class="kpi"><span>${r.need > 0 ? '추가 필요' : '가용 잔여'}</span><b style="color:${r.need > 0 ? 'var(--red)' : 'var(--navy)'}">${won(r.need > 0 ? r.need : r.avail)}</b></div>
+      </div>
+      <p class="cap" style="margin:6px 0 10px">소진율 ${(r.burn * 100).toFixed(1)}% · 출장 ${r.nDone + r.nWip + r.nConfirm}건 · 연인원 ${r.nPeople}명</p>
+      <table style="width:100%"><thead><tr><th>CCG팀</th><th class="num">완료</th><th class="num">처리중</th>
+        <th class="num">확정예정</th><th class="num">합계</th><th class="num">건</th><th class="num">인원</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--faint);padding:14px">집행 없음</td></tr>'}</tbody></table>
+      <h2 style="font-size:13px;margin:14px 0 6px;color:var(--navy)">예산 리비전</h2>
+      <table style="width:100%"><thead><tr><th class="num">반영일</th><th>유형</th><th class="num">증감</th><th>사유</th></tr></thead>
+        <tbody>${revs || '<tr><td colspan="4" style="text-align:center;color:var(--faint);padding:14px">없음</td></tr>'}</tbody></table>
+    </div>
+    <div class="mf"><button class="btn sm pri" id="rptCopy">요약 복사</button>
+      <button class="btn sm" onclick="downloadCsv(YQ)">상세 CSV</button></div>`;
+  document.body.appendChild(el);
+  $('#rptCopy').onclick = () => copyText(text, '센터 제출용 요약을 복사했습니다');
+}
+
 async function restoreBackup(fn){
   if (!confirm(`${fn}\n이 시점으로 복원할까요? 현재 데이터는 백업 후 교체됩니다.`)) return;
   const {ok, data} = await api(`/backups/${encodeURIComponent(fn)}/restore`, {method: 'POST'});

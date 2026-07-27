@@ -103,8 +103,9 @@ ok('관리자 삭제', r.status_code==200)
 print('\n=== 7. CSV / 백업 ===')
 r = c.get('/travelbudget/api/export.csv')
 head = r.get_data(as_text=True).split('\r\n')[0]
-ok('CSV 30필드(개인처리상태 포함)', head.count(',')==29, head.count(',')+1)
+ok('CSV 32필드(개인처리상태·SAP·리드타임 포함)', head.count(',')==31, head.count(',')+1)
 ok('CSV 개인처리상태 헤더', '개인처리상태' in head, head)
+ok('CSV SAP·리드타임 헤더', 'SAP전표번호' in head and '리드타임(일)' in head, head)
 ok('개인별 행 flatten', len(r.get_data(as_text=True).strip().split('\r\n')) > 8)
 bks = c.get('/travelbudget/api/backups').get_json()['backups']
 ok('자동 백업 누적', len(bks) >= 3, len(bks))

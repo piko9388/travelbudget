@@ -10,7 +10,9 @@ from . import core as C
 _LOCK = threading.RLock()
 LOCK = _LOCK  # 라우트에서 read-modify-write 전체를 한 락으로 묶기 위해 노출 (분실 갱신 방지)
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data_json"
+# 정본 위치. 기본은 앱 폴더 안이지만, 배포 시 폴더를 통째로 덮어쓰면 데이터가 날아간다.
+# 운영에서는 TB_DATA_DIR 로 앱 밖(예: /var/lib/travelbudget)을 지정할 것.
+DATA_DIR = Path(os.environ.get("TB_DATA_DIR") or (BASE_DIR / "data_json"))
 BACKUP_DIR = DATA_DIR / "backup"
 DATA_FILE = DATA_DIR / "data.json"
 MAX_BACKUPS = 30

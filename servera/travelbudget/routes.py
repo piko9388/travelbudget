@@ -17,7 +17,9 @@ def _err(msgs, code=400):
 
 
 def _is_admin(data):
-    return request.headers.get("X-Admin-PW", "") == str(data["settings"].get("admin_pw", ""))
+    # admin_pw가 비어 있으면 모든 요청이 관리자가 되어버린다 → 빈 값이면 항상 거부(fail-closed)
+    pw = str(data["settings"].get("admin_pw", "") or "")
+    return bool(pw) and request.headers.get("X-Admin-PW", "") == pw
 
 
 def admin_required(fn):
@@ -278,10 +280,48 @@ def delete_group(gid):
             return _err("잠정 계획(계획 등록) 건만 삭제할 수 있습니다. 확정·진행 건은 취소를 쓰세요.")
         yq = C.normalize_group(cur)["yq"]
         data["groups"] = [x for x in data["groups"] if x.get("group_id") != gid]
-        append_audit(data, "잠정 계획 삭제", f"{gid} {cur.get('org','')}")
+        # 삭제 내용을 감사로그에 남겨 사후 추적·복원 근거를 남긴다
+        who = ", ".join(str(p.get("name", "")) for p in cur.get("travelers", []))
+        append_audit(data, "잠정 계획 삭제",
+                     f"{gid} {cur.get('city','')} {cur.get('org','')} · {who} · "
+                     f"계획 {C.g_sum(C.normalize_group(cur), 'p'):,}원",
+                     actor="admin" if _is_admin(data) else "user")
         save_data(data)
         dash = C.dash(data, yq)
     return jsonify({"ok": True, "dash": dash})
+
+
+# ── SAP 전표번호 기록 (소재팀 비용 처리 근거 — 관리자) ────
+@travelbudget.post("/api/groups/<gid>/sap")
+@admin_required
+def set_sap(gid):
+    with LOCK:
+        data = load_data()
+        cur = _find(data, gid)
+        if cur is None:
+            return _err("출장건을 찾을 수 없습니다.", 404)
+        doc = str((request.get_json(silent=True) or {}).get("sap_doc", "")).strip()
+        cur["sap_doc"] = doc
+        cur["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        append_audit(data, "SAP 전표번호", f"{gid} → {doc or '(삭제)'}", actor="admin")
+        save_data(data)
+        g = C.normalize_group(cur)
+    return jsonify({"ok": True, "group": g})
+
+
+# ── 센터 제출 리포트 / 감사 로그 ──────────────────────────
+@travelbudget.get("/api/report")
+def center_report():
+    data = load_data()
+    yq = request.args.get("yq") or C.year_quarter()
+    return jsonify({"ok": True, "report": C.center_report(data, yq)})
+
+
+@travelbudget.get("/api/audit")
+def audit_log():
+    data = load_data()
+    n = min(int(request.args.get("n", 200) or 200), 500)
+    return jsonify({"ok": True, "audit": list(reversed(data.get("audit_log", [])))[:n]})
 
 
 # ── 예산 (관리자, 검증 + 감액 자동 음수) ──────────────────

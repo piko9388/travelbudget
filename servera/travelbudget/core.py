@@ -45,7 +45,12 @@ CSV_HEADERS = ["no.", "구분", "LV2", "CCG", "CCG명", "사번", "성명", "직
     "출장도시", "출장기관&업체", "출장목적&사유", "출발일자", "복귀일자", "출장일수",
     "출장시점", "자차사용여부", "출장구분", "상태", "개인처리상태",
     "계획_총합계", "계획_교통비", "계획_숙박비", "계획_식대&잡비", "계획_기타",
-    "실적_총합계", "실적_교통비", "실적_숙박비", "실적_식대&잡비", "실적_기타", "비고"]
+    "실적_총합계", "실적_교통비", "실적_숙박비", "실적_식대&잡비", "실적_기타",
+    "SAP전표번호", "리드타임(일)", "비고"]
+
+# 프로세스 진행 순서 — 목록의 '프로세스별 우선 분류'에 쓰는 정렬 가중치
+STAGE_ORDER = {ST_PLAN: 0, ST_CONFIRM: 1, ST_INFORM: 2, ST_TRANSFER: 3, ST_DONE: 4, ST_CANCEL: 5}
+LEAD_DAYS_MIN = 7                        # 사전 신청 기준 (D-7)
 
 
 # ── 유틸 ──────────────────────────────────────────────────
@@ -185,6 +190,10 @@ def normalize_group(g):
     g["act_tot"] = g_sum(g, "a")
     g["roll"] = group_roll(g)            # 개인 상태 롤업(표시용)
     g["proc"] = proc_counts(g)           # 개인 상태 집계(UI)
+    g["stage"] = STAGE_ORDER.get(g["roll"], 9)     # 프로세스 정렬 가중치
+    g["sap_doc"] = str(g.get("sap_doc") or "").strip()   # 소재팀 전표번호
+    d0, dp = _d(g.get("created_at")), _d(g.get("dep_dt"))
+    g["lead_days"] = (dp - d0).days if (d0 and dp) else None    # 사전 신청 리드타임
     return g
 
 
@@ -206,6 +215,8 @@ def validate_group(g, require_actual=False):
     if g.get("dep_dt") and g.get("ret_dt") and trip_days(g["dep_dt"], g["ret_dt"]) < 1:
         e.append("복귀일자는 출발일자보다 빠를 수 없습니다.")
     T = g.get("travelers", [])
+    if not isinstance(T, list) or any(not isinstance(p, dict) for p in T):
+        return e + ["출장자 형식이 올바르지 않습니다."]     # 잘못된 타입은 500 대신 400
     if not T:
         e.append("출장자를 1명 이상 입력하세요.")
     seen = set()
@@ -227,8 +238,11 @@ def validate_group(g, require_actual=False):
             e.append(f"{i}번 출장자 CCG팀을 선택하세요.")
         elif ccg not in valid_ccg:
             e.append(f"{i}번 출장자 CCG팀이 올바르지 않습니다.")
-        if require_actual and p_sum(p, "a") <= 0:
-            e.append(f"{i}번 출장자 실적 비용을 입력하세요.")
+        if require_actual and p_sum(p, "a") < 0:
+            e.append(f"{i}번 출장자 실적 비용이 올바르지 않습니다.")
+    # 실적 단계는 '그룹 합계'가 0보다 크면 통과 — 동행자 1명이 불참(0원)해도 저장 가능
+    if require_actual and T and g_sum(g, "a") <= 0:
+        e.append("실적 비용을 1개 이상 입력하세요.")
     # 긴급은 계획비 0 허용, 그 외 계획 단계(잠정·확정)는 계획 필수
     if g.get("plan_type") != "긴급" and g.get("status") in PRE and g_sum(g, "p") <= 0:
         e.append("계획 비용을 1개 이상 입력하세요.")
@@ -269,6 +283,9 @@ def dash(data, yq):
     for t in CCG_TEAMS:
         ccg_map[t["ccg"]] = dict(team=t["team"], ccg=t["ccg"], done=0, wip=0,
                                  commit=0, plan=0, groups=set(), people=0)
+    # 미등록 CCG 코드도 버리지 않고 모아 합계가 어긋나지 않게 한다
+    ccg_map["_ETC"] = dict(team="기타(미등록 CCG)", ccg="-", done=0, wip=0,
+                           commit=0, plan=0, groups=set(), people=0)
     # 확정 예정 = 계획 금액 선확보(가용에서 차감), 잠정 계획 = 참고만.
     # 실적 이후 금액은 출장자 개인 실효 상태 기준(5명 중 3완료·1보류 그대로).
     for g in G:
@@ -286,7 +303,7 @@ def dash(data, yq):
             nWip += 1
         for p in g["travelers"]:
             nPeople += 1
-            row = ccg_map.get(p.get("ccg"))
+            row = ccg_map.get(p.get("ccg")) or ccg_map["_ETC"]
             if gs == ST_PLAN:
                 pl = p_sum(p, "p")
                 plan_amt += pl
@@ -327,7 +344,8 @@ def dash(data, yq):
     by_ccg.sort(key=lambda r: -(r["total"] + r["commit"]))
 
     todo = {
-        "actual_wait": [g["group_id"] for g in G if g["status"] in PRE
+        # 실적 독촉은 '실제로 간' 확정 건만 — 잠정 계획까지 독촉하지 않는다
+        "actual_wait": [g["group_id"] for g in G if g["status"] == ST_CONFIRM
                         and (_d(g.get("ret_dt")) or date.max) < date.today()],
         "process_wait": [g["group_id"] for g in G
                          if g["status"] not in PRE and g["status"] != ST_CANCEL and g["roll"] != ST_DONE],
@@ -337,11 +355,37 @@ def dash(data, yq):
     return {
         "yq": yq, "alloc": alloc, "done": done_amt, "wip": wip_amt,
         "commit": commit_amt, "remain": remain, "avail": avail, "planAmt": plan_amt,
-        "short": avail < 0,
+        "short": avail < 0 and alloc > 0,     # 예산 미배정 분기에 상시 적색 경보가 뜨지 않도록
+        "noBudget": alloc <= 0 and (done_amt or wip_amt or commit_amt) > 0,
         "nDone": nDone, "nWip": nWip, "nPlan": nPlan, "nConfirm": nConfirm,
         "nCancel": nCancel, "nPeople": nPeople,
         "nHold": sum(g["proc"]["hold"] for g in G),
         "byCcg": by_ccg, "todo": todo,
+    }
+
+
+# ── 센터 제출 리포트 (분기 계획·실적·부족액) ──────────────
+def center_report(data, yq):
+    """센터 협의·추가 확보 요청용 요약 — 분기 배정 대비 집행·확정·부족액."""
+    d = dash(data, yq)
+    B = sorted([b for b in data.get("budget", []) if b.get("yq") == yq],
+               key=lambda b: b.get("rev_dt") or "")
+    used = d["done"] + d["wip"]
+    need = max(0, -d["avail"])                       # 확정분까지 감안한 부족액
+    rows = [dict(team=r["team"], ccg=r["ccg"], done=r["done"], wip=r["wip"],
+                 commit=r["commit"], plan=r["plan"],
+                 total=r["done"] + r["wip"] + r["commit"],
+                 groups=r["groups"], people=r["people"]) for r in d["byCcg"]]
+    return {
+        "yq": yq, "alloc": d["alloc"], "done": d["done"], "wip": d["wip"],
+        "commit": d["commit"], "used": used, "avail": d["avail"],
+        "need": need, "burn": (used + d["commit"]) / d["alloc"] if d["alloc"] else 0,
+        "nDone": d["nDone"], "nWip": d["nWip"], "nConfirm": d["nConfirm"],
+        "nPlan": d["nPlan"], "nPeople": d["nPeople"],
+        "byCcg": rows,
+        "revisions": [dict(rev_id=b.get("rev_id", ""), rev_dt=b.get("rev_dt", ""),
+                           rev_type=b.get("rev_type", ""), amt=num(b.get("amt")),
+                           reason=b.get("reason", "")) for b in B],
     }
 
 
@@ -480,6 +524,8 @@ def make_csv(data, yq=None):
                         g.get("car", ""), g.get("kind", ""), group_roll(g), eff_status(p, g),
                         p_sum(p, "p"), p["p_trans"], p["p_lodg"], p["p_meal"], p["p_etc"],
                         p_sum(p, "a"), p["a_trans"], p["a_lodg"], p["a_meal"], p["a_etc"],
+                        _csv_safe(g.get("sap_doc", "")),
+                        "" if g.get("lead_days") is None else g["lead_days"],
                         _csv_safe(g.get("remark", ""))])
             no += 1
     b = io.StringIO()
