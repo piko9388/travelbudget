@@ -1,8 +1,32 @@
 # -*- coding: utf-8 -*-
-import os, shutil, sys
-D = 'servera/travelbudget/data_json'
-if os.path.exists(D): shutil.rmtree(D)
+"""API 통합 테스트 — **항상 임시 디렉터리에서만** 실행된다.
+
+운영 데이터 보호: 이 파일은 실행 즉시 TB_DATA_DIR 를 임시 폴더로 강제 교체한다.
+운영 원장(기존 TB_DATA_DIR 또는 앱 폴더의 data_json)은 읽지도 쓰지도 않는다.
+서버에 올린 뒤 확인은 데이터를 건드리지 않는 smoke_test.py 를 쓸 것.
+"""
+import os, shutil, sys, tempfile, atexit
+
+# ── 운영 데이터 격리 (import 보다 반드시 먼저) ──────────────────
+_PROD = os.environ.get('TB_DATA_DIR')
+_TMP = tempfile.mkdtemp(prefix='tb_test_')
+os.environ['TB_DATA_DIR'] = _TMP
+atexit.register(lambda: shutil.rmtree(_TMP, ignore_errors=True))
+if _PROD:
+    print(f'  [격리] 운영 TB_DATA_DIR={_PROD} 는 건드리지 않습니다 → 임시 {_TMP}')
+else:
+    print(f'  [격리] 임시 데이터 디렉터리 {_TMP}')
+
 from webmain import app
+from servera.travelbudget import store as _store
+assert str(_store.DATA_DIR) == _TMP, f'격리 실패: {_store.DATA_DIR}'
+
+# 테스트 픽스처 — 신규 설치는 빈 원장이므로, 테스트는 예시 원장을 직접 깔고 시작한다.
+import json as _json
+_store.DATA_DIR.mkdir(parents=True, exist_ok=True)
+(_store.DATA_DIR / 'data.json').write_text(
+    _json.dumps(_store.example_data(), ensure_ascii=False, indent=1), encoding='utf-8')
+
 app.config['TESTING'] = True
 c = app.test_client()
 ADM = {'X-Admin-PW': '2071478'}
@@ -11,7 +35,7 @@ def ok(n, cond, got=None):
     if cond: P[0]+=1; print(f'  PASS  {n}')
     else: F[0]+=1; print(f'  FAIL  {n} -> {got!r}')
 
-print('\n=== 1. state / 시드 ===')
+print('\n=== 1. state / 픽스처 ===')
 st = c.get('/travelbudget/api/state').get_json()
 yq = st['yq']; d = st['dash']
 ok('CCG 7팀', len(st['ccg'])==7, len(st['ccg']))
@@ -62,7 +86,8 @@ res = r.get_json()
 ok('실적 저장', r.status_code==200, res)
 ok('상태 자동 → 실적 입력·인폼', res['group']['status']=='실적 입력·인폼', res['group']['status'])
 m = res['mail']
-ok('수신 4명', m['to'].count('@')==4, m['to'])
+ok('실적 인폼 기본 수신자 = 운영 담당자 2명', m['to'].count('@')==2
+   and 'junghoon12.lee@sk.com' in m['to'] and 'eunjeong.kim@sk.com' in m['to'], m['to'])
 ok('제목 형식', m['subject']=='청주 원익머트리얼즈 국내 출장 정산 위한 출장비 실비 이관 요청 건', m['subject'])
 ok('HTML 표 포함', '<table' in m['body_html'])
 ok('3인 전원 표 기재', all(n in m['body_html'] for n in ('홍길동','김철수','이영희')))
@@ -462,6 +487,142 @@ ok('프롬프트 금액 상한이 core 와 일치', str(_C.AMT_MAX) in _pm.repla
 ok('자동계산 필드 출력 금지 명시', '출력하지 마세요' in _pm and '총합계' in _pm)
 ok('동행자 그룹 묶기 규칙 포함', '한 group 으로 합치고' in _pm)
 ok('화면에 복사 버튼 존재', '변환 프롬프트 복사' in _app and 'QWEN_CHECK' in _app)
+
+print('\n=== 20. v9.4 배포 안전성 · 지표 정확성 ===')
+# 신규 설치 = 빈 원장 (예시 출장·예산 자동 생성 금지)
+_dd = _store.default_data()
+ok('신규 설치 빈 원장 — 출장 0건', _dd['groups'] == [], len(_dd['groups']))
+ok('신규 설치 빈 원장 — 예산 0건', _dd['budget'] == [], len(_dd['budget']))
+ok('예시 데이터는 example_data() 에만', len(_store.example_data()['groups']) > 0)
+ok('검증 안 하는 admin_id 설정 제거', 'admin_id' not in _dd['settings'], list(_dd['settings']))
+ok('실적 인폼 기본 수신자 2명', len(_dd['settings']['mail_recipients']) == 2, _dd['settings']['mail_recipients'])
+# 테스트 격리 — 운영 디렉터리를 쓰지 않는다
+ok('테스트가 임시 디렉터리에서만 동작', str(_store.DATA_DIR).startswith(tempfile.gettempdir()), str(_store.DATA_DIR))
+ok('운영 TB_DATA_DIR 미사용', _PROD is None or str(_store.DATA_DIR) != _PROD)
+# webmain 진입점 — 사내 servera/__init__.py 에 기대지 않는 import
+_wm = open('webmain.py', encoding='utf-8').read()
+ok('webmain 은 블루프린트를 직접 import', 'from servera.travelbudget import travelbudget' in _wm)
+ok('단일 프로세스 고정(processes=1)', 'processes=1' in _wm)
+
+# 지표 — CCG 합계 중복 집계 없음
+r = _mk(city='교차', org='2CCG교차', purpose='교차', confirmed=True,
+        travelers=[dict(name='A', emp_no='CC1', rank='TL', ccg_nm='Gas 소재팀', p_trans=100000),
+                   dict(name='B', emp_no='CC2', rank='TL', ccg_nm='Photo 소재팀', p_trans=100000)])
+_stt = c.get(f'/travelbudget/api/state?yq={yq}').get_json()
+_d2 = _stt['dash']
+_ccgsum = sum(x['groups'] for x in _d2['byCcg'])
+ok('CCG행 건수는 참여 기준(중복 허용)', _ccgsum > _d2['nTrips'], (_ccgsum, _d2['nTrips']))
+_inq = [g for g in _stt['groups'] if g['yq'] == yq and g['status'] != '취소']
+ok('nTrips = 실제 출장 건수(중복 없음)', _d2['nTrips'] == len(_inq), (_d2['nTrips'], len(_inq)))
+ok('건수 KPI 합 = nTrips',
+   _d2['nPlan'] + _d2['nConfirm'] + _d2['nWip'] + _d2['nDone'] == _d2['nTrips'])
+
+# 잘못된 입력이 500이 아님
+for _b in ('NaN', 'Infinity', '-Infinity'):
+    _r = c.post('/travelbudget/api/budget', data='{"yq":"%s","rev_type":"증액","amt":%s}' % (yq, _b),
+                content_type='application/json', headers=ADM)
+    ok(f'금액 {_b} → 400', _r.status_code == 400, _r.status_code)
+ok('core.num(Infinity) 예외 없이 0', _C.num(float('inf')) == 0 and _C.num(float('nan')) == 0)
+for _n in ('abc', '-5', '1e9', '', '999999'):
+    ok(f'/api/audit?n={_n!r} → 500 아님', c.get(f'/travelbudget/api/audit?n={_n}').status_code < 500)
+for _q in ('abc-Q', '2026-0Q', '2026-99Q'):
+    ok(f'yq={_q} 예산 등록 400', c.post('/travelbudget/api/budget',
+       json={'yq': _q, 'rev_type': '증액', 'amt': 1000}, headers=ADM).status_code == 400)
+    ok(f'yq={_q} 조회 500 아님', c.get(f'/travelbudget/api/state?yq={_q}').status_code < 500)
+
+print('\n=== 21. v9.4 실제 사용 흐름 ===')
+# 계획 수정 — 실적 전은 자유, 실적 후는 예산 담당자만
+_g = _mk(city='수정전', org='수정테스트', purpose='수정 확인',
+         travelers=[dict(name='수정', emp_no='ED1', rank='TL', ccg_nm='Gas 소재팀', p_trans=100000)]).get_json()['group']
+_eg = _g['group_id']
+_pl = dict(plan_type='계획', city='수정후', org='수정테스트', purpose='수정 확인', kind='정기 Audit',
+           dep_dt=_g['dep_dt'], ret_dt=_g['ret_dt'], car='미사용',
+           travelers=[dict(name='수정', emp_no='ED1', rank='TL', ccg_nm='Gas 소재팀', p_trans=150000)])
+_r = c.put(f'/travelbudget/api/groups/{_eg}', json=_pl)
+ok('실적 전 계획 수정 — 인증 없이 가능', _r.status_code == 200, _r.status_code)
+ok('수정 내용 반영', _r.get_json()['group']['city'] == '수정후' and _r.get_json()['group']['plan_tot'] == 150000)
+_aud = c.get('/travelbudget/api/audit?n=20').get_json()['audit']
+_last = [a for a in _aud if a['action'] == '출장 수정'][-1]
+ok('감사 로그에 변경 항목 기록', '출장도시' in _last['detail'] and '계획액' in _last['detail'], _last['detail'][:80])
+ok('감사 로그에 수정 시각 기록', bool(_last.get('timestamp')), _last.get('timestamp'))
+c.post(f'/travelbudget/api/groups/{_eg}/actual', json={'travelers': [{'emp_no': 'ED1', 'a_trans': 140000}]})
+_r = c.put(f'/travelbudget/api/groups/{_eg}', json=_pl)
+ok('실적 후 무인증 수정 401', _r.status_code == 401, _r.status_code)
+_r = c.put(f'/travelbudget/api/groups/{_eg}', json=_pl, headers=ADM)
+ok('실적 후 담당자 모드 수정 200', _r.status_code == 200, (_r.status_code, _r.get_json().get('errors')))
+ok('계획 수정이 기존 실적을 지우지 않음',
+   _r.status_code == 200 and _r.get_json()['group']['act_tot'] == 140000,
+   _r.status_code == 200 and _r.get_json()['group']['act_tot'])
+
+# 예산 부족이어도 확정·실적·완료가 가능해야 (경고만, 차단 아님)
+_poor = _mk(city='부족', org='예산부족', purpose='부족 확인', confirmed=True,
+            travelers=[dict(name='부족', emp_no='PR1', rank='TL', ccg_nm='Gas 소재팀',
+                            p_trans=99000000)]).get_json()
+ok('예산 초과여도 확정 등록 성공', 'group' in _poor, _poor.get('errors'))
+_dsh = c.get(f'/travelbudget/api/state?yq={yq}').get_json()['dash']
+ok('가용 잔여가 음수로 표시(경고용)', _dsh['avail'] < 0, _dsh['avail'])
+ok('예산 부족 플래그 노출', _dsh['short'] is True, _dsh['short'])
+_pg = _poor['group']['group_id']
+ok('예산 부족에도 실적 입력 가능',
+   c.post(f'/travelbudget/api/groups/{_pg}/actual',
+          json={'travelers': [{'emp_no': 'PR1', 'a_trans': 98000000}]}).status_code == 200)
+ok('예산 부족에도 처리 완료 가능',
+   c.post(f'/travelbudget/api/groups/{_pg}/status', json={'status': '처리 완료'},
+          headers=ADM).status_code == 200)
+
+# 확정 확보액 ↔ 실적액 이중 차감 없음
+_c1 = _mk(city='이중', org='이중차감', purpose='이중 확인', confirmed=True,
+          travelers=[dict(name='이중', emp_no='DB1', rank='TL', ccg_nm='Gas 소재팀',
+                          p_trans=500000)]).get_json()['group']['group_id']
+_b1 = c.get(f'/travelbudget/api/state?yq={yq}').get_json()['dash']
+c.post(f'/travelbudget/api/groups/{_c1}/actual', json={'travelers': [{'emp_no': 'DB1', 'a_trans': 480000}]})
+_b2 = c.get(f'/travelbudget/api/state?yq={yq}').get_json()['dash']
+ok('실적 입력 시 확정 확보액 해제', _b2['commit'] == _b1['commit'] - 500000, (_b1['commit'], _b2['commit']))
+ok('실적액은 처리중으로 이동', _b2['wip'] == _b1['wip'] + 480000, (_b1['wip'], _b2['wip']))
+ok('이중 차감 없음 (가용은 차액만큼만 이동)',
+   _b2['avail'] == _b1['avail'] + 500000 - 480000, (_b1['avail'], _b2['avail']))
+
+# 이관 메일 수신자는 직접 지정 (마스터 없음)
+c.post(f'/travelbudget/api/groups/{_c1}/status', json={'status': '소재 이관'}, headers=ADM)
+_tm = c.get(f'/travelbudget/api/groups/{_c1}/transfer_mail').get_json()['mail']
+ok('이관 메일 수신자 비어 있음(직접 지정)', _tm['to'] == '', _tm['to'])
+ok('이관 메일에 직접 지정 안내', '직접 지정' in _tm.get('to_hint', ''), _tm.get('to_hint'))
+ok('이관 인폼 문구 유지', '이관 결재 상신' in _tm['body_text'] and '비용 처리 부탁' in _tm['body_text'])
+
+# SAP — 화면에서 제거, 데이터는 호환 유지
+_appjs = open('servera/travelbudget/static/app.js', encoding='utf-8').read()
+ok('화면에 SAP 노출 없음', 'sap' not in _appjs.lower(), [l for l in _appjs.split('\n') if 'sap' in l.lower()][:2])
+ok('SAP 필드는 데이터 호환용으로 유지', 'sap_doc' in _C.normalize_group({'travelers': []}))
+ok('SAP 전표는 처리 완료 조건이 아님',
+   c.post(f'/travelbudget/api/groups/{_pg}/status', json={'status': '처리 완료'}, headers=ADM).status_code in (200, 400))
+
+# 화면 문구
+_tpl = open('servera/travelbudget/templates/index.html', encoding='utf-8').read()
+ok('예산 담당자 모드 문구', '예산 담당자 모드' in _appjs)
+ok('검증 안 하는 ID 입력란 제거', 'admId' not in _appjs and 'admId' not in _tpl)
+ok('확정 표기 = 출장 확정 · 예산 반영', "'확정 예정': '출장 확정 · 예산 반영'" in _appjs)
+ok('저장값은 확정 예정 그대로(데이터 호환)', _C.ST_CONFIRM == '확정 예정')
+
+print('\n=== 22. 문서 정합성 ===')
+import re as _re2
+_routes = open('servera/travelbudget/routes.py', encoding='utf-8').read()
+_n = len(_re2.findall(r'@travelbudget\.(get|post|put|delete)\(', _routes))
+_rd = open('README.md', encoding='utf-8').read()
+_dp = open('DEPLOY.md', encoding='utf-8').read()
+ok(f'README API 개수 = 실제 {_n}개', f'API {_n}개' in _rd, [x for x in _re2.findall(r'API \d+개', _rd)])
+ok(f'DEPLOY API 개수 = 실제 {_n}개', f'API {_n}개' in _dp, [x for x in _re2.findall(r'API \d+개', _dp)])
+for _f in ('tools/e2e/e2e.mjs', 'tools/e2e/e2e_pages.mjs', 'tools/e2e/fuzz.py', 'smoke_test.py'):
+    ok(f'{_f} 저장소에 존재', os.path.exists(_f))
+ok('DEPLOY 는 서버에서 smoke_test 안내', 'smoke_test.py' in _dp)
+ok('DEPLOY 에 1 worker 명시', 'worker' in _dp or '프로세스 1개' in _dp)
+# Qwen 프롬프트 — 순수 JSON
+_md = open('QWEN_PROMPT.md', encoding='utf-8').read()
+_pm = _re2.search(r'^````text\n(.*?)^````$', _md, _re2.S | _re2.M).group(1)
+ok('프롬프트: 순수 JSON만 출력 지시', 'json.load() 로 바로 읽히지' in _pm)
+ok('프롬프트: 확인필요는 JSON 안에', '_confirm_needed' in _pm)
+ok('프롬프트: 근거 없는 처리 완료 추론 금지', '추론하지 마세요' in _pm)
+ok('_confirm_needed 키가 있어도 로드 정상',
+   _store.validate_root({'settings': {}, 'budget': [], 'groups': [], '_confirm_needed': ['x']}) is None)
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

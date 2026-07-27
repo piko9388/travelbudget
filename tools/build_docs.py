@@ -2,7 +2,7 @@
 """docs/index.html 조립 — Flask 템플릿 + 정적 백엔드 + app.js(호출부만 치환)."""
 import sys, pathlib
 REPO = pathlib.Path('/home/user/travelbudget')
-BACKEND = pathlib.Path('/tmp/claude-0/-home-user-travelbudget/678b9f1e-5fe9-57c5-9eaf-46aaeecd42db/scratchpad/tb_local.js')
+BACKEND = REPO / 'tools/tb_local.js'
 tpl = (REPO/'servera/travelbudget/templates/index.html').read_text(encoding='utf-8')
 backend = BACKEND.read_text(encoding='utf-8')
 app = (REPO/'servera/travelbudget/static/app.js').read_text(encoding='utf-8')

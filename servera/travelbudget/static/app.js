@@ -69,7 +69,9 @@ function showErr(sel, errs){ $(sel).innerHTML =
 function stClass(s){ return s === '처리 완료' ? 'done' : s === '취소' ? 'cancel'
   : s === '확정 예정' ? 'confirm'
   : (s === '실적 입력·인폼' || s === '소재 이관') ? 'wip' : ''; }
-function dispSt(s){ return s === '계획 등록' ? '계획(잠정)' : s; }   // 잠정/확정 구분 명확히
+// 화면 표기만 바꾼다 — data.json·CSV·센터 양식의 저장값은 그대로여야 하므로 여기서만 치환
+const ST_LABEL = {'계획 등록': '계획(잠정)', '확정 예정': '출장 확정 · 예산 반영'};
+function dispSt(s){ return ST_LABEL[s] || s; }
 function gname(g){ return [g.city, g.org].filter(Boolean).join(' '); }
 function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); }
 function procTag(g){   // 부분 처리(개인별 상태 분리) 표시 — 섞여 있을 때만
@@ -150,9 +152,8 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
 ■ settings (그대로 사용, 수정 금지)
 {
   "system_name": "소재 국내 출장비 관리",
-  "admin_id": "2071478",
   "admin_pw": "2071478",
-  "mail_recipients": ["junghoon12.lee@sk.com"],
+  "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong.kim@sk.com"],
   "reference_url": "material.skhynix.com/travelbudget"
 }
 
@@ -241,13 +242,18 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
    소수점이 있으면 반올림. 음수는 0 으로. 1억(100000000)을 넘는 값은 자릿수 오류이니
    원본을 그대로 두지 말고 해당 건을 [확인필요] 목록에 올리세요.
 
-5) status 판정 — 원본에 상태 열이 없으면 이 규칙으로 정합니다.
-     실적 금액이 있고 정산/지급이 끝난 건        → "처리 완료"
-     실적 금액이 있고 아직 처리 중인 건           → "실적 입력·인폼"
-     아직 안 갔고 계획만 있는데 실제로 갈 건      → "확정 예정"
+5) status 판정 — **원본에 근거가 있을 때만** 아래로 정합니다.
+     정산/지급 완료가 원본에 명시된 건            → "처리 완료"
+     이관했다고 명시된 건                        → "소재 이관"
+     실적 금액이 있으나 처리 여부는 불명          → "실적 입력·인폼"
+     아직 안 갔고 실제로 간다고 명시된 건         → "확정 예정"
      아직 안 갔고 갈지 미정인 건                 → "계획 등록"
      취소된 건                                  → "취소"
-   판단 근거가 없으면: 실적 금액이 있으면 "처리 완료", 없으면 "계획 등록".
+
+   ★ 실적 금액이 있다는 이유만으로 "처리 완료" 로 추론하지 마세요.
+     처리 완료는 돈이 실제로 나갔다는 뜻이라, 잘못 넣으면 예산 잔액이 틀어집니다.
+     근거가 없으면 실적이 있어도 "실적 입력·인폼", 실적이 없으면 "계획 등록" 으로 두고
+     해당 건을 _confirm_needed 에 적으세요.
 
 6) 사람마다 처리 상태가 다른 경우 — 5명 중 3명만 처리됐다면
    각 traveler 에 "status" 를 개별로 넣습니다. 허용값:
@@ -264,7 +270,7 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
 ────────────────────────────────
 [출력 전 자가 점검 — 통과 못 하면 고쳐서 다시 출력]
 
-□ JSON 하나로 파싱되는가 (마크다운 코드펜스·설명문 없이)
+□ 출력 전체가 JSON 하나인가 — json.load() 로 바로 읽히는가 (코드펜스·설명문 없이)
 □ 최상위에 settings / budget / groups / audit_log 가 모두 있는가
 □ 모든 group 에 travelers 가 1명 이상 있는가
 □ 모든 group_id 가 유일한가
@@ -273,14 +279,19 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
 □ status / kind / rank / car / plan_type / ccg_nm 이 전부 허용값 목록과 글자까지 같은가
 □ 모든 금액이 콤마 없는 정수인가 (0 이상, 1억 이하)
 □ LV2·CCG코드·출장일수·총합계 같은 자동계산 필드를 넣지 않았는가
+□ 근거 없이 "처리 완료" 로 추론한 건이 없는가
 
-[출력 형식]
-1) 먼저 JSON 을 출력합니다. 다른 말은 붙이지 않습니다.
-2) JSON 이 끝난 뒤, 판단이 애매했던 건이 있으면 마지막에 이렇게만 덧붙입니다.
+[출력 형식 — 반드시 지킬 것]
+출력 전체가 **JSON 하나**여야 합니다. json.load() 로 바로 읽히지 않으면 실패입니다.
+- 마크다운 코드펜스 금지, 인사말·설명·주석 금지, JSON 앞뒤에 어떤 글자도 붙이지 마세요.
+- 판단이 애매했던 건은 **JSON 안의 _confirm_needed 배열**에 넣습니다. (시스템은 이 키를 무시합니다)
 
-[확인필요]
-- TB-0007 : 복귀일자 없음 → 출발일과 같게 처리
-- TB-0012 : 실적 3,200,000원 (원본 자릿수 확인 요망)
+  "_confirm_needed": [
+    "TB-0007 : 복귀일자 없음 → 출발일과 같게 처리",
+    "TB-0012 : 실적 3,200,000원 (원본 자릿수 확인 요망)"
+  ]
+
+애매한 건이 없으면 "_confirm_needed": [] 로 둡니다.
 
 ────────────────────────────────
 [원본 데이터]
@@ -433,15 +444,16 @@ function rDash(){
      groups:a.groups + r.groups, people:a.people + r.people}), {done:0, wip:0, total:0, commit:0, plan:0, groups:0, people:0});
   const ccg = `
     <div class="card"><div class="card-head"><h2>CCG팀(부서)별 집행 현황</h2>
-      <span class="cap" style="margin:0">총사용액 = 처리완료 + 처리중 · 확정예정은 선확보(가용 차감) · 잠정은 참고</span></div>
+      <span class="cap" style="margin:0">총사용액 = 처리완료 + 처리중 · 확정예정은 선확보(가용 차감) · 잠정은 참고<br>
+        참여 출장 = 그 팀이 참여한 건수(두 팀이 함께 간 출장은 양쪽에 표시) · 합계는 실제 출장 건수</span></div>
     <div class="scroll" style="margin-top:12px"><table>
       <thead><tr><th>CCG팀</th><th class="num">처리완료</th><th class="num">처리중</th>
         <th class="num">총사용액</th><th class="num">구성비</th><th class="num">확정예정</th><th class="num">잠정계획</th>
-        <th class="num">출장 그룹</th><th class="num">참여 인원</th></tr></thead>
+        <th class="num">참여 출장</th><th class="num">참여 인원</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td>합계</td><td class="num">${won(tot.done)}</td><td class="num">${won(tot.wip)}</td>
         <td class="num">${won(tot.total)}</td><td class="num">${tot.total ? '100.0%' : '–'}</td><td class="num">${won(tot.commit)}</td><td class="num">${won(tot.plan)}</td>
-        <td class="num">${tot.groups}</td><td class="num">${tot.people}</td></tr></tfoot>
+        <td class="num">${d.nTrips}</td><td class="num">${tot.people}</td></tr></tfoot>
     </table></div></div>`;
   $('#v-dash').innerHTML = notice + hero + kpi + todo + ccg;
 }
@@ -521,16 +533,39 @@ function justPanel(){
       <button class="btn" onclick="PLAN_JUST=null; rPlan(); nav('plan')">닫고 새로 등록</button>
     </div></div>`;
 }
+let EDIT_GID = null;                       // 수정 중인 출장 (null = 신규 등록)
+function editGroup(gid){
+  const g = ST.groups.find(x => x.group_id === gid);
+  if (!g) { toast('출장을 찾을 수 없습니다'); return; }
+  // 실적이 들어간 뒤에는 예산 담당자만 — 서버도 같은 기준으로 막는다
+  if (g.act_tot > 0 && !adminPw()) { askAdmin(() => editGroup(gid)); return; }
+  EDIT_GID = gid; PLAN_JUST = null;
+  rPlan(); nav('plan');
+  $('#pl_type').value = g.plan_type; $('#pl_city').value = g.city; $('#pl_org').value = g.org;
+  $('#pl_kind').value = g.kind; $('#pl_car').value = g.car || '미사용';
+  $('#pl_purpose').value = g.purpose; $('#pl_remark').value = g.remark || '';
+  $('#pl_dep').value = g.dep_dt; $('#pl_ret').value = g.ret_dt;
+  $('#travBody').innerHTML = '';
+  (g.travelers || []).forEach(t => addTrav(t));
+  planSum();
+  $('#v-plan').scrollIntoView({block: 'start'});
+}
+function cancelEdit(){ EDIT_GID = null; rPlan(); nav('plan'); }
 function rPlan(){
   const m = ST.meta;
+  const ed = EDIT_GID ? ST.groups.find(x => x.group_id === EDIT_GID) : null;
   const copyOpts = ST.groups.filter(g => g.status !== '취소').slice(0, 30)
     .map(g => `<option value="${g.group_id}">${esc(gname(g))} · ${names(g)} · ${fmtD(g.dep_dt)}</option>`).join('');
   $('#v-plan').innerHTML = justPanel() + `
     <div class="card">
-      <div class="card-head"><h2>출장 계획 등록</h2>
-        <select id="copySel" style="width:auto;min-width:250px" onchange="copyPlan(this.value)">
-          <option value="">이전 출장 복사…</option>${copyOpts}</select></div>
-      <p class="cap">공통 정보는 한 번만 입력하고, 동행자는 출장자 행으로 추가합니다. 긴급 출장은 계획비 없이 등록할 수 있습니다.</p>
+      <div class="card-head"><h2>${ed ? '출장 계획 수정' : '출장 계획 등록'}</h2>
+        ${ed ? '' : `<select id="copySel" style="width:auto;min-width:250px" onchange="copyPlan(this.value)">
+          <option value="">이전 출장 복사…</option>${copyOpts}</select>`}</div>
+      ${ed ? `<div class="note"><b>${esc(gname(ed))}</b> · ${fmtD(ed.dep_dt)}–${fmtD(ed.ret_dt)} 를 수정합니다.
+        <span class="status ${stClass(ed.roll)}">${esc(dispSt(ed.roll))}</span>
+        ${ed.act_tot > 0 ? ' — 실적이 입력된 건이라 <b>예산 담당자 모드</b>에서만 저장됩니다.' : ''}
+        <br>변경 내용은 감사 로그에 남습니다.</div>`
+      : '<p class="cap">공통 정보는 한 번만 입력하고, 동행자는 출장자 행으로 추가합니다. 긴급 출장은 계획비 없이 등록할 수 있습니다.</p>'}
       <div id="planErr"></div>
       <div class="form-grid c4">
         <div><label for="pl_type">구분<span class="rq">*</span></label>
@@ -565,10 +600,11 @@ function rPlan(){
       <div class="form-grid" style="margin-top:12px">
         <div><label for="pl_remark">비고</label><input id="pl_remark" placeholder="특이사항이 있으면 적어주세요"></div>
       </div>
-      <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:4px">
-        <input type="checkbox" id="pl_confirm" style="width:auto;margin:0"> 이 출장은 <b style="margin:0 2px">실제로 갑니다</b> — 지금 <b style="margin:0 2px;color:var(--blue)">예산 확보(확정 예정)</b>. 미체크 시 잠정 계획으로 등록됩니다.
-      </label>
-      <div class="btns"><button class="btn pri" id="planBtn" onclick="submitPlan()">출장 계획 등록</button></div>
+      ${ed ? '' : `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:4px">
+        <input type="checkbox" id="pl_confirm" style="width:auto;margin:0"> 이 출장은 <b style="margin:0 2px">실제로 갑니다</b> — 지금 <b style="margin:0 2px;color:var(--blue)">출장 확정 · 예산 반영</b>. 미체크 시 잠정 계획으로 등록됩니다.
+      </label>`}
+      <div class="btns"><button class="btn pri" id="planBtn" onclick="submitPlan()">${ed ? '수정 저장' : '출장 계획 등록'}</button>
+        ${ed ? '<button class="btn" onclick="cancelEdit()">수정 취소</button>' : ''}</div>
     </div>`;
   $('#travBody').innerHTML = travRow();
   planSum();
@@ -606,6 +642,25 @@ async function _submitPlan(){
     purpose: $('#pl_purpose').value.trim(), remark: $('#pl_remark').value.trim(),
     confirmed: $('#pl_confirm')?.checked || false,
     travelers: collectTravelers()};
+  if (EDIT_GID) {                          // 수정 — 상태·개인 처리상태는 서버가 고정
+    const r = await api(`/groups/${EDIT_GID}`, {method: 'PUT', body: JSON.stringify(body)});
+    if (!r.ok) {
+      if (r.status === 401) { askAdmin(() => submitPlan()); return; }
+      showErr('#planErr', r.data.errors); return;
+    }
+    toast('수정 저장 완료 — 변경 내용은 감사 로그에 기록됩니다');
+    EDIT_GID = null; await load(); nav('list'); return;
+  }
+  // 확정 시 예산이 모자라면 막지 않고 확인만 받는다 (차단 아님)
+  if (body.confirmed) {
+    const need = collectTravelers().reduce((sm, t) =>
+      sm + KEYS.reduce((x, k) => x + (t['p_' + k] || 0), 0), 0);
+    const after = (ST.dash.avail || 0) - need;
+    if (after < 0 && !confirm(
+        `확정 후 가용 잔여가 ${after < 0 ? '−' : ''}${won(Math.abs(after))}원입니다.\n` +
+        '예산 부족을 인지한 상태로 계속 확정하시겠습니까?\n\n' +
+        '[확인] 계속 확정   /   [취소] 돌아가기')) return;
+  }
   const {ok, data} = await api('/groups', {method: 'POST', body: JSON.stringify(body)});
   if (!ok) { showErr('#planErr', data.errors); return; }
   toast(`등록 완료 — ${dispSt(data.group.status)} · ${body.travelers.length}명`);
@@ -733,7 +788,9 @@ function showMail(mail){
     <div class="mh"><span>${esc(mail.heading || '실비 이관 요청 인폼 (그룹당 1통)')}</span>
       <button onclick="this.closest('.mailcard').remove()">×</button></div>
     <div class="meta">
-      <div class="row"><span class="k">수신</span><span style="word-break:break-all">${esc(mail.to)}</span></div>
+      <div class="row"><span class="k">수신</span>${mail.to
+        ? `<span style="word-break:break-all">${esc(mail.to)}</span>`
+        : `<span style="color:var(--red);font-weight:700">${esc(mail.to_hint || '수신자: 직접 지정')}</span>`}</div>
       <div class="row"><span class="k">제목</span><span>${esc(mail.subject)}</span></div>
     </div>
     <div class="body">${mail.body_html}</div>
@@ -773,7 +830,6 @@ const LCOLS = [
   {k:'date',  th:'기간',     f:'txt', ph:'예: 07/25', num:true},
   {k:'plan',  th:'계획',     f:'min', ph:'≥금액', num:true},
   {k:'act',   th:'실적',     f:'min', ph:'≥금액', num:true},
-  {k:'sap',   th:'전표번호', f:'txt', ph:'전표', num:true},
 ];
 const LQ = {q:'', sort:'stage', dir:'desc', group:true, col:{}};
 const BQ = {q:'', type:'', dir:'desc'};
@@ -788,14 +844,13 @@ function lVal(g, k){
   if (k === 'date')  return g.dep_dt || '';
   if (k === 'plan')  return g.plan_tot || 0;
   if (k === 'act')   return g.act_tot || 0;
-  if (k === 'sap')   return g.sap_doc || '';
   return '';
 }
 function listRows(){
   const all = ST.groups.filter(g => g.yq === YQ);
   const q = LQ.q.trim().toLowerCase();
   // 전체 검색은 '데이터'만 대상 — 관리 버튼 문구가 걸리지 않도록
-  const hay = g => [g.city, g.org, g.purpose, g.roll, g.plan_type, g.sap_doc,
+  const hay = g => [g.city, g.org, g.purpose, g.roll, g.plan_type,
     ...(g.travelers || []).flatMap(p => [p.name, p.emp_no, p.ccg_nm])]
     .filter(Boolean).join(' ').toLowerCase();
   const G = all.filter(g => {
@@ -847,6 +902,8 @@ function listRowHtml(g){
     acts.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','계획 등록')">확정 해제</button>`);
     acts.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
   }
+  if (g.status !== '취소')                  // 계획 수정 — 실적 후에는 서버가 담당자 인증 요구
+    acts.unshift(`<button class="btn sm" onclick="editGroup('${g.group_id}')">수정</button>`);
   if (g.act_tot > 0)                       // 인폼 카드를 닫았어도 언제든 다시 발행
     acts.push(`<button class="btn sm" onclick="reopenMail('${g.group_id}')">인폼 보기</button>`);
   return `<tr>
@@ -856,7 +913,6 @@ function listRowHtml(g){
     <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
     <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
     <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td>
-    <td class="num">${g.sap_doc ? esc(g.sap_doc) : '–'}</td>
     <td>${acts.join(' ') || '<span class="sub">진행/처리 단계</span>'}</td></tr>`;
 }
 function renderListBody(){
@@ -866,7 +922,7 @@ function renderListBody(){
     if (LQ.group && g.roll !== last) {          // 프로세스가 바뀔 때마다 구분 머리행
       last = g.roll;
       const n = G.filter(x => x.roll === g.roll).length;
-      body += `<tr class="grp-head"><td colspan="8">
+      body += `<tr class="grp-head"><td colspan="7">
         <span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>
         <b style="margin-left:6px">${n}건</b></td></tr>`;
     }
@@ -874,7 +930,7 @@ function renderListBody(){
   });
   const tb = $('#listBody');
   if (!tb) return;
-  tb.innerHTML = body || '<tr class="empty"><td colspan="8" style="color:var(--faint);text-align:center;padding:18px">조건에 맞는 출장이 없습니다.</td></tr>';
+  tb.innerHTML = body || '<tr class="empty"><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">조건에 맞는 출장이 없습니다.</td></tr>';
   const cnt = $('#listCount');
   if (cnt) cnt.textContent = `${G.length}/${all.length}건 · 잠정 ${ST.dash.nPlan || 0} · 확정 ${ST.dash.nConfirm || 0}`;
   $$('#v-list .sic').forEach(el => {            // 정렬 표시(▲▼)
@@ -992,8 +1048,20 @@ function rProcess(){
       ${G.map(block).join('') || '<div style="color:var(--faint);text-align:center;padding:22px">대상이 없습니다.</div>'}
     </div>`;
 }
+function shortfallOk(gid){
+  // 확정하면 계획액만큼 예산이 잡힌다 — 모자라면 알리기만 하고 진행 여부는 사용자가 결정
+  const g = ST.groups.find(x => x.group_id === gid);
+  if (!g) return true;
+  const after = (ST.dash.avail || 0) - (g.plan_tot || 0);
+  if (after >= 0) return true;
+  return confirm(
+    `확정 후 가용 잔여가 −${won(Math.abs(after))}원입니다.\n` +
+    '예산 부족을 인지한 상태로 계속 확정하시겠습니까?\n\n' +
+    '[확인] 계속 확정   /   [취소] 돌아가기');
+}
 async function setStatus(gid, status){
-  if (status === '취소' && !confirm('이 출장을 취소할까요?\n취소 건은 기록으로 남으며, 되돌리려면 관리자 인증이 필요합니다.')) return;
+  if (status === '취소' && !confirm('이 출장을 취소할까요?\n취소 건은 기록으로 남으며, 되돌리려면 예산 담당자 모드가 필요합니다.')) return;
+  if (status === '확정 예정' && !shortfallOk(gid)) return;
   const {ok, data} = await api(`/groups/${gid}/status`, {method: 'POST', body: JSON.stringify({status})});
   if (!ok) {
     if (data.errors?.[0]?.includes('인증')) { askAdmin(() => setStatus(gid, status)); return; }
@@ -1226,18 +1294,18 @@ function askAdmin(then){
   const m = document.createElement('div');
   m.className = 'modal'; m.id = 'adminModal';
   m.innerHTML = `<div class="modal-box">
-    <div class="mh">관리자 인증</div>
+    <div class="mh">예산 담당자 모드</div>
     <div class="mb">
-      <div class="merr" id="admErr">아이디 또는 비밀번호가 올바르지 않습니다.</div>
-      <label>아이디</label><input id="admId" autocomplete="off" style="margin-bottom:10px">
-      <label>비밀번호</label><input id="admPw" type="password" autocomplete="off">
-      <div class="hint">공개 계정 — ID <b>2071478</b> / PW <b>2071478</b></div>
+      <div class="merr" id="admErr">비밀번호가 올바르지 않습니다.</div>
+      <label for="admPw">비밀번호</label><input id="admPw" type="password" autocomplete="off">
+      <div class="hint">소재 출장 예산 담당자용 공개 비밀번호 — <b>2071478</b><br>
+        이관·처리 완료·예산 리비전·백업 복원에 필요합니다.</div>
       <div class="btns" style="margin-top:0">
         <button class="btn pri" id="admOk">확인</button>
         <button class="btn" onclick="document.getElementById('adminModal').remove()">취소</button>
       </div></div></div>`;
   document.body.appendChild(m);
-  setTimeout(() => $('#admId')?.focus(), 50);   // 모달이 이미 닫혔으면 무시
+  setTimeout(() => $('#admPw')?.focus(), 50);   // 모달이 이미 닫혔으면 무시
   const go = async () => {
     const {ok} = await api('/admin/verify', {method: 'POST', body: JSON.stringify({pw: $('#admPw').value})});
     if (!ok) { $('#admErr').style.display = 'block'; return; }

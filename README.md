@@ -1,4 +1,4 @@
-# 소재 국내 출장비 관리 v9.3
+# 소재 국내 출장비 관리 v9.4
 
 소재전략 국내 출장비 계획·실적·인폼·정산 관리 (Flask + data.json 단일 파일 저장)
 
@@ -20,10 +20,12 @@
 |---|---|
 | `core.py` | 계산 엔진 SSOT — 잔여 공식·검증·인폼 생성·CSV |
 | `store.py` | data.json 원자적 저장 + 자동백업 30개 + 감사로그 |
-| `routes.py` | API 18개 (관리자 행위는 X-Admin-PW 서버 검증, `core.locked` 경계) |
+| `routes.py` | API 22개 (예산 담당자 행위는 X-Admin-PW 서버 검증, `core.locked` 경계) |
 | `templates/index.html` | 화이트+네이비 테마, Pretendard |
 | `static/app.js` | 전 화면 (대시보드/계획/실적/내역/이관·처리/예산/데이터) |
 | `data_json/data.json` | 정본 (백업: `data_json/backup/`) — 운영은 **`TB_DATA_DIR`** 로 앱 밖 지정 권장 |
+
+> 신규 설치는 **빈 원장**으로 시작합니다. 예시 데이터가 필요하면 `data.example.json` 을 복사해 쓰세요.
 
 ## 핵심 규칙
 
@@ -33,7 +35,10 @@
 - 출장자별 개별 처리(이관/완료/**보류**) 지원 — 일괄 처리 시 보류는 유지됨
 - 출장 1건 = 그룹. 동행자는 출장자 행 추가, 비용은 개인별 저장, **인폼은 그룹당 1통** (HTML 표 + Outlook)
 - 긴급 출장: 계획비 0 등록 허용, 실적 시 비고 필수
-- 관리자(2071478/2071478): 소재 이관·처리 완료·예산·백업 복원 — 서버측 검증
+- 예산 담당자 모드(비밀번호 2071478): 소재 이관·처리 완료·예산·백업 복원·실적 후 수정 — 서버측 검증
+- 예산이 모자라도 **차단하지 않습니다** — 확정 시 확인창만 뜨고, 실적·처리 완료는 항상 가능
+- 계획 수정: 실적 전에는 자유, 실적 후에는 예산 담당자 모드. 변경 항목은 감사 로그에 기록
+- 이관 메일 수신자는 출장·site 마다 다르므로 **직접 지정** (수신자 마스터 없음)
 - 감액 리비전은 금액 자동 음수 처리
 - 내보내기: **센터 제출 Excel**(맑은 고딕/Trebuchet MS 서식) · **센터 양식 CSV 27필드**(최초 엑셀표 순서)
   · **내부관리 CSV 31필드**(+상태·개인처리상태·SAP전표·리드타임) · **예산 리비전 CSV 8필드**
@@ -76,8 +81,23 @@ python3 tools/build_docs.py      # 정적(GitHub Pages) 재조립
 
 ## 검증
 
-API 통합 188/188 · 브라우저 E2E 82/82 · 정적 Pages E2E 19/19
-(모바일 390px·무인증 공격·XSS·타입 오염·경로 탈출·동시성 12스레드 포함)
+저장소에 있는 것만 적었습니다. 각 명령은 실제로 실행해 아래 결과를 확인했습니다.
+
+| 명령 | 필요 조건 | 결과 | 운영 데이터 |
+|---|---|---|---|
+| `python3 test_api.py` | Flask만 | **248 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
+| `python3 smoke_test.py [URL]` | 기동 중인 서버 | **19 passed / 0 failed** | 읽기 전용 (변경 없음) |
+| `python3 tools/e2e/fuzz.py` | Flask만 | 퍼징 1,302회 → 500 오류 **0건** | 임시 폴더 |
+| `node tools/e2e/e2e.mjs` | Node 18+ · Playwright | **82 passed / 0 failed** | 임시 폴더 |
+| `node tools/e2e/e2e_pages.mjs` | Node 18+ · Playwright | **19 passed / 0 failed** | 해당 없음(정적판) |
+
+Playwright 가 기본 경로에 없으면 `PLAYWRIGHT_PATH=/경로/playwright/index.js` 로 지정합니다.
+브라우저 스크립트는 개발용이며 **사내 서버 배포에는 필요 없습니다** — 서버에서는 `smoke_test.py` 만 쓰세요.
+
+<details><summary>이전 표기</summary>
+
+무인증 공격·XSS·타입 오염·경로 탈출·동시성 12스레드 포함
+</details>
 ```
 python3 test_api.py        # Flask test client
 ```

@@ -35,6 +35,35 @@ def _public_settings(s):
     return {k: v for k, v in s.items() if k not in ("admin_pw",)}
 
 
+_DIFF_LABELS = (("plan_type", "구분"), ("city", "출장도시"), ("org", "기관&업체"),
+                ("purpose", "목적"), ("kind", "출장구분"), ("dep_dt", "출발일"),
+                ("ret_dt", "복귀일"), ("car", "자차"), ("remark", "비고"))
+
+
+def _diff_fields(old, new):
+    """수정 전후 달라진 항목만 요약 — 감사 로그에 '무엇이 바뀌었는지' 남긴다."""
+    out = []
+    for k, label in _DIFF_LABELS:
+        a, b = old.get(k, ""), new.get(k, "")
+        if a != b:
+            out.append(f"{label}: {a or '(없음)'}→{b or '(없음)'}")
+    if old.get("plan_tot") != new.get("plan_tot"):
+        out.append(f"계획액: {old.get('plan_tot', 0):,}→{new.get('plan_tot', 0):,}")
+    on = [p.get("emp_no") for p in old.get("travelers", [])]
+    nn = [p.get("emp_no") for p in new.get("travelers", [])]
+    if on != nn:
+        out.append(f"출장자: {len(on)}명→{len(nn)}명")
+    return " / ".join(out)
+
+
+def _qint(key, default, lo=1, hi=500):
+    """쿼리 파라미터 정수 — 잘못된 값이면 500 대신 기본값. (?n=abc 로 서버가 죽던 것)"""
+    try:
+        return max(lo, min(int(str(request.args.get(key, default)).strip() or default), hi))
+    except (ValueError, TypeError):
+        return default
+
+
 def _body():
     """요청 본문 — 반드시 dict. JSON API라 123·[]·null 같은 본문도 들어오므로 여기서 고정한다."""
     b = request.get_json(silent=True)
@@ -113,23 +142,32 @@ def update_group(gid):
         if cur is None:
             return _err("출장건을 찾을 수 없습니다.", 404)
         # 예산 담당자 영역(이관·완료·보류·취소)은 관리자만 수정 — 정산 금액 사후 변조 차단
-        if C.locked(cur) and not _is_admin(data):
-            return _err("이관·처리 단계의 건은 관리자만 수정할 수 있습니다.", 401)
+        # 실적이 들어간 뒤(=계획 단계를 벗어난 뒤)의 수정은 예산 담당자만.
+        # 계획·확정 단계는 출장자가 자유롭게 고칠 수 있다.
+        if (C.locked(cur) or cur.get("status") not in C.PRE) and not _is_admin(data):
+            return _err("실적이 입력된 건은 예산 담당자 모드에서만 수정할 수 있습니다.", 401)
         # 상태는 현재 값으로 고정 — 상태 전환은 오직 게이트가 있는 /actual·/status 로만.
         # (이 라우트로 status·실적을 밀어넣어 승인 게이트를 우회하고 예산을 움직이는 경로 차단)
         merged = {**cur, **(_body()),
                   "group_id": gid, "status": cur.get("status") or C.ST_PLAN}
-        # 개인 처리 상태도 동일 — 기존 값만 사번 기준으로 이식하고 요청 값은 폐기.
-        old_st = {str(p.get("emp_no")): p.get("status", "") for p in cur.get("travelers", [])}
+        # 개인 처리 상태와 **실적 금액**은 기존 값을 사번 기준으로 이식하고 요청 값은 폐기.
+        # (계획 수정 화면은 계획액만 보내므로, 그대로 두면 이미 입력된 실적이 0 으로 지워진다)
+        old = {str(p.get("emp_no")): p for p in cur.get("travelers", [])}
         for p in _tlist(merged.get("travelers")):
-            p["status"] = old_st.get(str(p.get("emp_no")), "")
+            src = old.get(str(p.get("emp_no")), {})
+            p["status"] = src.get("status", "")
+            for k in C.KEYS:
+                p[f"a_{k}"] = C.num(src.get(f"a_{k}"))
         g = C.normalize_group(merged)
         errors = C.validate_group(g, require_actual=g["status"] in C.WIP)
         if errors:
             return _err(errors)
         g["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        changed = _diff_fields(C.normalize_group(cur), g)
         data["groups"][data["groups"].index(cur)] = g
-        append_audit(data, "출장 수정", gid)
+        append_audit(data, "출장 수정",
+                     f"{gid} {g.get('org','')} — {changed or '변경 없음'}",
+                     actor="admin" if _is_admin(data) else "user")
         save_data(data)
     return jsonify({"ok": True, "group": g})
 
@@ -358,7 +396,7 @@ def center_report():
 @travelbudget.get("/api/audit")
 def audit_log():
     data = load_data()
-    n = min(int(request.args.get("n", 200) or 200), 500)
+    n = _qint("n", 200, lo=1, hi=500)
     return jsonify({"ok": True, "audit": list(reversed(data.get("audit_log", [])))[:n]})
 
 

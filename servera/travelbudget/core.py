@@ -41,7 +41,7 @@ CCG_TEAMS = [
 ]
 CCG_BY_NM = {t["team"]: t["ccg"] for t in CCG_TEAMS}
 
-APP_VERSION = "v9.3"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_VERSION = "v9.4"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-07-27"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -62,10 +62,16 @@ AMT_MAX = 100_000_000
 
 # ── 유틸 ──────────────────────────────────────────────────
 def num(v):
+    """금액 정수화. NaN·Infinity·거대값은 0 — 어떤 입력도 예외를 던지지 않는다."""
     try:
-        return int(round(float(str(v or 0).replace(",", ""))))
+        f = float(str(v or 0).replace(",", ""))
     except (ValueError, TypeError):
         return 0
+    if f != f or f in (float("inf"), float("-inf")):   # NaN·±Infinity
+        return 0
+    if abs(f) > 1e15:                                   # 파이썬 int 는 무한정이라 여기서 끊는다
+        return 0
+    return int(round(f))
 
 
 def won(n):
@@ -401,6 +407,9 @@ def dash(data, yq):
         "noBudget": alloc <= 0 and (done_amt or wip_amt or commit_amt) > 0,
         "nDone": nDone, "nWip": nWip, "nPlan": nPlan, "nConfirm": nConfirm,
         "nCancel": nCancel, "nPeople": nPeople,
+        # 실제 출장 건수(취소 제외, 중복 없음) — CCG행의 건수는 '참여' 기준이라
+        # 두 팀이 함께 간 1건이 양쪽에 잡힌다. 합계에는 반드시 이 값을 쓸 것.
+        "nTrips": nPlan + nConfirm + nWip + nDone,
         "nHold": sum(g["proc"]["hold"] for g in G),
         "byCcg": by_ccg, "todo": todo,
     }
@@ -540,7 +549,10 @@ def make_transfer_mail(g, settings, emps=None):
     ref = (f"<p style='margin:10px 0 0;font-size:12px;color:#64718C'>"
            f"** 참고 : {escape(str(settings.get('reference_url','')))}</p>")
     to = ";".join(p.get("email", "") for p in T if p.get("email"))
+    # to 는 비워 둔다 — 이관 후 비용을 처리할 소재 담당자는 출장·site 마다 다르므로
+    # 수신자 마스터를 두지 않고 담당자가 메일에서 직접 지정한다.
     return {"to": to, "subject": subject, "trip_name": name, "kind": "transfer",
+            "to_hint": "수신자: 직접 지정 (이관 후 비용을 처리할 소재 담당자)",
             "heading": "이관 결재 상신 · 비용 처리 요청 인폼",
             "body_text": "\n".join(L), "body_html": lead + info + table + ref}
 

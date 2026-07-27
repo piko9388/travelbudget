@@ -22,7 +22,34 @@ def _now():
     return datetime.now().isoformat(timespec="seconds")
 
 
+def _settings():
+    """운영 기본 설정 — 실적 인폼 기본 수신자는 운영 담당자 2명(이정훈·김은정)만."""
+    return {
+        "system_name": "소재 국내 출장비 관리",
+        "notice": ("현재 소재 배정 예산 소진 후 센터 예산 사용 중으로, "
+                   "식비 15,000원, 회사 공용 차량 이용 통한 교통비 절감 요청 드립니다"),
+        "notice_sub": "(사용 전/후 센터 검토 시 반려될 수 있음)",
+        "admin_pw": "2071478",
+        "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong.kim@sk.com"],
+        "reference_url": "material.skhynix.com/travelbudget",
+    }
+
+
 def default_data():
+    """신규 설치 기본값 — **빈 원장**. 예시 출장·예산을 만들지 않는다.
+    (첫 화면에 예시가 실데이터처럼 보여 혼동되던 문제. 예시는 data.example.json 에만 둔다)"""
+    return {
+        "schema_version": "2.0",
+        "updated_at": _now(),
+        "settings": _settings(),
+        "budget": [],
+        "groups": [],
+        "audit_log": [],
+    }
+
+
+def example_data():
+    """예시 원장 — data.example.json 생성용. 운영 첫 실행 경로에서는 호출되지 않는다."""
     today = date.today()
     yq = C.year_quarter()
     qm = ((today.month - 1) // 3) * 3 + 1
@@ -95,17 +122,7 @@ def default_data():
     return {
         "schema_version": "2.0",
         "updated_at": _now(),
-        "settings": {
-            "system_name": "소재 국내 출장비 관리",
-            "notice": ("현재 소재 배정 예산 소진 후 센터 예산 사용 중으로, "
-                       "식비 15,000원, 회사 공용 차량 이용 통한 교통비 절감 요청 드립니다"),
-            "notice_sub": "(사용 전/후 센터 검토 시 반려될 수 있음)",
-            "admin_id": "2071478",
-            "admin_pw": "2071478",
-            "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong.kim@sk.com",
-                                "geonyoung.kim@sk.com", "jeewoung.chun@sk.com"],
-            "reference_url": "material.skhynix.com/travelbudget",
-        },
+        "settings": _settings(),
         "budget": budget,
         "groups": [C.normalize_group(g) for g in groups],
         "audit_log": [],
