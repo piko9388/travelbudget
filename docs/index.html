@@ -18,6 +18,8 @@ padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
 cursor:pointer;border-radius:2px;font-size:13.5px;user-select:none}
 .nav a:hover,.nav a.on{background:var(--soft);border-color:#E3E7ED;color:var(--navy);font-weight:700}
 .nav a .lk{font-size:11px;color:var(--faint);margin-left:4px;font-weight:600}
+.nav a.ext{color:var(--navy);font-weight:700;text-decoration:none}
+.nav a.ext::after{content:' ↗';color:var(--faint);font-size:11px}
 .ver{margin-top:auto;padding:0 10px 6px;color:var(--faint);font-size:11.5px;letter-spacing:.02em}
 .contact{padding:14px 10px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--mut);line-height:1.65}
 .contact b{display:block;color:var(--navy);font-size:12px}
@@ -198,6 +200,9 @@ padding:13px 16px;margin-bottom:14px}
     <a data-view="process">이관·처리 관리 <span class="lk">담당자</span></a>
     <a data-view="budget">예산 관리 <span class="lk">담당자</span></a>
     <a data-view="data">데이터 관리</a>
+  </nav>
+  <nav class="nav">
+    <a class="ext" id="guideLink" href="traveler_guide.html" target="_blank" rel="noopener">출장자용 안내 <span class="lk">인쇄·메일</span></a>
   </div>
   <div class="ver" id="appVer"></div>
   <div class="contact"><b>기획 · 개발</b>소재전략 이정훈 TL<br>
@@ -250,7 +255,7 @@ padding:13px 16px;margin-bottom:14px}
     { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
     { team: 'Target 소재팀', ccg: 'C1707' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
-  var APP_VERSION = 'v9.5', APP_BUILD = '2026-07-27';
+  var APP_VERSION = 'v9.6', APP_BUILD = '2026-07-27';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
@@ -1100,13 +1105,13 @@ async function load(){
 }
 function nav(v){
   VIEW = v;
-  $$('.nav a').forEach(a => a.classList.toggle('on', a.dataset.view === v));
+  $$('.nav a[data-view]').forEach(a => a.classList.toggle('on', a.dataset.view === v));
   $$('.view').forEach(x => x.classList.remove('on'));
   $('#v-' + v).classList.add('on');
   $('#pageTitle').textContent = TITLES[v];
   $('#pageSub').textContent = SUBS[v];
 }
-$$('.nav a').forEach(a => {
+$$('.nav a[data-view]').forEach(a => {          // href 를 가진 외부 링크(출장자용 안내)는 제외
   a.tabIndex = 0; a.setAttribute('role', 'link');   // 키보드 탭 이동·엔터 선택
   const go = () => {
     const v = a.dataset.view;
@@ -1310,7 +1315,7 @@ function rGuide(){
     </div>`;
   const lead = `
     <div class="g-lead">
-      <a class="btn sm" href="/travelbudget/guide" target="_blank" rel="noopener"
+      <a class="btn sm" href="traveler_guide.html" target="_blank" rel="noopener"
          style="float:right;margin-left:12px">출장자용 안내 (인쇄·메일용) ↗</a>
       <h2>출장비, 이렇게 흘러갑니다</h2>
       <p>출장자는 <b>계획</b>과 <b>실적</b>만 입력하면 됩니다. 인폼(메일)·이관·정산·이력은 시스템과 <b>소재 출장 예산 담당자</b>가 이어받습니다.

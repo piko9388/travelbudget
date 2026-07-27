@@ -629,6 +629,12 @@ _gd = open('servera/travelbudget/templates/traveler_guide.html', encoding='utf-8
 ok('안내 라우트 /guide 200', c.get('/travelbudget/guide').status_code == 200,
    c.get('/travelbudget/guide').status_code)
 ok('안내가 화면에서 열림(이용 안내에 링크)', '/travelbudget/guide' in _appjs)
+_tpl2 = open('servera/travelbudget/templates/index.html', encoding='utf-8').read()
+ok('좌측 메뉴에도 안내 링크', '/travelbudget/guide' in _tpl2 and 'guideLink' in _tpl2)
+ok('안내 링크는 nav 뷰 전환에서 제외', "$$('.nav a[data-view]')" in _appjs)
+ok('안내는 화이트 고정(다크로 뒤집히지 않음)',
+   'prefers-color-scheme' not in _gd and 'only light' in _gd)
+ok('안내에 data-theme 오버라이드 없음', 'data-theme' not in _gd)
 ok('docs 사본 = 템플릿 원본 (tools/build_docs.py 실행 필요)',
    (not os.path.exists('docs/traveler_guide.html')) or
    open('docs/traveler_guide.html', encoding='utf-8').read() == _gd)

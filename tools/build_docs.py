@@ -39,6 +39,11 @@ app = app.replace('<a class="btn sm" href="${API}/export_budget.csv?yq=${encodeU
                   '<button class="btn sm" onclick="downloadBudgetCsv(YQ)">예산 CSV</button>')
 assert 'export_budget.csv' not in app and 'export.csv' not in app, "정적판에 남은 서버 CSV 링크가 있습니다"
 
+# 정적판에는 Flask 라우트가 없다 — 같은 폴더의 파일로 연결
+tpl = tpl.replace('href="/travelbudget/guide"', 'href="traveler_guide.html"')
+app = app.replace('href="/travelbudget/guide"', 'href="traveler_guide.html"')
+assert '/travelbudget/guide' not in tpl and '/travelbudget/guide' not in app, "정적판에 남은 서버 경로"
+
 marker = '<script src="/travelbudget/static/app.js"></script>'
 assert tpl.count(marker) == 1
 out = tpl.replace(marker, "<script>\n" + backend + "\n</script>\n<script>\n" + app + "\n</script>")

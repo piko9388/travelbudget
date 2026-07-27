@@ -105,13 +105,13 @@ async function load(){
 }
 function nav(v){
   VIEW = v;
-  $$('.nav a').forEach(a => a.classList.toggle('on', a.dataset.view === v));
+  $$('.nav a[data-view]').forEach(a => a.classList.toggle('on', a.dataset.view === v));
   $$('.view').forEach(x => x.classList.remove('on'));
   $('#v-' + v).classList.add('on');
   $('#pageTitle').textContent = TITLES[v];
   $('#pageSub').textContent = SUBS[v];
 }
-$$('.nav a').forEach(a => {
+$$('.nav a[data-view]').forEach(a => {          // href 를 가진 외부 링크(출장자용 안내)는 제외
   a.tabIndex = 0; a.setAttribute('role', 'link');   // 키보드 탭 이동·엔터 선택
   const go = () => {
     const v = a.dataset.view;

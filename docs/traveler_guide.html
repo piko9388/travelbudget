@@ -1,7 +1,8 @@
 <title>출장 가시는 분께 — 소재 국내 출장비 관리 이용 안내</title>
 <style>
 /* 화면(templates/index.html)과 같은 토큰·글꼴을 씁니다 — 안내와 실제 화면이 따로 놀지 않도록.
-   외부 웹폰트를 쓰지 않습니다(사내망 차단 환경 안전). */
+   외부 웹폰트를 쓰지 않습니다(사내망 차단 환경 안전).
+   사내 윈도우 데스크톱 기준으로 **화이트 고정** — 다크 모드로 뒤집히지 않습니다. */
 :root{
   --bg:#F5F6F8; --card:#FFF; --ink:#111827; --ink2:#344054; --mut:#667085; --faint:#626B7D;
   --line:#D9DEE7; --line2:#EDF0F4; --soft:#EEF1F5; --shade:#F0F2F5;
@@ -12,38 +13,7 @@
   --done-bg:#EDF5F1; --done-line:#C4DED2;
   --warn-bg:#FFF8E8; --warn-line:#E8D4B0; --warn-bar:#C79A3A; --warn-ink:#7A5410;
 }
-@media (prefers-color-scheme:dark){
-  :root{
-    --bg:#12161C; --card:#191F27; --ink:#E9EDF3; --ink2:#C3CBD6; --mut:#93A0B0; --faint:#8593A4;
-    --line:#2B3542; --line2:#232C37; --soft:#212A34; --shade:#1E262F;
-    --navy:#9FC0E8; --navy2:#B6D0F0; --blue:#7FB0E8; --red:#F08A93; --green:#66C9A8; --amber:#E0B463;
-    --chip-bg:#212A34; --chip-line:#33404F; --on-navy:#12161C;
-    --confirm-bg:#1B2836; --confirm-line:#31465E;
-    --wip-bg:#2A2317; --wip-line:#4D3F24;
-    --done-bg:#16271F; --done-line:#2A4638;
-    --warn-bg:#2A2317; --warn-line:#4D3F24; --warn-bar:#C79A3A; --warn-ink:#E7C98D;
-  }
-}
-:root[data-theme="dark"]{
-  --bg:#12161C; --card:#191F27; --ink:#E9EDF3; --ink2:#C3CBD6; --mut:#93A0B0; --faint:#8593A4;
-  --line:#2B3542; --line2:#232C37; --soft:#212A34; --shade:#1E262F;
-  --navy:#9FC0E8; --navy2:#B6D0F0; --blue:#7FB0E8; --red:#F08A93; --green:#66C9A8; --amber:#E0B463;
-  --chip-bg:#212A34; --chip-line:#33404F; --on-navy:#12161C;
-  --confirm-bg:#1B2836; --confirm-line:#31465E;
-  --wip-bg:#2A2317; --wip-line:#4D3F24;
-  --done-bg:#16271F; --done-line:#2A4638;
-  --warn-bg:#2A2317; --warn-line:#4D3F24; --warn-bar:#C79A3A; --warn-ink:#E7C98D;
-}
-:root[data-theme="light"]{
-  --bg:#F5F6F8; --card:#FFF; --ink:#111827; --ink2:#344054; --mut:#667085; --faint:#626B7D;
-  --line:#D9DEE7; --line2:#EDF0F4; --soft:#EEF1F5; --shade:#F0F2F5;
-  --navy:#17365D; --navy2:#244C79; --blue:#2563A8; --red:#C23A45; --green:#17725C; --amber:#8A5A10;
-  --chip-bg:#F3F5F8; --chip-line:#D6DCE5;
-  --confirm-bg:#EAF1FB; --confirm-line:#CBDCF0;
-  --wip-bg:#FDF6EC; --wip-line:#E8D4B0;
-  --done-bg:#EDF5F1; --done-line:#C4DED2;
-  --warn-bg:#FFF8E8; --warn-line:#E8D4B0; --warn-bar:#C79A3A; --warn-ink:#7A5410;
-}
+html{color-scheme:only light;background:#F5F6F8}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;letter-spacing:-.01em;
   word-break:keep-all;overflow-wrap:break-word;   /* 한국어는 단어 중간에서 끊지 않는다 */

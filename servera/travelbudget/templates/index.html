@@ -18,6 +18,8 @@ padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
 cursor:pointer;border-radius:2px;font-size:13.5px;user-select:none}
 .nav a:hover,.nav a.on{background:var(--soft);border-color:#E3E7ED;color:var(--navy);font-weight:700}
 .nav a .lk{font-size:11px;color:var(--faint);margin-left:4px;font-weight:600}
+.nav a.ext{color:var(--navy);font-weight:700;text-decoration:none}
+.nav a.ext::after{content:' ↗';color:var(--faint);font-size:11px}
 .ver{margin-top:auto;padding:0 10px 6px;color:var(--faint);font-size:11.5px;letter-spacing:.02em}
 .contact{padding:14px 10px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--mut);line-height:1.65}
 .contact b{display:block;color:var(--navy);font-size:12px}
@@ -198,6 +200,9 @@ padding:13px 16px;margin-bottom:14px}
     <a data-view="process">이관·처리 관리 <span class="lk">담당자</span></a>
     <a data-view="budget">예산 관리 <span class="lk">담당자</span></a>
     <a data-view="data">데이터 관리</a>
+  </nav>
+  <nav class="nav">
+    <a class="ext" id="guideLink" href="/travelbudget/guide" target="_blank" rel="noopener">출장자용 안내 <span class="lk">인쇄·메일</span></a>
   </div>
   <div class="ver" id="appVer"></div>
   <div class="contact"><b>기획 · 개발</b>소재전략 이정훈 TL<br>
