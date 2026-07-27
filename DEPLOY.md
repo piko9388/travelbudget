@@ -1,8 +1,8 @@
-# 사내 Flask 서버 업로드 방법 (v9.6)
+# 사내 Flask 서버 업로드 방법 (v9.7)
 
 ## 0. 준비물
 
-- 패키지 `travelbudget_flask_v9.6.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
+- 패키지 `travelbudget_flask_v9.7.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
 - 사내 서버에 Python 3.8+ 와 Flask 3.x
 
 ```
@@ -16,7 +16,7 @@ pip install -r requirements.txt      # Flask 뿐입니다
 압축을 풀면 이 구조입니다.
 
 ```
-travelbudget_flask_v9.6/
+travelbudget_flask_v9.7/
 └─ servera/
    └─ travelbudget/          ← 이 폴더 하나만 서버로 옮기면 됩니다
       ├─ __init__.py
@@ -83,7 +83,7 @@ Windows 서비스라면 서비스 환경변수에 `TB_DATA_DIR` 을 등록합니
 material.skhynix.com/travelbudget
 ```
 
-좌측 하단에 **v9.6 · 2026-07-27** 이 보이면 이 버전이 올라간 것입니다.
+좌측 하단에 **v9.7 · 2026-07-27** 이 보이면 이 버전이 올라간 것입니다.
 (버전이 안 바뀌었으면 브라우저 캐시 — `Ctrl+F5`)
 
 ---

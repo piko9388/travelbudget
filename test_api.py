@@ -632,6 +632,21 @@ ok('안내가 화면에서 열림(이용 안내에 링크)', '/travelbudget/guid
 _tpl2 = open('servera/travelbudget/templates/index.html', encoding='utf-8').read()
 ok('좌측 메뉴에도 안내 링크', '/travelbudget/guide' in _tpl2 and 'guideLink' in _tpl2)
 ok('안내 링크는 nav 뷰 전환에서 제외', "$$('.nav a[data-view]')" in _appjs)
+# 파일로 직접 열어도 한글이 깨지지 않아야 한다 (서버 charset 헤더에 기대면 안 됨)
+_headhtml = _gd[:400].lower()
+ok('안내에 <!doctype> 선언', _headhtml.lstrip().startswith('<!doctype html'), _gd[:30])
+ok('안내에 <meta charset="utf-8">', 'charset="utf-8"' in _headhtml)
+ok('charset 이 앞쪽 1024바이트 안에', _gd.encode('utf-8').find(b'charset') < 1024)
+ok('안내에 <html lang="ko">', '<html lang="ko"' in _headhtml)
+ok('안내에 viewport', 'viewport' in _headhtml)
+# 배포되는 모든 HTML 이 동일 기준을 지키는지 (같은 실수 재발 방지)
+for _hf in ('servera/travelbudget/templates/index.html',
+            'servera/travelbudget/templates/traveler_guide.html',
+            'docs/index.html', 'docs/traveler_guide.html'):
+    if not os.path.exists(_hf):
+        continue
+    _h = open(_hf, encoding='utf-8').read()[:400].lower()
+    ok(f'{_hf.split("/")[-1]} charset 선언', 'charset' in _h and _h.lstrip().startswith('<!doctype'), _hf)
 ok('안내는 화이트 고정(다크로 뒤집히지 않음)',
    'prefers-color-scheme' not in _gd and 'only light' in _gd)
 ok('안내에 data-theme 오버라이드 없음', 'data-theme' not in _gd)
