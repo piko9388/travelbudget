@@ -718,7 +718,12 @@ function rBudget(){
       <div class="form-grid"><div><label>사유</label><input id="bd_reason"></div></div>
       <div class="btns"><button class="btn pri" onclick="submitBudget()">리비전 반영</button></div>
     </div>
-    <div class="card"><h2>${YQ} 리비전 이력 <span class="sub" style="font-weight:600">${BR.length}/${withRun.length}건 · 누적 ${won(ST.dash.alloc)}원</span></h2>
+    <div class="card">
+      <div class="card-head"><h2>${YQ} 리비전 이력 <span class="sub" style="font-weight:600">${BR.length}/${withRun.length}건 · 누적 ${won(ST.dash.alloc)}원</span></h2>
+        <span class="btns" style="margin:0">
+          <a class="btn" href="${API}/export_budget.csv?yq=${encodeURIComponent(YQ)}">${YQ} 예산 CSV</a>
+          <a class="btn" href="${API}/export_budget.csv">전체 예산 CSV</a>
+        </span></div>
       ${bctl}
       <div class="scroll" style="margin-top:10px"><table>
         <thead><tr><th>REV</th><th class="num">반영일</th><th>유형</th><th class="num">증감액</th>
@@ -754,8 +759,10 @@ async function rData(){
   $('#v-data').innerHTML = `
     <div class="card"><h2>내보내기</h2>
       <div class="btns" style="margin-top:6px">
-        <a class="btn pri" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">${YQ} CSV</a>
-        <a class="btn" href="${API}/export.csv">전체 CSV</a></div></div>
+        <a class="btn pri" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">${YQ} 출장 CSV</a>
+        <a class="btn" href="${API}/export.csv">전체 출장 CSV</a>
+        <a class="btn" href="${API}/export_budget.csv?yq=${encodeURIComponent(YQ)}">${YQ} 예산 CSV</a>
+        <a class="btn" href="${API}/export_budget.csv">전체 예산 CSV</a></div></div>
     <div class="card"><h2>자동 백업 (최근 30개 유지)</h2>
       <p class="cap">저장 직전 자동 백업됩니다. 복원은 관리자 인증이 필요합니다.</p>
       <div class="scroll"><table>
@@ -818,7 +825,8 @@ async function showReport(){
         <tbody>${revs || '<tr><td colspan="4" style="text-align:center;color:var(--faint);padding:14px">없음</td></tr>'}</tbody></table>
     </div>
     <div class="mf"><button class="btn sm pri" id="rptCopy">요약 복사</button>
-      <button class="btn sm" onclick="downloadCsv(YQ)">상세 CSV</button></div>`;
+      <a class="btn sm" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">상세 CSV</a>
+      <a class="btn sm" href="${API}/export_budget.csv?yq=${encodeURIComponent(YQ)}">예산 CSV</a></div>`;
   document.body.appendChild(el);
   $('#rptCopy').onclick = () => copyText(text, '센터 제출용 요약을 복사했습니다');
 }

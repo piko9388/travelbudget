@@ -527,6 +527,26 @@ tr.grp-head:hover td{background:#EEF2F8}
     return '﻿' + lines.join('\r\n') + '\r\n';
   }
 
+  var BUDGET_CSV_HEADERS = ['no.', '분기', 'REV', '반영일', '유형', '증감액', '누적액', '사유'];
+  function makeBudgetCsv(data, yq) {
+    var B = (data.budget || []).filter(function (b) { return !yq || b.yq === yq; });
+    B.sort(function (a, b) {
+      var ka = (a.yq || '') + (a.rev_dt || '') + (a.rev_id || '');
+      var kb = (b.yq || '') + (b.rev_dt || '') + (b.rev_id || '');
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
+    var out = [], run = 0, cur = null;
+    B.forEach(function (b, i) {
+      if (b.yq !== cur) { cur = b.yq; run = 0; }
+      run += num(b.amt);
+      out.push([i + 1, csvSafe(b.yq || ''), csvSafe(b.rev_id || ''), csvSafe(b.rev_dt || ''),
+                csvSafe(b.rev_type || ''), num(b.amt), run, csvSafe(b.reason || '')]);
+    });
+    var lines = [BUDGET_CSV_HEADERS.map(csvCell).join(',')];
+    out.forEach(function (r) { lines.push(r.map(csvCell).join(',')); });
+    return '\ufeff' + lines.join('\r\n') + '\r\n';
+  }
+
   // ── 시드 (store.py default_data와 동일) ──
   function seedData() {
     var t = today(), yq = yearQuarter(), qm = Math.floor(t.getMonth() / 3) * 3;
@@ -828,6 +848,7 @@ tr.grp-head:hover td{background:#EEF2F8}
   var API = {
     localApi: localApi, Store: Store, makeCsv: makeCsv,
     // 테스트/재사용용 내부 함수
+    makeBudgetCsv: makeBudgetCsv,
     _: { num: num, won: won, tripDays: tripDays, quarter: quarter, yearQuarter: yearQuarter, yqList: yqList,
       normalizeGroup: normalizeGroup, validateGroup: validateGroup, validateBudget: validateBudget,
       dash: dash, makeMail: makeMail, seedData: seedData, CCG_TEAMS: CCG_TEAMS, CSV_HEADERS: CSV_HEADERS,
@@ -835,6 +856,14 @@ tr.grp-head:hover td{background:#EEF2F8}
   };
   root.__localApi = localApi;
   root.__tbStore = Store;
+  root.downloadBudgetCsv = function (yq) {
+    var text = makeBudgetCsv(Store.load(), yq || null);
+    var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = '예산리비전_' + (yq || '전체') + '_' + todayISO().replace(/-/g, '') + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  };
   root.downloadCsv = function (yq) {
     var text = makeCsv(Store.load(), yq || null);
     var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
@@ -1566,7 +1595,12 @@ function rBudget(){
       <div class="form-grid"><div><label>사유</label><input id="bd_reason"></div></div>
       <div class="btns"><button class="btn pri" onclick="submitBudget()">리비전 반영</button></div>
     </div>
-    <div class="card"><h2>${YQ} 리비전 이력 <span class="sub" style="font-weight:600">${BR.length}/${withRun.length}건 · 누적 ${won(ST.dash.alloc)}원</span></h2>
+    <div class="card">
+      <div class="card-head"><h2>${YQ} 리비전 이력 <span class="sub" style="font-weight:600">${BR.length}/${withRun.length}건 · 누적 ${won(ST.dash.alloc)}원</span></h2>
+        <span class="btns" style="margin:0">
+          <button class="btn" onclick="downloadBudgetCsv(YQ)">${YQ} 예산 CSV</button>
+          <button class="btn" onclick="downloadBudgetCsv(null)">전체 예산 CSV</button>
+        </span></div>
       ${bctl}
       <div class="scroll" style="margin-top:10px"><table>
         <thead><tr><th>REV</th><th class="num">반영일</th><th>유형</th><th class="num">증감액</th>
@@ -1602,8 +1636,10 @@ async function rData(){
   $('#v-data').innerHTML = `
     <div class="card"><h2>내보내기</h2>
       <div class="btns" style="margin-top:6px">
-        <button class="btn pri" onclick="downloadCsv(YQ)">${YQ} CSV</button>
-        <button class="btn" onclick="downloadCsv(null)">전체 CSV</button></div></div>
+        <button class="btn pri" onclick="downloadCsv(YQ)">${YQ} 출장 CSV</button>
+        <button class="btn" onclick="downloadCsv(null)">전체 출장 CSV</button>
+        <button class="btn" onclick="downloadBudgetCsv(YQ)">${YQ} 예산 CSV</button>
+        <button class="btn" onclick="downloadBudgetCsv(null)">전체 예산 CSV</button></div></div>
     <div class="card"><h2>자동 백업 (최근 30개 유지)</h2>
       <p class="cap">저장 직전 자동 백업됩니다. 복원은 관리자 인증이 필요합니다.</p>
       <div class="scroll"><table>
@@ -1665,7 +1701,8 @@ async function showReport(){
         <tbody>${revs || '<tr><td colspan="4" style="text-align:center;color:var(--faint);padding:14px">없음</td></tr>'}</tbody></table>
     </div>
     <div class="mf"><button class="btn sm pri" id="rptCopy">요약 복사</button>
-      <button class="btn sm" onclick="downloadCsv(YQ)">상세 CSV</button></div>`;
+      <button class="btn sm" onclick="downloadCsv(YQ)">상세 CSV</button>
+      <button class="btn sm" onclick="downloadBudgetCsv(YQ)">예산 CSV</button></div>`;
   document.body.appendChild(el);
   $('#rptCopy').onclick = () => copyText(text, '센터 제출용 요약을 복사했습니다');
 }

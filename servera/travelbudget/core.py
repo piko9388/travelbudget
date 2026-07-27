@@ -510,6 +510,28 @@ def _csv_safe(v):
     return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
 
 
+BUDGET_CSV_HEADERS = ["no.", "분기", "REV", "반영일", "유형", "증감액", "누적액", "사유"]
+
+
+def make_budget_csv(data, yq=None):
+    """예산 리비전 내역 CSV — 분기별 누적액 포함(분기가 바뀌면 누적 재시작)."""
+    B = [b for b in data.get("budget", []) if not yq or b.get("yq") == yq]
+    B.sort(key=lambda b: ((b.get("yq") or ""), (b.get("rev_dt") or ""), (b.get("rev_id") or "")))
+    out, run, cur = [], 0, None
+    for i, b in enumerate(B, 1):
+        if b.get("yq") != cur:
+            cur, run = b.get("yq"), 0
+        run += num(b.get("amt"))
+        out.append([i, _csv_safe(b.get("yq", "")), _csv_safe(b.get("rev_id", "")),
+                    _csv_safe(b.get("rev_dt", "")), _csv_safe(b.get("rev_type", "")),
+                    num(b.get("amt")), run, _csv_safe(b.get("reason", ""))])
+    buf = io.StringIO()
+    w = csv.writer(buf, lineterminator="\r\n")
+    w.writerow(BUDGET_CSV_HEADERS)
+    w.writerows(out)
+    return "﻿" + buf.getvalue()
+
+
 def make_csv(data, yq=None):
     out, no = [], 1
     for raw in sorted(data.get("groups", []), key=lambda g: g.get("dep_dt", "")):

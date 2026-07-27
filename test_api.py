@@ -319,5 +319,25 @@ ok('CSV 헤더 latin-1 안전', all(ord(ch)<256 for ch in cd), cd[:60])
 r = c.post('/travelbudget/api/groups', json=dict(base, kind='=cmd|calc', car='=1+1'))
 ok('kind/car 열거값 차단', r.status_code==400, r.status_code)
 
+print('\n=== 14. 예산 CSV 추출 ===')
+r = c.get(f'/travelbudget/api/export_budget.csv?yq={yq}')
+ok('예산 CSV 200', r.status_code==200, r.status_code)
+btxt = r.get_data(as_text=True)
+blines = [l for l in btxt.strip().split('\r\n') if l]
+ok('예산 CSV 헤더 8필드', blines[0].count(',')==7, blines[0])
+ok('예산 CSV BOM', btxt.startswith('﻿'))
+ok('예산 CSV 데이터 존재', len(blines) > 1, len(blines))
+ok('예산 CSV 헤더 latin-1 안전',
+   all(ord(ch)<256 for ch in r.headers.get('Content-Disposition','')), r.headers.get('Content-Disposition','')[:50])
+# 누적액이 분기 내에서 순차 누적되는가
+c.post('/travelbudget/api/budget', json={'yq':yq,'rev_type':'추가증액','amt':300000,'reason':'CSV누적검증','rev_dt':f'{yy}-{mm}-28'}, headers=ADM)
+rows = [l.split(',') for l in [x for x in c.get(f'/travelbudget/api/export_budget.csv?yq={yq}').get_data(as_text=True).strip().split('\r\n') if x][1:]]
+run_ok = all(int(rows[i][6]) == sum(int(r2[5]) for r2 in rows[:i+1]) for i in range(len(rows)))
+ok('예산 CSV 누적액 정확', run_ok, [(r2[4], r2[5], r2[6]) for r2 in rows])
+# 전체 분기 + 수식 인젝션 방어
+c.post('/travelbudget/api/budget', json={'yq':yq,'rev_type':'감액','amt':100000,'reason':'=cmd|calc','rev_dt':f'{yy}-{mm}-29'}, headers=ADM)
+allb = c.get('/travelbudget/api/export_budget.csv').get_data(as_text=True)
+ok('예산 CSV 수식 인젝션 방어', "'=cmd" in allb, [l for l in allb.split('\r\n') if 'cmd' in l][:1])
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

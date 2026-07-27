@@ -382,6 +382,17 @@ def export_csv():
                              f"filename*=UTF-8''{quote(fn, safe='')}"})
 
 
+@travelbudget.get("/api/export_budget.csv")
+def export_budget_csv():
+    yq = request.args.get("yq") or None
+    content = C.make_budget_csv(load_data(), yq)
+    fn = f"예산리비전_{yq or '전체'}_{datetime.now().strftime('%Y%m%d')}.csv"
+    return Response(content, mimetype="text/csv; charset=utf-8",
+                    headers={"Content-Disposition":
+                             "attachment; filename=budget_revisions.csv; "
+                             f"filename*=UTF-8''{quote(fn, safe='')}"})
+
+
 @travelbudget.get("/api/backups")
 def backups():
     return jsonify({"ok": True, "backups": list_backups()})
