@@ -144,7 +144,7 @@ ok('관리자 복원', r.status_code==200)
 
 print('\n=== 8. 감사로그 ===')
 import json as J
-al = J.load(open('servera/travelbudget/data_json/data.json'))['audit_log']
+al = J.load(open(_store.DATA_FILE, encoding='utf-8'))['audit_log']
 ok('감사로그 기록', len(al) >= 5, len(al))
 ok('actor 기록', any(a.get('actor')=='admin' for a in al))
 
@@ -240,7 +240,7 @@ ok('개인 상태 분리 저장', effs['F1']=='처리 완료' and effs['F4']=='�
 ok('그룹 롤업 = 처리중(전부완료 아님)', fgn['roll']=='실적 입력·인폼', fgn['roll'])
 ok('proc 집계 완료3·이관1·보류1', fgn['proc']['done']==3 and fgn['proc']['transfer']==1 and fgn['proc']['hold']==1, fgn['proc'])
 # 예산 반영: 완료 3명(30만)=done, 이관·보류 2명(20만)=wip
-gc = _C.dash(J.load(open('servera/travelbudget/data_json/data.json')), yq) if False else None
+gc = _C.dash(J.load(open(_store.DATA_FILE, encoding='utf-8')), yq) if False else None
 # state의 dash로 확인
 dsh = stt['dash']
 # 이 그룹 기여분만 별도 계산: 완료 300000, 처리중 200000 은 전체 done/wip에 포함
