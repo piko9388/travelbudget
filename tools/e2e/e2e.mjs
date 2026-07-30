@@ -255,7 +255,7 @@ try {
 
   // 5e. 잠정/확정 구분 + 예산 선확보 + 흔적 없는 삭제
   await page.click('.nav a[data-view="dash"]');
-  await page.waitForSelector('#v-dash .hero .stack');
+  await page.waitForSelector('#v-dash .hero > .stack');
   const commitBefore = await page.evaluate(() => ST.dash.commit);
   ok('시드 확정예정 예산 확보 표시', commitBefore > 0, commitBefore);
   // 잠정 계획 생성 (확정 체크 안 함)
@@ -589,7 +589,10 @@ try {
   const planSent = await page.evaluate(() =>
     [...document.querySelectorAll('#v-dash')].map(x => x.textContent)
       .join('').split('예산에 반영되지 않').length - 1);
-  ok('“예산 미반영” 문장 중복 없음', planSent === 1, planSent);
+  // 잠정이 0이면 문장 자체가 안 나오는 게 맞다(0원짜리 안내문 금지). 나올 때는 딱 한 번만.
+  const planAmt = await page.evaluate(() => ST.dash.planAmt);
+  ok('“예산 미반영” 문장 중복 없음', planAmt > 0 ? planSent === 1 : planSent === 0,
+     { planAmt, planSent });
 
   // 비목 구성 — CCG(누가) 다음 축(무엇에). 합계는 위 막대와 같아야 한다
   const cost = await page.evaluate(() => {
@@ -941,6 +944,143 @@ try {
      { '완료|처리중': +chain.a.toFixed(2), '처리중|확정': +chain.b.toFixed(2), '확정|가용': +chain.c.toFixed(2) });
   ok('가장 헷갈리는 쌍(처리중|확정)이 제일 넓음', chain.b > chain.a,
      { '처리중|확정': +chain.b.toFixed(2), '완료|처리중': +chain.a.toFixed(2) });
+
+  /* ── 23. v10.4 — 조용히 틀리는 값 · 막다른 길 · 거짓 표시 ── */
+  console.log('\n-- 23. 조용한 오류 · 막다른 길 --');
+
+  // 표 안 Enter 로 제출되면 안 된다 (덜 채운 계획 등록 / 실적 저장 + 인폼 메일 발행)
+  await page.evaluate(() => nav('plan'));
+  await page.waitForSelector('#travBody tr');
+  const s23Cnt = await page.evaluate(() => ST.groups.length);
+  await page.fill('#travBody tr:nth-child(1) .t-nm', '엔터테스트');
+  await page.press('#travBody tr:nth-child(1) .t-nm', 'Enter');
+  await sleep(600);
+  ok('출장자 표 Enter 로 제출되지 않음',
+     (await page.evaluate(() => ST.groups.length)) === s23Cnt, { s23Cnt });
+  ok('표 바깥 입력칸은 그대로', await page.isVisible('#pl_city'));
+
+  // 일괄 등록 — 조용히 틀리는 두 가지
+  await page.evaluate(() => nav('bulk'));
+  await page.waitForSelector('#bkText');
+  const bulkChk = await page.evaluate(() => {
+    // (1) '목적' 머리글 별칭이 자기 자신으로 매핑돼 그 열이 통째로 무시되던 문제
+    const head = '출장도시\t출장기관&업체\tCCG명\t성명\t사번\t목적\t출발일자';
+    const row = '청주\t원익머트리얼즈\tGas 소재팀\t김테스트\tT001\tNF3 정기 점검\t2026-08-10';
+    const r1 = bParse(head + '\n' + row);
+    // (2) 빈 출장구분이 '정기 Audit' 으로 채워져 센터 CSV 에 그럴듯한 거짓이 나가던 문제
+    const kind = bKind('');
+    // (3) 머리글 없이 일부 열만 붙이면 27필드 순서로 오해 → 멈추고 머리글을 요청해야 한다
+    const r3 = bParse('청주\t원익\t2026-08-10\t김철수');
+    return {
+      purpose: r1.groups[0]?.purpose || '',
+      purposeErr: r1.errs.join(' '),
+      kind,
+      partialStopped: r3.groups.length === 0 && /머리글/.test(r3.errs.join(' ')),
+      partialErr: r3.errs[0] || '',
+    };
+  });
+  ok("일괄 '목적' 머리글이 목적으로 들어감", bulkChk.purpose === 'NF3 정기 점검', bulkChk);
+  ok('빈 출장구분은 기타 (정기 Audit 아님)', bulkChk.kind === '기타', bulkChk.kind);
+  ok('머리글 없는 일부 열은 멈추고 안내', bulkChk.partialStopped, bulkChk.partialErr);
+
+  // 예산 미배정 분기가 초록 '정상'으로 보이면 안 된다
+  const unset = await page.evaluate(() => {
+    const real = ST.dash.alloc;
+    ST.dash.alloc = 0; ST.dash.planAmt = 0; ST.dash.nPlan = 0;
+    rDash(); nav('dash');
+    const h = document.querySelector('#v-dash .hero');
+    const r = { cls: h.className, msg: h.querySelector('.msg').textContent.trim(),
+                lamp: getComputedStyle(h.querySelector('.lamp')).backgroundColor,
+                zeroNote: /잠정 계획 0원/.test(h.textContent),
+                cta: !!h.querySelector('button') };
+    ST.dash.alloc = real; rDash(); nav('dash');
+    return r;
+  });
+  ok('예산 미배정은 중립 상태', unset.cls.includes('unset') && !unset.msg.includes('정상'), unset);
+  ok('예산 미배정에 초록 램프 없음', !/rgb\(22,\s*111,\s*89\)/.test(unset.lamp), unset.lamp);
+  ok('0원짜리 안내문 없음', !unset.zeroNote, unset);
+  ok('예산 배정으로 가는 버튼 제공', unset.cta, unset);
+
+  // 목록 빈 화면 — 필터 탓으로 돌리지 않는다
+  await page.evaluate(() => { nav('list'); LQ.q = 'ZZZ존재하지않는검색어'; renderListBody(); });
+  await sleep(200);
+  const emptyFiltered = await page.textContent('#listBody .empty');
+  ok('필터로 비면 필터 해제 안내', /필터 해제|조건에 맞는/.test(emptyFiltered), emptyFiltered.slice(0, 40));
+  ok('필터로 비면 해제 버튼 제공', await page.isVisible('#listBody .empty button'));
+  await page.evaluate(() => { LQ.q = ''; renderListBody(); });
+
+  // 정렬 화살표는 실제로 뒤집히는 열에만
+  const arrows = await page.evaluate(() => {
+    const read = () => [...document.querySelectorAll('#v-list .sic')]
+      .map(e => ({ k: e.dataset.k, t: e.textContent.trim() })).filter(x => x.t);
+    LQ.group = true; LQ.sort = 'stage'; renderListBody();
+    const grouped = read();
+    LQ.group = false; renderListBody();
+    const flat = read();
+    LQ.group = true; renderListBody();
+    return { grouped, flat };
+  });
+  ok('묶기 중 ▲▼ 가 상태 열에 붙지 않음',
+     !arrows.grouped.some(x => x.k === 'stage' && /[▲▼]/.test(x.t)), arrows.grouped);
+  ok('묶기 중 화살표는 기간 열에',
+     arrows.grouped.some(x => x.k === 'date' && /[▲▼]/.test(x.t)), arrows.grouped);
+
+  // 검색 안내문구가 없는 기능을 약속하면 안 된다
+  ok('검색 placeholder 에 전표번호 없음',
+     !(await page.getAttribute('#listFilter', 'placeholder')).includes('전표번호'));
+
+  // 필터 행 체크박스가 200px 로 늘어나면 라벨과 떨어져 클릭 판정이 이상해진다
+  const cbw = await page.evaluate(() => {
+    const cb = document.querySelector('#v-list .filter-row input[type=checkbox]');
+    return cb ? Math.round(cb.getBoundingClientRect().width) : null;
+  });
+  ok('묶기 체크박스가 늘어나지 않음', cbw != null && cbw <= 32, cbw);
+
+  // 처리 관리 — 남은 일이 위로, 완료는 아래
+  await page.evaluate(() => { sessionStorage.setItem('tb_pw', '2071478'); nav('process'); });
+  await page.waitForSelector('#v-process .pgroup, #v-process .note');
+  const porder = await page.evaluate(() => [...document.querySelectorAll('#v-process .pgroup')]
+    .map(b => b.querySelector('.status').textContent.trim()));
+  const doneFirst = porder.findIndex(x => x === '처리 완료');
+  ok('처리 완료가 맨 아래로', doneFirst === -1 || porder.slice(doneFirst).every(x => x === '처리 완료'), porder);
+
+  // CCG 금액 열이 실제로 세로로 맞는가 ('%' 가 가변폭이라 금액 끝이 밀리던 문제)
+  await page.evaluate(() => nav('dash'));
+  await page.waitForSelector('#v-dash .card > .bars .brow');
+  const alignPx = await page.evaluate(() => {
+    const xs = [...document.querySelectorAll('#v-dash .card > .bars .bval')].map(v => {
+      const sub = v.querySelector('.sub');
+      return sub ? Math.round(sub.getBoundingClientRect().left) : null;
+    }).filter(x => x != null);
+    return xs.length ? Math.max(...xs) - Math.min(...xs) : 0;
+  });
+  ok('금액 끝이 세로로 맞음 (구성비 고정폭)', alignPx <= 1, alignPx);
+
+  // 인폼 카드(position:fixed)가 화면 아래 버튼을 영구히 덮으면 안 된다
+  const cover = await page.evaluate(async () => {
+    const g = ST.groups.find(x => x.act_tot > 0);
+    if (!g) return null;
+    await reopenMail(g.group_id);
+    await new Promise(r => setTimeout(r, 400));
+    const card = document.getElementById('mailCard');
+    if (!card) return null;
+    const pad = parseFloat(getComputedStyle(document.querySelector('main')).paddingBottom);
+    const h = card.getBoundingClientRect().height;
+    const open = document.body.classList.contains('mailopen');
+    card.remove(); mailPad();
+    const padAfter = parseFloat(getComputedStyle(document.querySelector('main')).paddingBottom);
+    return { pad, h, open, padAfter };
+  });
+  if (cover) {
+    ok('인폼 카드 열리면 본문 아래 여유 확보', cover.open && cover.pad >= cover.h, cover);
+    ok('카드 닫으면 여유 원복', cover.padAfter < cover.pad, cover);
+  }
+
+  // 취소 확인 문구가 없는 복구 경로를 약속하면 안 된다
+  const appSrc = await page.evaluate(() => fetch('/travelbudget/static/app.js').then(r => r.text()));
+  ok('취소 안내가 거짓 복구 경로를 말하지 않음',
+     !/되돌리려면 예산 담당자 모드가 필요/.test(appSrc));
+  ok('취소 안내가 실제 복구 경로(백업 복원)를 안내', /백업 복원/.test(appSrc));
 
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));

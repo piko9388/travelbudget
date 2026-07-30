@@ -58,6 +58,8 @@ cursor:pointer;border-radius:2px;font-size:13px;user-select:none}
 .contact b{display:block;color:var(--navy);font-size:12px}
 .contact a{color:var(--navy);text-decoration:none}
 main{width:100%;max-width:1560px;padding:24px 24px 48px}
+/* 인폼 카드(position:fixed)가 덮는 만큼 본문 아래에 여유 — 없으면 맨 아래 버튼에 손이 닿지 않는다 */
+body.mailopen main{padding-bottom:var(--mailh,48px)}
 .top{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 .top h1{margin:0;color:var(--navy);font-size:20px}
 .top .sub{color:var(--mut);font-size:12px}
@@ -73,6 +75,11 @@ padding:16px;margin-bottom:16px;border-radius:2px}
 .hero{background:var(--white);border:1px solid var(--line);border-radius:2px;
 padding:24px 24px;margin-bottom:16px}
 .hero.alert{background:#FFFAFB;border-color:#E6B7BD}
+/* 예산 미배정 — 좋다/나쁘다가 아니라 '아직 없음'. 신호색을 쓰지 않는다 */
+.hero.unset{background:var(--soft);border-color:var(--line)}
+.hero.unset .lamp{background:var(--mut)}
+.hero.unset .amount{color:var(--mut)}
+.hero.unset .msg{color:var(--ink2);font-weight:600}
 .hmain{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap}
 .hero .label{color:var(--mut);font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px}
 .hero .label .sub{color:var(--mut);font-weight:500}
@@ -191,6 +198,8 @@ gap:12px;padding:8px 12px;border-bottom:1px solid var(--line2)}
 .bbar i.sc,.lgd i.sc{background:var(--s3)}
 .bbar i+i{box-shadow:-2px 0 0 #FFF}
 .bval{text-align:right;font-size:12px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums}
+/* 구성비를 고정폭 칸에 넣어야 금액 끝이 세로로 맞는다 (안 그러면 8% 행과 34% 행이 어긋난다) */
+.bval .sub{display:inline-block;width:32px;text-align:right}
 .lgd{display:flex;gap:12px;font-size:11px;color:var(--mut);font-weight:600;flex-wrap:wrap}
 .lgd span{display:flex;align-items:center;gap:4px}
 .lgd i{width:10px;height:10px;border-radius:2px;display:block}
@@ -258,6 +267,7 @@ padding:8px 16px;z-index:200;font-size:12px;font-weight:600;border-radius:2px}
 .filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
 .filter-row input,.filter-row select{width:auto;min-width:170px}
 .filter-row input{flex:1;min-width:200px}
+.filter-row input[type=checkbox]{flex:0 0 auto;min-width:0;width:auto}   /* 체크박스까지 200px 로 늘던 것 */
 tr.grp-head td{background:#EEF2F8;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
 padding:8px 8px;color:var(--navy)}
 tr.grp-head:hover td{background:#EEF2F8}
@@ -266,7 +276,7 @@ th.sortable:hover{background:#E8EDF5;color:var(--navy)}
 th .sic{color:var(--s2);font-size:11px}
 tr.filt th{background:#FAFBFC;padding:4px 4px;border-bottom:1px solid var(--line)}
 .colf{width:100%;min-width:74px;padding:4px 8px;font-size:12px;border:1px solid #DCE1E9;border-radius:2px}
-.colf::placeholder{color:#B6BECB;font-size:11px}
+.colf::placeholder{color:var(--mut);font-size:11px;opacity:1}   /* 1.87:1 → 5.67:1 */
 @media(max-width:980px){.filter-row input,.filter-row select,.filter-row .btn{width:100%;min-width:0}}
 /* 대시보드 안내 문구 */
 .notice{background:#FFF8E8;border:1px solid #E8D4B0;border-left:4px solid #C79A3A;border-radius:2px;

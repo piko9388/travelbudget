@@ -721,6 +721,27 @@ for _hf in ('servera/travelbudget/templates/index.html',
     ok(f'{_hf.split("/")[-1]} Pretendard 미사용(주석 제외)',
        not any('Pretendard' in l for l in _decl), [l for l in _decl if 'Pretendard' in l])
 
+# 화면 부제의 공식이 hero·이용 안내와 같아야 한다 (nav 를 첫 로드에 부르며 드러난 불일치)
+_appjs3 = open('servera/travelbudget/static/app.js', encoding='utf-8').read()
+_FORMULA = '가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정'
+ok('대시보드 부제 공식 = 실제 공식', f"dash:'{_FORMULA}'" in _appjs3)
+ok('낡은 공식(확정 예정 누락) 잔존 없음', "'잔여 = 총 예산 − 처리 완료 − 처리 중'" not in _appjs3)
+
+# 없는 기능을 안내문구로 약속하면 안 된다 (검색 대상에 없는 전표번호)
+ok('검색 안내에 전표번호 없음', '전표번호)' not in _appjs3)
+
+# 일괄 등록 — 조용히 틀리는 기본값·별칭
+ok("'목적' 별칭이 purpose 로 매핑", "'목적':'purpose'" in _appjs3)
+ok('빈 출장구분 기본값이 정기 Audit 아님',
+   "if (!q) return '기타';" in _appjs3 and 'ST.meta.kinds[2]' not in _appjs3)
+
+# 부팅 실패 시 셸(사이드바·연락처)을 지우지 않는다
+ok('부팅 실패에 body 통째 교체 없음', 'document.body.innerHTML =' not in _appjs3)
+ok('부팅 실패 안내에 복구 경로', '백업' in _appjs3 and '재기동' in _appjs3)
+
+# 표 안 Enter 제출 차단
+ok('Enter 제출에서 출장자 표 제외', ".closest('.trav-table')" in _appjs3)
+
 # 여백 척도 — 4·8·12·16·24 다섯 단계만. (1·2px 은 선·미세보정, 48px 은 본문 하단 여유)
 # 값이 늘어나면 "여기는 왜 14px 이지" 를 매번 판단해야 하고 화면마다 리듬이 어긋난다.
 import re as _re

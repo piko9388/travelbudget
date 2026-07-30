@@ -58,6 +58,8 @@ cursor:pointer;border-radius:2px;font-size:13px;user-select:none}
 .contact b{display:block;color:var(--navy);font-size:12px}
 .contact a{color:var(--navy);text-decoration:none}
 main{width:100%;max-width:1560px;padding:24px 24px 48px}
+/* 인폼 카드(position:fixed)가 덮는 만큼 본문 아래에 여유 — 없으면 맨 아래 버튼에 손이 닿지 않는다 */
+body.mailopen main{padding-bottom:var(--mailh,48px)}
 .top{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 .top h1{margin:0;color:var(--navy);font-size:20px}
 .top .sub{color:var(--mut);font-size:12px}
@@ -73,6 +75,11 @@ padding:16px;margin-bottom:16px;border-radius:2px}
 .hero{background:var(--white);border:1px solid var(--line);border-radius:2px;
 padding:24px 24px;margin-bottom:16px}
 .hero.alert{background:#FFFAFB;border-color:#E6B7BD}
+/* 예산 미배정 — 좋다/나쁘다가 아니라 '아직 없음'. 신호색을 쓰지 않는다 */
+.hero.unset{background:var(--soft);border-color:var(--line)}
+.hero.unset .lamp{background:var(--mut)}
+.hero.unset .amount{color:var(--mut)}
+.hero.unset .msg{color:var(--ink2);font-weight:600}
 .hmain{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap}
 .hero .label{color:var(--mut);font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px}
 .hero .label .sub{color:var(--mut);font-weight:500}
@@ -191,6 +198,8 @@ gap:12px;padding:8px 12px;border-bottom:1px solid var(--line2)}
 .bbar i.sc,.lgd i.sc{background:var(--s3)}
 .bbar i+i{box-shadow:-2px 0 0 #FFF}
 .bval{text-align:right;font-size:12px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums}
+/* 구성비를 고정폭 칸에 넣어야 금액 끝이 세로로 맞는다 (안 그러면 8% 행과 34% 행이 어긋난다) */
+.bval .sub{display:inline-block;width:32px;text-align:right}
 .lgd{display:flex;gap:12px;font-size:11px;color:var(--mut);font-weight:600;flex-wrap:wrap}
 .lgd span{display:flex;align-items:center;gap:4px}
 .lgd i{width:10px;height:10px;border-radius:2px;display:block}
@@ -258,6 +267,7 @@ padding:8px 16px;z-index:200;font-size:12px;font-weight:600;border-radius:2px}
 .filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
 .filter-row input,.filter-row select{width:auto;min-width:170px}
 .filter-row input{flex:1;min-width:200px}
+.filter-row input[type=checkbox]{flex:0 0 auto;min-width:0;width:auto}   /* 체크박스까지 200px 로 늘던 것 */
 tr.grp-head td{background:#EEF2F8;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
 padding:8px 8px;color:var(--navy)}
 tr.grp-head:hover td{background:#EEF2F8}
@@ -266,7 +276,7 @@ th.sortable:hover{background:#E8EDF5;color:var(--navy)}
 th .sic{color:var(--s2);font-size:11px}
 tr.filt th{background:#FAFBFC;padding:4px 4px;border-bottom:1px solid var(--line)}
 .colf{width:100%;min-width:74px;padding:4px 8px;font-size:12px;border:1px solid #DCE1E9;border-radius:2px}
-.colf::placeholder{color:#B6BECB;font-size:11px}
+.colf::placeholder{color:var(--mut);font-size:11px;opacity:1}   /* 1.87:1 → 5.67:1 */
 @media(max-width:980px){.filter-row input,.filter-row select,.filter-row .btn{width:100%;min-width:0}}
 /* 대시보드 안내 문구 */
 .notice{background:#FFF8E8;border:1px solid #E8D4B0;border-left:4px solid #C79A3A;border-radius:2px;
@@ -385,7 +395,7 @@ padding:12px 16px;margin-bottom:16px}
     { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
     { team: 'Target 소재팀', ccg: 'C1707' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
-  var APP_VERSION = 'v10.3', APP_BUILD = '2026-07-30';
+  var APP_VERSION = 'v10.4', APP_BUILD = '2026-07-30';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
@@ -1178,7 +1188,7 @@ const TITLES = {guide:'이용 안내', dash:'대시보드', plan:'출장 계획 
   list:'출장 내역', process:'이관·처리 관리', budget:'예산 관리', data:'데이터 관리',
   bulk:'엑셀 일괄 등록'};
 const SUBS = {guide:'계획 작성부터 처리 완료까지 — 한눈에 보는 처리 흐름',
-  dash:'잔여 = 총 예산 − 처리 완료 − 처리 중', plan:'동행 출장은 출장자 행을 추가해 한 번에 등록',
+  dash:'가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정', plan:'동행 출장은 출장자 행을 추가해 한 번에 등록',
   actual:'실적 저장 시 실비 이관 인폼이 자동 생성됩니다', list:'분기 전체 출장 이력',
   process:'실적 입력·인폼 → 소재 이관 → 처리 완료', budget:'예산 리비전 등록·이력 (감액은 자동 음수 처리)',
   data:'CSV 내보내기 · 자동 백업(30개) · 복원',
@@ -1230,6 +1240,9 @@ function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); 
 function procTag(g){   // 부분 처리(개인별 상태 분리) 표시 — 섞여 있을 때만
   const p = g.proc;
   if (!p || ['계획 등록', '확정 예정', '취소'].includes(g.status) || p.done === p.total) return '';
+  // 상태가 한 종류뿐이면 같은 행 첫 칸 배지가 이미 그 말을 한다 — 보류가 있을 때만 예외로 노출
+  const buckets = [p.done, p.transfer, p.inform].filter(n => n > 0).length;
+  if (!p.hold && buckets <= 1) return '';
   const bits = [];
   if (p.done) bits.push(`완료 ${p.done}`);
   if (p.transfer) bits.push(`이관 ${p.transfer}`);
@@ -1255,6 +1268,7 @@ async function load(){
     YQ = e.target.value; load();
   };
   renderAll();
+  nav(VIEW);          // 제목·부제·aria-current 를 첫 화면부터 맞춘다 (안 그러면 첫 클릭에 헤더가 밀린다)
 }
 function nav(v){
   VIEW = v;
@@ -1283,7 +1297,9 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' || e.isComposing || e.shiftKey || e.ctrlKey || e.metaKey) return;
   const el = e.target;
   if (!el || !el.matches || !el.matches('input:not([type=checkbox]):not([readonly])')) return;
-  if (el.closest('#adminModal') || el.closest('.filter-row')) return;   // 모달·검색칸 제외
+  // 표 안에서는 Enter 로 제출하지 않는다 — 칸이 여러 개라 '지금까지 친 것'이 '다 친 것'이 아니다.
+  // (표 바깥 단일 입력칸의 Enter 제출은 그대로 둔다)
+  if (el.closest('#adminModal') || el.closest('.filter-row') || el.closest('.trav-table')) return;
   const fn = el.closest('#v-plan') ? submitPlan : el.closest('#v-actual') && ACT_GID ? submitActual : null;
   if (fn) { e.preventDefault(); fn(); }
 });
@@ -1555,15 +1571,17 @@ function rDash(){
   ].filter(x => x.v > 0);
   const segTot = segs.reduce((a, x) => a + x.v, 0) || 1;
   const hero = `
-    <div class="hero ${d.short ? 'alert' : ''}">
+    <div class="hero ${d.short ? 'alert' : d.alloc > 0 ? '' : 'unset'}">
       <div class="hmain">
         <div class="hleft">
           <div class="label"><span class="lamp"></span>가용 잔여 <span class="sub">확정 확보 반영</span></div>
           <div class="amount">${av < 0 ? '−' : ''}${won(Math.abs(av))}<span class="won">원</span></div>
           <div class="msg">${d.short
             ? '확정·집행이 예산을 초과했습니다 — 센터 검토 및 추가 확보 필요'
-            : d.noBudget ? '이 분기 예산이 아직 배정되지 않았습니다 — 예산 관리에서 배정하세요'
-            : '정상 운영 중입니다'}</div>
+            : d.alloc > 0 ? '정상 운영 중입니다'
+            : '이 분기 예산이 아직 배정되지 않았습니다'}</div>
+          ${d.alloc > 0 ? '' : `<div class="btns" style="margin-top:8px">
+            <button class="btn sm pri" onclick="goBudget()">예산 배정하기 →</button></div>`}
         </div>
         <div class="hright">
           <div class="label">총 예산</div>
@@ -1589,8 +1607,8 @@ function rDash(){
              title="잠정 계획 ${won(d.planAmt)}원"></i>
         </div>
       </div>` : `
-      <div class="hnote">잠정 계획 <b>${won(d.planAmt)}원</b> (${d.nPlan || 0}건) 은 예산에 반영되지 않습니다
-        — 실제로 가는 건은 <b>출장 확정</b> 시 ‘확정 예정’으로 잡힙니다.</div>`}
+      ${d.planAmt > 0 ? `<div class="hnote">잠정 계획 <b>${won(d.planAmt)}원</b> (${d.nPlan || 0}건) 은 예산에 반영되지 않습니다
+        — 실제로 가는 건은 <b>출장 확정</b> 시 ‘확정 예정’으로 잡힙니다.</div>` : ''}`}
     </div>`;
   const nt = (ST.settings && ST.settings.notice) || '';
   const ns = (ST.settings && ST.settings.notice_sub) || '';
@@ -1694,7 +1712,12 @@ function rDash(){
       </div>`).join('')}</div></div>`;
   }
 
-  const ccg = `
+  const ccg = !rowsData.length ? `
+    <div class="card">
+      <h2>CCG팀(부서)별 집행 현황</h2>
+      <div class="note" style="margin:0">이번 분기(${esc(YQ)}) 집행 내역이 아직 없습니다 —
+        출장을 <b>확정</b>하면 팀별·비목별로 여기에 쌓입니다.</div>
+    </div>` : `
     <div class="card">
       <div class="card-head"><h2>CCG팀(부서)별 집행 현황</h2>
         <div class="lgd"><span><i class="sd"></i>처리 완료</span><span><i class="sw"></i>처리 중</span>
@@ -1711,8 +1734,8 @@ function rDash(){
             <td class="num">${totSum ? '100.0%' : '–'}</td><td class="num">${tot.people}</td></tr></tfoot>
         </table></div></details>
       ${costStrip(d)}
-      <div class="ref">이번 분기 실제 출장 <b>${d.nTrips || 0}건</b> · 참여 인원 <b>${d.nPeople || 0}명</b>
-        <span class="sub">위 금액은 확정된 출장만 집계합니다 (잠정 계획 ${d.nPlan || 0}건 제외)</span></div>
+      ${d.nTrips ? `<div class="ref">이번 분기 실제 출장 <b>${d.nTrips}건</b> · 참여 인원 <b>${d.nPeople || 0}명</b>
+        <span class="sub">위 금액은 확정된 출장만 집계합니다${d.nPlan ? ` (잠정 계획 ${d.nPlan}건 제외)` : ''}</span></div>` : ''}
     </div>`;
   $('#v-dash').innerHTML = notice + hero + todo + ccg;
 }
@@ -1732,6 +1755,7 @@ async function saveNotice(){
   await load(); nav('dash');
 }
 function goProcess(){ if (!adminPw()) { askAdmin(() => nav('process')); return; } nav('process'); }
+function goBudget(){ if (!adminPw()) { askAdmin(() => nav('budget')); return; } nav('budget'); }
 /* 'YYYY-MM-DD' 를 Date.parse 에 넘기면 UTC 로 잡혀 KST 오전에 하루가 모자란다.
    로컬 자정 기준으로 직접 만든다. */
 function dLocal(s){ const [y, m, d] = String(s || '').split('-').map(Number);
@@ -1966,8 +1990,25 @@ async function _submitPlan(){
 let ACT_GID = null;
 function rActual(){
   const targets = ST.groups.filter(g => g.yq === YQ && ['계획 등록', '확정 예정', '실적 입력·인폼'].includes(g.status));
-  const opts = targets.map(g =>
-    `<option value="${g.group_id}">${esc(gname(g))} · ${names(g)} · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${g.status}${g.plan_type === '긴급' ? ' [긴급]' : ''}</option>`).join('');
+  // 대시보드 '실적 대기' 와 같은 계산(core.dash().todo.actual_wait) — 두 화면 숫자가 어긋나지 않게
+  const waiting = new Set(((ST.dash && ST.dash.todo && ST.dash.todo.actual_wait) || []));
+  const optOf = g => `<option value="${g.group_id}">${esc(gname(g))} · ${names(g)} · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${g.status}${g.plan_type === '긴급' ? ' [긴급]' : ''}</option>`;
+  const wg = targets.filter(g => waiting.has(g.group_id));
+  const rest = targets.filter(g => !waiting.has(g.group_id));
+  const opts = (wg.length ? `<optgroup label="복귀함 · 실적 대기 (${wg.length}건)">${wg.map(optOf).join('')}</optgroup>` : '')
+    + (rest.length ? `<optgroup label="예정 · 작성 중 (${rest.length}건)">${rest.map(optOf).join('')}</optgroup>` : '');
+  if (!targets.length) {                     // 0개짜리 목록을 검색하라고 두면 막다른 길이다
+    $('#v-actual').innerHTML = `
+      <div class="card">
+        <h2>출장 실적 입력</h2>
+        <p class="cap">실적을 넣을 출장이 없습니다.</p>
+        <div class="note" style="margin:0">이번 분기(${esc(YQ)})에 <b>계획·확정 상태의 출장이 없습니다.</b>
+          실적은 계획을 먼저 등록한 뒤에 넣습니다.
+          <div style="margin-top:8px"><button class="btn sm pri" onclick="nav('plan')">출장 계획 등록 →</button>
+          <button class="btn sm" onclick="nav('list')">출장 내역에서 확인 →</button></div></div>
+      </div>`;
+    ACT_GID = null; return;
+  }
   $('#v-actual').innerHTML = `
     <div class="card">
       <h2>출장 실적 입력</h2>
@@ -1976,7 +2017,7 @@ function rActual(){
       <div class="filter-row">
         <input id="actFilter" placeholder="성명·업체·도시로 검색" oninput="filterActual()">
         <select id="actSel" onchange="pickActual(this.value)" style="flex:1;min-width:300px">
-          <option value="">대상 출장 선택 (${targets.length}건)</option>${opts}</select>
+          <option value="">대상 출장 선택 (${targets.length}건${wg.length ? ` · 실적 대기 ${wg.length}` : ''})</option>${opts}</select>
       </div>
       <div id="actBody"></div>
     </div>`;
@@ -1987,6 +2028,10 @@ function filterActual(){
   [...$('#actSel').options].forEach((o, i) => {
     if (i === 0) return;
     o.hidden = q && !o.textContent.includes(q);
+  });
+  // 전부 숨겨진 optgroup 라벨이 남으면 '있는데 안 보이는' 것처럼 읽힌다
+  $$('#actSel optgroup').forEach(gp => {
+    gp.hidden = [...gp.children].every(o => o.hidden);
   });
 }
 function pickActual(gid){
@@ -2074,7 +2119,7 @@ async function _submitActual(){
 const BULK_COLS = {                        // 표준 열이름 → 내부 키 (별칭 허용)
   '구분':'plan_type', '출장도시':'city', '도시':'city',
   '출장기관&업체':'org', '출장기관':'org', '업체':'org', 'BP':'org', 'BP사':'org',
-  '출장목적&사유':'purpose', '출장목적':'purpose', '목적':'목적', '목적&사유':'purpose',
+  '출장목적&사유':'purpose', '출장목적':'purpose', '목적':'purpose', '목적&사유':'purpose',
   '출발일자':'dep_dt', '출발일':'dep_dt', '복귀일자':'ret_dt', '복귀일':'ret_dt',
   '자차사용여부':'car', '자차':'car', '출장구분':'kind', '비고':'remark',
   '사번':'emp_no', '성명':'name', '이름':'name', '직책':'rank',
@@ -2083,6 +2128,7 @@ const BULK_COLS = {                        // 표준 열이름 → 내부 키 (�
   '실적_교통비':'a_trans', '실적_숙박비':'a_lodg', '실적_식대&잡비':'a_meal', '실적_기타':'a_etc',
   '출장일수':'_skip', '출장시점':'_skip', '계획_총합계':'_skip', '실적_총합계':'_skip',
 };
+const BULK_MIN = ['출장도시','출장기관&업체','출장목적&사유','출발일자','성명','사번','CCG명'];
 const CENTER_ORDER = ['구분','LV2','CCG','CCG명','사번','성명','직책','출장도시','출장기관&업체',
   '출장목적&사유','출발일자','복귀일자','출장일수','출장시점','자차사용여부','출장구분',
   '계획_총합계','계획_교통비','계획_숙박비','계획_식대&잡비','계획_기타',
@@ -2112,7 +2158,8 @@ function bDate(v){                           // 2026.8.4 / 26-08-04 / 45000(엑�
 }
 function bKind(v){
   const q = bnorm(v).toLowerCase();
-  if (!q) return ST.meta.kinds[2];
+  // 비어 있으면 '기타'. 특정 분류(정기 Audit)로 채우면 센터 제출본에 그럴듯한 거짓이 들어간다.
+  if (!q) return '기타';
   return ST.meta.kinds.find(k => bnorm(k).toLowerCase() === q)
       || ST.meta.kinds.find(k => bnorm(k).toLowerCase().includes(q) || q.includes(bnorm(k).toLowerCase().slice(0,4)))
       || '기타';
@@ -2127,6 +2174,16 @@ function bParse(text){
     map = head.map(h => BULK_COLS[h] || '_skip');
     body = lines.slice(1);
   } else {                                   // 머리글 없이 값만 붙인 경우 — 센터 27필드 순서로 가정
+    // 열 수가 27에 한참 못 미치면 '일부 열만' 복사한 것이다. 그대로 순서로 읽으면
+    // 날짜를 CCG명으로 해석하는 식으로 조용히 어긋난다 — 여기서 멈추고 머리글을 요청한다.
+    const ncol = Math.max(...lines.map(l => cut(l).length));
+    if (ncol < CENTER_ORDER.length - 4) {
+      return {groups: [], errs: [
+        `머리글 없이 ${ncol}개 열만 붙여넣었습니다 (센터 양식은 ${CENTER_ORDER.length}개 열).`,
+        '일부 열만 복사할 때는 반드시 머리글 행을 함께 붙여넣으세요 — 순서만으로는 어느 칸인지 알 수 없습니다.',
+        '필요한 열: ' + BULK_MIN.join(' · '),
+      ]};
+    }
     map = CENTER_ORDER.map(h => BULK_COLS[h] || '_skip');
     body = lines;
   }
@@ -2251,15 +2308,23 @@ async function reopenMail(gid){
   if (!ok) { toast((data.errors || ['인폼을 만들 수 없습니다'])[0]); return; }
   showMail(data.mail);
 }
+/* 카드가 덮는 만큼 본문 아래에 여유를 둔다 — 없으면 화면 맨 아래 버튼에 손이 닿지 않는다 */
+function mailPad(){
+  const c = document.getElementById('mailCard');
+  const h = c ? c.getBoundingClientRect().height + 32 : 0;
+  document.documentElement.style.setProperty('--mailh', h + 'px');
+  document.body.classList.toggle('mailopen', !!c);
+}
 function showMail(mail){
   document.getElementById('mailCard')?.remove();
+  mailPad();
   const el = document.createElement('div');
   el.className = 'mailcard'; el.id = 'mailCard';
   el.innerHTML = `
     <div class="mh"><span>${esc(mail.heading || '실비 이관 요청 인폼 (그룹당 1통)')}</span>
       <span class="mhb">
-        <button title="접기 / 펼치기" onclick="this.closest('.mailcard').classList.toggle('min')">–</button>
-        <button title="닫기" onclick="this.closest('.mailcard').remove()">×</button></span></div>
+        <button title="접기 / 펼치기" onclick="this.closest('.mailcard').classList.toggle('min');mailPad()">–</button>
+        <button title="닫기" onclick="this.closest('.mailcard').remove();mailPad()">×</button></span></div>
     <div class="meta">
       <div class="row"><span class="k">수신</span>${mail.to
         ? `<span style="word-break:break-all">${esc(mail.to)}</span>`
@@ -2275,6 +2340,7 @@ function showMail(mail){
       <span class="mfhint">수신 · 제목은 위에 있습니다</span>
     </div>`;
   document.body.appendChild(el);
+  mailPad();
   // 드래그로 메일에 바로 떨어뜨릴 수 있게 HTML 서식을 함께 실어 보낸다
   $('#mailBody').addEventListener('dragstart', e => {
     e.dataTransfer.setData('text/html', mail.body_html);
@@ -2350,12 +2416,15 @@ function listRows(){
     return (typeof x === 'number' && typeof y === 'number') ? x - y
       : (String(x) < String(y) ? -1 : String(x) > String(y) ? 1 : 0); };
   const sorted = G.slice().sort((a, b) => {
-    if (LQ.group) { const d = a.stage - b.stage; if (d) return d; }   // 프로세스별 우선 분류
-    const k = (LQ.sort === 'stage' && LQ.group) ? 'date' : LQ.sort;
+    if (LQ.group) { const d = a.stage - b.stage; if (d) return d; }   // 그룹은 항상 워크플로 순
+    const k = effSort();
     return sgn * cmpCol(a, b, k) || cmpCol(a, b, 'date');
   });
   return {all, G: sorted};
 }
+/* 묶기 중에는 그룹 순서가 고정이라 '상태' 정렬의 실제 대상은 기간이다.
+   ▲▼ 를 상태 머리글에 붙이면 누른 곳과 뒤집히는 곳이 달라 거짓말이 된다. */
+function effSort(){ return (LQ.group && LQ.sort === 'stage') ? 'date' : LQ.sort; }
 function sortList(k){
   if (LQ.sort === k) LQ.dir = LQ.dir === 'asc' ? 'desc' : 'asc';
   else { LQ.sort = k; LQ.dir = (k === 'plan' || k === 'act') ? 'desc' : 'asc'; }
@@ -2405,11 +2474,24 @@ function renderListBody(){
   });
   const tb = $('#listBody');
   if (!tb) return;
-  tb.innerHTML = body || '<tr class="empty"><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">조건에 맞는 출장이 없습니다.</td></tr>';
+  // 빈 이유를 구분한다 — 필터 탓과 '이번 분기에 아직 없음'은 다음 행동이 다르다
+  const filtered = !!(LQ.q.trim() || Object.values(LQ.col).some(v => String(v || '').trim()));
+  const emptyMsg = all.length === 0
+    ? `이번 분기(${esc(YQ)})에 등록된 출장이 없습니다.
+       <div style="margin-top:8px"><button class="btn sm pri" onclick="nav('plan')">출장 계획 등록 →</button>
+       <button class="btn sm" onclick="nav('bulk')">엑셀에서 일괄 등록 →</button></div>`
+    : filtered
+      ? `검색·필터 조건에 맞는 출장이 없습니다. <b>${all.length}건</b> 중 0건.
+         <div style="margin-top:8px"><button class="btn sm" onclick="clearList()">필터 해제 →</button></div>`
+      : '표시할 출장이 없습니다.';
+  tb.innerHTML = body || `<tr class="empty"><td colspan="7" style="color:var(--mut);text-align:center;padding:24px">${emptyMsg}</td></tr>`;
   const cnt = $('#listCount');
   if (cnt) cnt.textContent = `${G.length}/${all.length}건 · 잠정 ${ST.dash.nPlan || 0} · 확정 ${ST.dash.nConfirm || 0}`;
-  $$('#v-list .sic').forEach(el => {            // 정렬 표시(▲▼)
-    el.textContent = el.dataset.k === LQ.sort ? (LQ.dir === 'asc' ? ' ▲' : ' ▼') : '';
+  const eff = effSort();
+  $$('#v-list .sic').forEach(el => {            // 정렬 표시(▲▼) — 실제로 뒤집히는 열에만
+    el.textContent = el.dataset.k === eff ? (LQ.dir === 'asc' ? ' ▲' : ' ▼')
+      : (el.dataset.k === 'stage' && LQ.group) ? ' ⋯' : '';
+    if (el.dataset.k === 'stage' && LQ.group) el.title = '묶기 중에는 프로세스 순서 고정';
   });
   const dirBtn = $('#listDir');
   if (dirBtn) dirBtn.textContent = dirIcon(LQ.dir);
@@ -2434,7 +2516,7 @@ function rList(){
       <div class="card-head"><h2>${YQ} 출장 내역 <span class="sub" id="listCount" style="font-weight:600"></span></h2>
         <button class="btn" onclick="downloadCsv(YQ)">CSV 다운로드</button></div>
       <div class="filter-row" style="margin-top:12px">
-        <input id="listFilter" value="${esc(LQ.q)}" placeholder="🔍 전체 검색 (성명·사번·업체·도시·목적·전표번호)"
+        <input id="listFilter" value="${esc(LQ.q)}" placeholder="🔍 전체 검색 (성명·사번·업체·도시·목적)"
           oninput="LQ.q=this.value; renderListBody()">
         <label style="display:flex;align-items:center;gap:6px;font-weight:600;margin:0;white-space:nowrap">
           <input type="checkbox" style="width:auto;margin:0" ${LQ.group ? 'checked' : ''}
@@ -2470,6 +2552,14 @@ document.addEventListener('click', e => {
 function rProcess(){
   // 이관·처리 = 실적 이후 단계만. 계획(잠정)·확정 예정은 ‘출장 내역’에서 관리.
   const G = ST.groups.filter(g => g.yq === YQ && !['계획 등록', '확정 예정', '취소'].includes(g.status));
+  // 남은 일이 위로 — 처리 완료는 아래, 같은 단계면 오래 묵은 순.
+  // 2차 키는 dep_dt 다. updated_at 을 쓰면 개인 처리마다 갱신돼 클릭할 때마다 행이 순간이동한다.
+  const waitOf = g => { const t = dLocal((g.inform_at || g.updated_at || g.created_at || '').slice(0, 10));
+    return t ? Math.floor((new Date().setHours(0,0,0,0) - t) / 864e5) : -1; };
+  G.sort((a, b) => (a.roll === '처리 완료') - (b.roll === '처리 완료')
+    || (b.proc?.hold || 0) - (a.proc?.hold || 0)
+    || waitOf(b) - waitOf(a)
+    || String(a.dep_dt).localeCompare(String(b.dep_dt)));
   const block = g => {
     const past = g.status !== '계획 등록';            // 실적 입력 후 = 개인별 처리 가능
     const pc = g.proc || {done:0, transfer:0, inform:0, hold:0, total:g.travelers.length};
@@ -2520,7 +2610,10 @@ function rProcess(){
     <div class="note">실적 입력·인폼 → <b>소재 이관</b>(실비 이관 접수) → <b>처리 완료</b>(전표 처리 종료). 처리 완료·처리 중(인폼·이관·<b>보류</b>) 금액만 잔여에서 차감됩니다.
       <br>같은 출장이라도 <b>출장자별로 따로</b> 처리·보류할 수 있어요 — 아래 ‘처리(인당)’ 버튼. 다 같이 처리할 땐 상단 ‘전체’ 버튼을 쓰세요.</div>
     <div class="card"><h2>${YQ} 이관·처리 관리 (출장자 개인별)</h2>
-      ${G.map(block).join('') || '<div style="color:var(--faint);text-align:center;padding:22px">대상이 없습니다.</div>'}
+      ${G.map(block).join('') || `<div class="note" style="margin:0">
+        이관·처리할 건이 없습니다 — 실적이 입력된 출장만 여기에 옵니다.
+        <div style="margin-top:8px"><button class="btn sm" onclick="nav('actual')">출장 실적 입력 →</button>
+        <button class="btn sm" onclick="nav('list')">출장 내역에서 확인 →</button></div></div>`}
     </div>`;
 }
 function shortfallOk(gid){
@@ -2535,7 +2628,7 @@ function shortfallOk(gid){
     '[확인] 계속 확정   /   [취소] 돌아가기');
 }
 async function setStatus(gid, status){
-  if (status === '취소' && !confirm('이 출장을 취소할까요?\n취소 건은 기록으로 남으며, 되돌리려면 예산 담당자 모드가 필요합니다.')) return;
+  if (status === '취소' && !confirm('이 출장을 취소할까요?\n\n취소 건은 기록으로 남고 예산에서 빠집니다.\n화면에서 되돌리는 방법은 없습니다 — 되살리려면 데이터 관리 → 백업 복원이 필요합니다.')) return;
   if (status === '확정 예정' && !shortfallOk(gid)) return;
   const {ok, data} = await api(`/groups/${gid}/status`, {method: 'POST', body: JSON.stringify({status})});
   if (!ok) {
@@ -2729,7 +2822,7 @@ async function showReport(){
   const el = document.createElement('div');
   el.className = 'mailcard'; el.id = 'mailCard'; el.style.width = '760px';
   el.innerHTML = `<div class="mh"><span>센터 제출 리포트 · ${esc(r.yq)}</span>
-      <button onclick="this.closest('.mailcard').remove()">×</button></div>
+      <button onclick="this.closest('.mailcard').remove();mailPad()">×</button></div>
     <div class="body">
       <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
         <div class="kpi"><span>배정</span><b>${won(r.alloc)}</b></div>
@@ -2749,6 +2842,7 @@ async function showReport(){
       <button class="btn sm" onclick="downloadCsv(YQ)">상세 CSV</button>
       <button class="btn sm" onclick="downloadBudgetCsv(YQ)">예산 CSV</button></div>`;
   document.body.appendChild(el);
+  mailPad();
   $('#rptCopy').onclick = () => copyText(text, '센터 제출용 요약을 복사했습니다');
 }
 
@@ -2790,8 +2884,29 @@ function askAdmin(then){
   $('#admPw').onkeydown = e => { if (e.key === 'Enter') go(); };
 }
 
-load().catch(e => { document.body.innerHTML =
-  `<pre style="padding:24px;color:#B42318">${esc(e.message)}</pre>`; });
+load().catch(e => {
+  // 셸(사이드바·연락처)은 남긴다 — 화면이 안 뜨는 상황일수록 연락처가 필요하다
+  const box = $('#v-dash') || document.querySelector('main') || document.body;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
+  box.classList.add('on');
+  box.innerHTML = `
+    <div class="card">
+      <h2 style="color:var(--red)">데이터를 읽지 못했습니다</h2>
+      <p class="cap">화면 코드가 아니라 원장 파일이나 서버 쪽 문제입니다. 아래를 순서대로 확인하세요.</p>
+      <div class="err">${esc(e.message || String(e))}</div>
+      <ol style="margin:12px 0 0 16px;padding:0;color:var(--ink2);font-size:13px;line-height:1.9">
+        <li><b>Ctrl+F5</b> 로 다시 불러오기 — 캐시 문제면 여기서 해결됩니다.</li>
+        <li>서버가 떠 있는지 확인 — 주소창의 <code>/travelbudget</code> 를 다시 여세요.</li>
+        <li>그래도 안 되면 <b>data.json 이 깨진 것</b>입니다.
+            <code>$TB_DATA_DIR/backup/</code> 의 최신 백업으로 되돌리고 재기동하세요.
+            (자동 백업 30개가 항상 남아 있습니다)</li>
+      </ol>
+      <div class="ref" style="margin-top:16px">문의 — 소재전략 이정훈 TL ·
+        <b>junghoon12.lee@sk.com</b> · 010-3376-7923</div>
+    </div>`;
+  const t = $('#pageTitle'); if (t) t.textContent = '오류';
+  const sb = $('#pageSub'); if (sb) sb.textContent = '데이터 로드 실패';
+});
 
 </script>
 </body></html>
