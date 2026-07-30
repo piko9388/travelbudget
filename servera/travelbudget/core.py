@@ -41,8 +41,8 @@ CCG_TEAMS = [
 ]
 CCG_BY_NM = {t["team"]: t["ccg"] for t in CCG_TEAMS}
 
-APP_VERSION = "v10.0"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
-APP_BUILD = "2026-07-27"
+APP_VERSION = "v10.1"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_BUILD = "2026-07-30"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
 CSV_HEADERS = ["구분", "LV2", "CCG", "CCG명", "사번", "성명", "직책",

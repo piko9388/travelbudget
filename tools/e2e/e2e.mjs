@@ -67,16 +67,31 @@ try {
   const keys = await page.$$eval('#v-dash .hero .skey span', e => e.map(x => x.textContent.trim()));
   ok('예산 구성 막대 범례 = 완료·처리중·확정·가용',
      keys.length === 4 && keys[0].includes('처리 완료') && keys[3].includes('가용 잔여'), keys);
-  ok('구성 막대 세그먼트 표시', (await page.$$('#v-dash .hero .stack i')).length === 4);
+  ok('구성 막대 세그먼트 표시', (await page.$$('#v-dash .hero > .stack i')).length === 4);
   ok('KPI 카드 제거(중복 숫자 없음)', !(await page.$('#v-dash .kpis')));
   const dupe = await page.evaluate(() => {
     const h = document.querySelector('#v-dash .hero').cloneNode(true);
     h.querySelector('.hnote')?.remove();          // 안내 문장의 참조는 지표 중복이 아님
+    h.querySelector('.ghost .gl')?.remove();      // 잠정 참고 막대의 설명 문장도 지표가 아님
     const t = h.textContent;
     return ['총 예산', '처리 완료', '처리 중', '확정 예정'].map(k => [k, t.split(k).length - 1]);
   });
   ok('네 항목이 각각 1회만 노출', dupe.every(([, n]) => n === 1), dupe);
-  ok('잠정은 예산 미반영으로 안내', (await page.textContent('#v-dash .hnote')).includes('반영되지 않습니다'));
+  // 잠정 계획은 예산에 안 잡히므로 위 막대에 섞지 않고 아래 참고 막대(또는 문장)로만 표기
+  const ghostTxt = await page.textContent('#v-dash .ghost, #v-dash .hnote');
+  ok('잠정은 예산 미반영으로 안내', ghostTxt.includes('반영되지 않습니다'), ghostTxt.slice(0, 40));
+  const ghostBar = await page.evaluate(() => {
+    const g = document.querySelector('#v-dash .ghost .stack i');
+    if (!g) return null;
+    const pct = parseFloat(g.style.width);
+    return { pct, tot: ST.dash.alloc, plan: ST.dash.planAmt };
+  });
+  ok('잠정 참고 막대가 총 예산과 같은 축',
+     !ghostBar || Math.abs(ghostBar.pct - ghostBar.plan / ghostBar.tot * 100) < 0.05, ghostBar);
+  ok('잠정은 예산 막대에 섞이지 않음', await page.evaluate(() => {
+    const segs = [...document.querySelectorAll('#v-dash .hero > .stack i')];
+    return segs.every(i => !/s-plan|잠정/.test(i.className + (i.title || '')));
+  }));
 
   // remaining number consistency vs KPIs
   const nums = await page.evaluate(() => ({
@@ -566,7 +581,7 @@ try {
 
   await page.evaluate(() => { document.getElementById('mailCard')?.remove(); nav('dash'); });
   await sleep(200);
-  ok('대시보드 CCG 막대 도식', (await page.$$('#v-dash .bars .brow')).length > 0);
+  ok('대시보드 CCG 막대 도식', (await page.$$('#v-dash .card > .bars .brow')).length > 0);
   ok('막대 범례 3색(완료/처리중/확정)', (await page.$$('#v-dash .lgd i')).length === 3);
   const refTxt = await page.textContent('#v-dash .ref');
   // 잠정 설명은 예산 hero 한 곳에만 (v10.0 이전엔 hero·CCG 두 곳에 같은 문장이 찍혔다)
@@ -580,14 +595,18 @@ try {
   const cost = await page.evaluate(() => {
     const wrap = document.querySelector('#v-dash .cost');
     if (!wrap) return null;
-    const keys = [...wrap.querySelectorAll('.skey span')].map(x => x.textContent.replace(/\s+/g, ' ').trim());
+    const keys = [...wrap.querySelectorAll('.brow .bnm')].map(x => x.textContent.trim());
     const sum = +(wrap.querySelector('.ct').textContent.match(/([\d,]+)원/) || [0, '0'])[1].replace(/,/g, '');
-    const segs = [...wrap.querySelectorAll('.stack i')].length;
-    return { keys, sum, segs };
+    const segs = [...wrap.querySelectorAll('.brow .bbar i')].length;
+    const hues = [...wrap.querySelectorAll('.brow .bbar i')]
+      .map(i => getComputedStyle(i).backgroundColor);
+    return { keys, sum, segs, hues: [...new Set(hues)] };
   });
   ok('비목 구성 렌더', !!cost && cost.segs > 0, cost);
   ok('비목 항목 = 교통·숙박·식대·기타',
      cost.keys.every(k => /교통비|숙박비|식대&잡비|기타/.test(k)), cost.keys);
+  // 비목은 범주형 — 색으로 나누면 단계 음영과 헷갈리므로 전부 같은 색이어야 한다
+  ok('비목은 단색 (단계 음영과 혼동 금지)', cost.hues.length === 1, cost.hues);
   const barSum = await page.evaluate(() => {
     const t = document.querySelector('#v-dash .hero .skey').textContent;
     const n = [...t.matchAll(/([\d,]+)/g)].map(m => +m[1].replace(/,/g, ''));
@@ -636,7 +655,7 @@ try {
   await page.waitForSelector('#v-guide.on .g-lead');
   ok('화면 안내에 인쇄용 링크', await page.isVisible('#v-guide a[href="/travelbudget/guide"]'));
   const gLen = (await page.textContent('#v-guide')).length;
-  ok('화면 안내는 요약(장문 중복 아님)', gLen < 2100, gLen);
+  ok('화면 안내는 요약(장문 중복 아님)', gLen < 2600, gLen);
 
   /* ── 19. v10 회귀 방지 — CSS 삭제·구성비 축·사이드바 구조 ── */
   console.log('\n-- 19. v10 회귀 방지 --');
@@ -660,9 +679,9 @@ try {
 
   // CCG 구성비 — 합계와 같은 축이어야 (확정만 있는 팀이 금액은 있는데 0% 로 찍히던 문제)
   await page.evaluate(() => nav('dash'));
-  await page.waitForSelector('#v-dash .bars .brow');
+  await page.waitForSelector('#v-dash .card > .bars .brow');
   const shares = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll('#v-dash .bars .brow')].map(r => {
+    const rows = [...document.querySelectorAll('#v-dash .card > .bars .brow')].map(r => {
       const t = r.querySelector('.bval').textContent;
       const m = t.match(/([\d,]+)\s*(\d+)%/);
       return m ? { amt: +m[1].replace(/,/g, ''), pct: +m[2] } : null;
@@ -705,6 +724,61 @@ try {
   ok('도움말·연락처가 aside 안에 남아있음', lay.asideInAside, lay);
   ok('.app 2열 그리드 유지', lay.display === 'grid' && lay.cols === 2, lay);
   ok('사이드바와 본문이 좌우 배치', lay.sideBySide, lay);
+
+  /* ── 20. 단계 음영 팔레트 — 단계는 진하기로, 신호는 색으로 ── */
+  console.log('\n-- 20. 단계 음영 팔레트 --');
+  await page.evaluate(() => nav('guide'));
+  await page.waitForSelector('#v-guide.on .glegend .status');
+  const pal = await page.evaluate(() => {
+    const px = s => (s.match(/\d+/g) || []).map(Number);
+    const lin = c => { c /= 255; return c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; };
+    const lum = ([r, g, b]) => .2126 * lin(r) + .7152 * lin(g) + .0722 * lin(b);
+    const cr = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+                           return (hi + .05) / (lo + .05); };
+    const hue = ([r, g, b]) => {
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+      if (d < 8) return null;                      // 무채색 — 색상 판정 대상 아님
+      let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      return (h * 60 + 360) % 360;
+    };
+    const pick = sel => {
+      const el = document.querySelector(sel);
+      const s = getComputedStyle(el);
+      const bg = px(s.backgroundColor), fg = px(s.color);
+      return { sel, bg, fg, lum: lum(bg), hue: hue(bg), text: cr(bg, fg) };
+    };
+    const stages = ['#v-guide .glegend .status:not([class*=" "])',
+                    '#v-guide .glegend .status.confirm',
+                    '#v-guide .glegend .status.wip',
+                    '#v-guide .glegend .status.done'].map(pick);
+    // 대시보드 막대 4칸도 같은 램프인지
+    const segs = [...document.querySelectorAll('#v-dash .hero > .stack i')].map(i => {
+      const bg = px(getComputedStyle(i).backgroundColor);
+      return { lum: lum(bg), hue: hue(bg) };
+    });
+    return { stages, segs };
+  });
+  const st = pal.stages;
+  ok('배지 4단계가 점점 진해짐 (계획→확정→처리중→완료)',
+     st.every((x, i) => i === 0 || x.lum < st[i - 1].lum), st.map(x => x.lum.toFixed(3)));
+  const hues = st.map(x => x.hue).filter(h => h !== null);
+  ok('배지 4단계가 같은 색상(hue) — 무관한 범주로 안 읽히게',
+     hues.length > 0 && Math.max(...hues) - Math.min(...hues) < 25, hues.map(h => Math.round(h)));
+  ok('배지 글씨 대비 전부 AA', st.every(x => x.text >= 4.5), st.map(x => x.text.toFixed(2)));
+  // 녹(정상)·황(경과)·적(초과)은 신호 전용 — 단계 배지에 쓰이면 안 된다
+  const SIGNAL = h => (h > 60 && h < 200) || h < 40;
+  ok('단계 배지에 신호색(녹·황·적) 없음', hues.every(h => !SIGNAL(h)), hues.map(h => Math.round(h)));
+
+  await page.evaluate(() => nav('dash'));
+  await page.waitForSelector('#v-dash .hero > .stack i');
+  const segs = pal.segs;
+  ok('예산 막대 4칸이 점점 옅어짐 (완료→처리중→확정→가용)',
+     segs.length >= 2 && segs.every((x, i) => i === 0 || x.lum > segs[i - 1].lum),
+     segs.map(x => x.lum.toFixed(3)));
+  const segHues = segs.map(x => x.hue).filter(h => h !== null);
+  ok('예산 막대도 같은 색상(hue)',
+     segHues.length === 0 || Math.max(...segHues) - Math.min(...segHues) < 25,
+     segHues.map(h => Math.round(h)));
 
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));

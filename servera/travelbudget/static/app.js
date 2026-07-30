@@ -367,21 +367,30 @@ function rGuide(){
         <b>잠정 계획</b>은 참고만(미반영), <b>확정 예정</b>은 미리 확보(가용 차감), 실제 집행은 처리 중·처리 완료로 반영됩니다.
       </div></div>`;
   const legend = `
-    <div class="card"><h2>상태 색상 보는 법</h2>
-      <p class="cap">‘출장 내역’과 화면 곳곳의 배지 색으로 지금 어느 단계인지 한눈에 알 수 있어요.</p>
+    <div class="card"><h2>배지 진하기 보는 법</h2>
+      <p class="cap">단계가 진행될수록 배지가 진해집니다 — <b>진할수록 이미 나간 돈</b>.
+        색을 외울 필요 없이 진하기만 보면 됩니다.</p>
       <div class="glegend">
-        <span><span class="status">계획 등록</span> 아직 계획만</span>
+        <span><span class="status">계획(잠정)</span> 예산 미반영</span>
+        <span class="arrow">→</span>
+        <span><span class="status confirm">확정 예정</span> 예산 선확보</span>
+        <span class="arrow">→</span>
         <span><span class="status wip">처리 중</span> 실적·인폼 / 소재 이관</span>
+        <span class="arrow">→</span>
         <span><span class="status done">처리 완료</span> 정산 끝</span>
+      </div>
+      <p class="cap" style="margin:10px 0 0">단계가 아닌 것은 빨강으로 따로 표시합니다.</p>
+      <div class="glegend">
         <span><span class="status cancel">취소</span> 취소된 건</span>
         <span><span class="status urgent">긴급</span> 긴급 출장</span>
+        <span><span class="status hold">보류</span> 처리가 막힌 건</span>
       </div></div>`;
   const faq = `
     <div class="card"><h2>자주 묻는 것</h2>
       <div class="gwhat"><b>· 같이 출장 가면?</b> 대표 1명이 그룹으로 등록하고 <b>동행자 행을 추가</b>하세요. 비용은 개인별로 저장되고, 인폼은 <b>그룹당 1통</b>만 나갑니다.</div>
       <div class="gwhat"><b>· 인폼은 누구에게 가나요?</b> ${to || '설정된 수신자'} 로 발송용 초안이 만들어집니다.</div>
       <div class="gwhat"><b>· 5명 중 일부만 처리됐다면?</b> 처리 관리에서 <b>출장자별로</b> 완료·보류를 따로 정할 수 있어요. 3명 완료·1명 보류 같은 상태가 예산·대시보드에 그대로 반영됩니다.</div>
-      <div class="gwhat"><b>· 내 출장이 지금 어느 단계인지?</b> <a onclick="nav('list')" style="color:var(--blue);cursor:pointer;font-weight:700">‘출장 내역’</a>에서 상태 배지로 확인하세요.</div>
+      <div class="gwhat"><b>· 내 출장이 지금 어느 단계인지?</b> <a onclick="nav('list')" style="color:var(--navy);cursor:pointer;font-weight:700">‘출장 내역’</a>에서 상태 배지로 확인하세요.</div>
     </div>`;
   $('#v-guide').innerHTML = lead + steps + money + legend + faq;
 }
@@ -426,8 +435,18 @@ function rDash(){
       <div class="skey">
         ${segs.map(x => `<span><i class="s-${x.k}"></i>${x.label} <b>${won(x.v)}</b></span>`).join('')}
       </div>` : ''}
+      ${d.alloc > 0 && d.planAmt > 0 ? `
+      <div class="ghost">
+        <div class="gl">참고 · 잠정 계획 <b>${won(d.planAmt)}원</b> (${d.nPlan || 0}건)
+          — 예산에 반영되지 않습니다. 확정하면 위 막대의 ‘확정 예정’으로 들어옵니다.</div>
+        <div class="stack" role="img"
+             aria-label="잠정 계획 ${won(d.planAmt)}원, 총 예산 대비 ${(d.planAmt / d.alloc * 100).toFixed(1)}퍼센트">
+          <i style="width:${Math.min(100, d.planAmt / d.alloc * 100).toFixed(2)}%"
+             title="잠정 계획 ${won(d.planAmt)}원"></i>
+        </div>
+      </div>` : `
       <div class="hnote">잠정 계획 <b>${won(d.planAmt)}원</b> (${d.nPlan || 0}건) 은 예산에 반영되지 않습니다
-        — 실제로 가는 건은 <b>출장 확정</b> 시 위 ‘확정 예정’으로 잡힙니다.</div>
+        — 실제로 가는 건은 <b>출장 확정</b> 시 ‘확정 예정’으로 잡힙니다.</div>`}
     </div>`;
   const nt = (ST.settings && ST.settings.notice) || '';
   const ns = (ST.settings && ST.settings.notice_sub) || '';
@@ -478,7 +497,7 @@ function rDash(){
   const rows = rowsData.map(r => `<tr>
     <td><b>${esc(r.team)}</b> <span class="sub">${r.ccg}</span></td>
     <td class="num">${won(r.done)}</td><td class="num">${won(r.wip)}</td>
-    <td class="num" style="color:var(--blue)">${won(r.commit || 0)}</td>
+    <td class="num" style="color:var(--s2)">${won(r.commit || 0)}</td>
     <td class="num"><b>${won(r.done + r.wip + (r.commit || 0))}</b></td>
     <td class="num">${(r.share * 100).toFixed(1)}%</td>
     <td class="num">${r.people}</td></tr>`).join('')
@@ -486,18 +505,19 @@ function rDash(){
   const tot = rowsData.reduce((a, r) => ({done: a.done + r.done, wip: a.wip + r.wip,
     commit: a.commit + (r.commit || 0), people: a.people + r.people}), {done:0, wip:0, commit:0, people:0});
   const totSum = tot.done + tot.wip + tot.commit;
-  // 비목 구성 — CCG(누가 썼나) 다음에 무엇에 썼나. 같은 합계를 다른 축으로 한 줄만.
+  // 비목 구성 — CCG(누가 썼나) 다음에 무엇에 썼나. 같은 합계를 다른 축으로.
+  // 단계 음영과 헷갈리지 않도록 색으로 나누지 않고 이름·길이로만 구분한다.
   function costStrip(d){
     const cs = (d.byCost || []).filter(c => c.amt > 0);
     const sum = cs.reduce((a, c) => a + c.amt, 0);
     if (!sum) return '';
-    return `<div class="cost"><div class="ct">비목 구성 <span style="font-weight:400;color:var(--mut)">합계 ${won(sum)}원</span></div>
-      <div class="stack" role="img" aria-label="비목 구성">
-        ${cs.map((c, i) => `<i class="c${i + 1}" style="width:${(c.amt / sum * 100).toFixed(2)}%"
-          title="${c.name} ${won(c.amt)}원"></i>`).join('')}
-      </div>
-      <div class="skey">${cs.map((c, i) => `<span><i class="c${i + 1}"></i>${c.name}
-        <b>${won(c.amt)}</b> ${Math.round(c.share * 100)}%</span>`).join('')}</div></div>`;
+    const top = Math.max(...cs.map(c => c.amt));
+    return `<div class="cost"><div class="ct">비목 구성 <span>합계 ${won(sum)}원</span></div>
+      <div class="bars">${cs.map(c => `<div class="brow">
+        <div class="bnm">${c.name}</div>
+        <div class="bbar" title="${c.name} ${won(c.amt)}원"><i style="width:${(c.amt / top * 100).toFixed(2)}%"></i></div>
+        <div class="bval">${won(c.amt)}<span class="sub"> ${Math.round(c.share * 100)}%</span></div>
+      </div>`).join('')}</div></div>`;
   }
 
   const ccg = `
@@ -666,7 +686,7 @@ function rPlan(){
         <div><label for="pl_remark">비고</label><input id="pl_remark" placeholder="특이사항이 있으면 적어주세요"></div>
       </div>
       ${ed ? '' : `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:4px">
-        <input type="checkbox" id="pl_confirm" style="width:auto;margin:0"> 이 출장은 <b style="margin:0 2px">실제로 갑니다</b> — 지금 <b style="margin:0 2px;color:var(--blue)">출장 확정 · 예산 반영</b>. 미체크 시 잠정 계획으로 등록됩니다.
+        <input type="checkbox" id="pl_confirm" style="width:auto;margin:0"> 이 출장은 <b style="margin:0 2px">실제로 갑니다</b> — 지금 <b style="margin:0 2px;color:var(--s2)">출장 확정 · 예산 반영</b>. 미체크 시 잠정 계획으로 등록됩니다.
       </label>`}
       <div class="btns"><button class="btn pri" id="planBtn" onclick="submitPlan()">${ed ? '수정 저장' : '출장 계획 등록'}</button>
         ${ed ? '<button class="btn" onclick="cancelEdit()">수정 취소</button>' : ''}</div>
@@ -1243,7 +1263,7 @@ function rProcess(){
     const pc = g.proc || {done:0, transfer:0, inform:0, hold:0, total:g.travelers.length};
     const src = g.inform_at || g.updated_at || g.created_at;
     const w = past && g.roll !== '처리 완료' && src ? Math.floor((Date.now() - new Date(src)) / 864e5) : null;
-    const wtag = w === null ? '' : ` · <b style="color:${w >= 7 ? 'var(--red)' : w >= 3 ? '#8A5A10' : 'var(--faint)'}">대기 D+${w}</b>`;
+    const wtag = w === null ? '' : ` · <b style="color:${w >= 7 ? 'var(--red)' : w >= 3 ? 'var(--amber)' : 'var(--mut)'}">대기 D+${w}</b>`;
     const summary = !past ? '실적 미입력 (먼저 실적을 입력하세요)'
       : `완료 ${pc.done} · 이관 ${pc.transfer} · 인폼 ${pc.inform}${pc.hold ? ` · <b>보류 ${pc.hold}</b>` : ''} / ${pc.total}명${wtag}`;
     // 그룹 전체 버튼 (공통 케이스)

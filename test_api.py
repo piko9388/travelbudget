@@ -692,6 +692,39 @@ for _hf in ('servera/travelbudget/templates/index.html',
     ok(f'{_hf.split("/")[-1]} Pretendard 미사용(주석 제외)',
        not any('Pretendard' in l for l in _decl), [l for l in _decl if 'Pretendard' in l])
 
+# 단계 음영 팔레트 — 단계는 진하기로, 신호(좋다/나쁘다)는 색으로. 둘을 섞으면 안 된다.
+_ix = open('servera/travelbudget/templates/index.html', encoding='utf-8').read()
+_gd2 = open('servera/travelbudget/templates/traveler_guide.html', encoding='utf-8').read()
+for _f, _src in (('index.html', _ix), ('traveler_guide.html', _gd2)):
+    ok(f'{_f} 단계 램프 4단 선언', all(f'--s{i}:' in _src for i in (1, 2, 3, 4)), _f)
+# 단계를 그리는 선언에 신호색이 섞이면 "같은 처리 완료가 화면마다 다른 색" 으로 되돌아간다
+_STAGE_SEL = ('.status.done', '.status.wip', '.status.confirm',
+              '.s-done{', '.s-wip{', '.s-cmt{', '.s-ava{',
+              '.flowbar .pill.done', '.flowbar .pill.wip', '.flowbar .pill.confirm',
+              '.st.done{', '.st.wip{', '.st.confirm{')
+_SIGNAL = ('--green', '--amber', '#166F59', '#8A5A10', '#17725C', '#2563A8')
+for _src, _name in ((_ix, 'index.html'), (_gd2, 'traveler_guide.html')):
+    for _line in _src.split('\n'):
+        if any(_line.lstrip().startswith(x) for x in _STAGE_SEL):
+            ok(f'{_name} 단계 선언에 신호색 없음: {_line.strip()[:34]}',
+               not any(sig in _line for sig in _SIGNAL), _line.strip())
+# 비목은 범주형 — 단계 음영과 헷갈리지 않게 색으로 나누지 않는다
+ok('비목 막대는 단색', '.cost .bbar i{background:var(--s2)}' in _ix
+   and '.cost i.c1' not in _ix)
+# 잠정 계획은 예산 막대에 섞이지 않는다 (섞으면 가용 잔여에서 차감된 것처럼 읽힘)
+_appjs2 = open('servera/travelbudget/static/app.js', encoding='utf-8').read()
+ok('잠정은 별도 참고 막대', '.ghost' in _ix and 'class="ghost"' in _appjs2)
+ok('예산 막대 세그먼트는 4종(완료·처리중·확정·가용)',
+   _appjs2.count("{k: 'done'") == 1 and "k: 'plan'" not in _appjs2)
+
+# 안내 문서의 배지 등급이 화면의 stClass 와 같아야 한다
+# ('소재 이관' 이 안내에서만 기본칩이라 진행 단계가 뒤로 돌아간 것처럼 보이던 결함)
+_ST_GRADE = {'계획(잠정)': '', '출장 확정 · 예산 반영': 'confirm', '실적 입력·인폼': 'wip',
+             '소재 이관': 'wip', '처리 완료': 'done', '취소': 'cancel'}
+for _label, _grade in _ST_GRADE.items():
+    _want = f'<span class="st{" " + _grade if _grade else ""}">{_label}</span>'
+    ok(f'안내 배지 등급 일치: {_label}', _want in _gd2, _want)
+
 # 컨테이너 태그 짝 — nav 를 </div> 로 닫으면 브라우저 파서가 aside 와 .app 까지 함께 닫아
 # 사이드바/본문 2열 그리드가 통째로 무너진다. DOM·기능 테스트는 전부 통과하므로 여기서 막는다.
 from html.parser import HTMLParser as _HP

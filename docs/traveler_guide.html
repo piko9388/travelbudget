@@ -12,11 +12,13 @@
 :root{
   --bg:#F5F6F8; --card:#FFF; --ink:#111827; --ink2:#344054; --mut:#667085; --faint:#626B7D;
   --line:#D9DEE7; --line2:#EDF0F4; --soft:#EEF1F5; --shade:#F0F2F5;
-  --navy:#17365D; --navy2:#244C79; --blue:#2563A8; --red:#C23A45; --green:#17725C; --amber:#8A5A10;
-  --chip-bg:#F3F5F8; --chip-line:#D6DCE5; --on-navy:#FFF;
-  --confirm-bg:#EAF1FB; --confirm-line:#CBDCF0;
-  --wip-bg:#FDF6EC; --wip-line:#E8D4B0;
-  --done-bg:#EDF5F1; --done-line:#C4DED2;
+  --navy:#17365D; --navy2:#244C79; --red:#C23A45; --green:#17725C; --amber:#8A5A10;
+  /* 단계 음영 — 화면(index.html)과 같은 램프. 진할수록 이미 나간 돈.
+     서로 다른 색상을 쓰면 무관한 범주처럼 읽히므로 명도만 바꾼다 */
+  --s1:#12304F; --s2:#35618F; --s3:#6892BE; --s4:#9FBBD8;
+  --blue:#35618F;
+  --chip-bg:#FFF; --chip-line:#B8CCE2; --on-navy:#FFF;
+  --confirm-bg:#D3E1F0; --confirm-line:#8FB0D2;
   --warn-bg:#FFF8E8; --warn-line:#E8D4B0; --warn-bar:#C79A3A; --warn-ink:#7A5410;
 }
 html{color-scheme:only light;background:#F5F6F8}
@@ -78,10 +80,10 @@ h1{margin:0;color:var(--navy);font-size:26px;font-weight:800;letter-spacing:-.01
 .tbl tr:last-child td{border-bottom:0}
 .tbl td:first-child{width:1%;white-space:nowrap;padding-right:14px}
 .st{display:inline-block;padding:2px 9px;border:1px solid var(--chip-line);background:var(--chip-bg);
-  color:var(--navy);font-size:11.5px;font-weight:700;border-radius:2px;white-space:nowrap}
-.st.confirm{background:var(--confirm-bg);border-color:var(--confirm-line);color:var(--blue)}
-.st.wip{background:var(--wip-bg);border-color:var(--wip-line);color:var(--amber)}
-.st.done{background:var(--done-bg);border-color:var(--done-line);color:var(--green)}
+  color:var(--s1);font-size:11.5px;font-weight:700;border-radius:2px;white-space:nowrap}
+.st.confirm{background:var(--confirm-bg);border-color:var(--confirm-line);color:var(--s1)}
+.st.wip{background:var(--s2);border-color:var(--s2);color:#FFF}
+.st.done{background:var(--s1);border-color:var(--s1);color:#FFF}
 .st.cancel{background:var(--shade);color:var(--faint);text-decoration:line-through}
 
 /* 자주 묻는 것 */
@@ -208,7 +210,7 @@ h1{margin:0;color:var(--navy);font-size:26px;font-weight:800;letter-spacing:-.01
       <tr><td><span class="st">계획(잠정)</span></td><td>등록만 된 상태. <b>예산에 반영되지 않습니다.</b> 실제로 간다면 확정하세요.</td></tr>
       <tr><td><span class="st confirm">출장 확정 · 예산 반영</span></td><td>실제로 가는 출장. 계획액만큼 <b>예산이 확보</b>되어 있습니다.</td></tr>
       <tr><td><span class="st wip">실적 입력·인폼</span></td><td>실적을 넣었고 인폼이 발행된 상태. 담당자 이관을 기다립니다.</td></tr>
-      <tr><td><span class="st">소재 이관</span></td><td>담당자가 이관 결재를 올린 상태.</td></tr>
+      <tr><td><span class="st wip">소재 이관</span></td><td>담당자가 이관 결재를 올린 상태.</td></tr>
       <tr><td><span class="st done">처리 완료</span></td><td>비용 처리까지 끝났습니다.</td></tr>
       <tr><td><span class="st cancel">취소</span></td><td>가지 않기로 한 건. 기록으로는 남습니다.</td></tr>
     </table>
