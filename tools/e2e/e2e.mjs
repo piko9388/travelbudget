@@ -61,9 +61,22 @@ try {
   await page.waitForFunction(() => document.querySelector('#v-dash .hero'), { timeout: 8000 });
 
   // 1. Dashboard renders, formula visible
-  const figTxt = await page.textContent('#v-dash .fig');
-  ok('대시보드 hero 렌더', !!figTxt && figTxt.includes('가용'), figTxt);
-  ok('공식 노출 (총예산−완료−처리중−확정예정=가용)', /총예산.*처리완료.*처리중.*확정예정.*가용/.test(figTxt), figTxt);
+  // v10 — hero 공식 텍스트 + KPI 카드 4장을 '구성 막대' 하나로 합침(같은 숫자 중복 제거)
+  const heroTxt = await page.textContent('#v-dash .hero');
+  ok('대시보드 hero 렌더', heroTxt.includes('가용 잔여') && heroTxt.includes('총 예산'), heroTxt.slice(0, 60));
+  const keys = await page.$$eval('#v-dash .hero .skey span', e => e.map(x => x.textContent.trim()));
+  ok('예산 구성 막대 범례 = 완료·처리중·확정·가용',
+     keys.length === 4 && keys[0].includes('처리 완료') && keys[3].includes('가용 잔여'), keys);
+  ok('구성 막대 세그먼트 표시', (await page.$$('#v-dash .hero .stack i')).length === 4);
+  ok('KPI 카드 제거(중복 숫자 없음)', !(await page.$('#v-dash .kpis')));
+  const dupe = await page.evaluate(() => {
+    const h = document.querySelector('#v-dash .hero').cloneNode(true);
+    h.querySelector('.hnote')?.remove();          // 안내 문장의 참조는 지표 중복이 아님
+    const t = h.textContent;
+    return ['총 예산', '처리 완료', '처리 중', '확정 예정'].map(k => [k, t.split(k).length - 1]);
+  });
+  ok('네 항목이 각각 1회만 노출', dupe.every(([, n]) => n === 1), dupe);
+  ok('잠정은 예산 미반영으로 안내', (await page.textContent('#v-dash .hnote')).includes('반영되지 않습니다'));
 
   // remaining number consistency vs KPIs
   const nums = await page.evaluate(() => ({
@@ -79,8 +92,11 @@ try {
   await page.click('.nav a[data-view="guide"]');
   await page.waitForSelector('#v-guide.on .g-lead', { timeout: 3000 });
   ok('이용 안내 메뉴 열림', await page.isVisible('.flowbar'));
+  const navOrder = await page.$$eval('.nav a[data-view]', e => e.map(x => x.dataset.view));
+  ok('첫 메뉴 = 첫 화면(대시보드)', navOrder[0] === 'dash', navOrder);
+  ok('도움말은 맨 아래', navOrder[navOrder.length - 1] === 'guide', navOrder);
   ok('4단계 스텝 표시', (await page.$$('#v-guide .gstep')).length === 5, (await page.$$('#v-guide .gstep')).length);
-  ok('처리 흐름 공식 노출', /가용 잔여 = 총예산 − 처리완료 − 처리중 − 확정예정/.test(await page.textContent('#v-guide .g-formula')));
+  ok('처리 흐름 공식 노출', /가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정/.test(await page.textContent('#v-guide .g-formula')));
   // jump button → plan
   await page.click('#v-guide button:has-text("출장 계획 등록으로 가기")');
   await page.waitForSelector('#v-plan.on #pl_city', { timeout: 3000 });
@@ -181,7 +197,7 @@ try {
   // 5b. 대시보드 소진율 + 보류 알림
   await page.click('.nav a[data-view="dash"]');
   await page.waitForSelector('#v-dash .hero .label');
-  ok('대시보드 소진율(%) 노출', /소진율\s*\d+%/.test(await page.textContent('#v-dash .hero .label')));
+  ok('대시보드 소진율(%) 노출', /소진율\s*\d+%/.test(await page.textContent('#v-dash .hright')));
   ok('대시보드 보류 알림 노출', await page.isVisible('#v-dash .btn.red'));
 
   // 5c. 보류자 처리 완료 → 그룹 전체 완료로 롤업
@@ -224,7 +240,7 @@ try {
 
   // 5e. 잠정/확정 구분 + 예산 선확보 + 흔적 없는 삭제
   await page.click('.nav a[data-view="dash"]');
-  await page.waitForSelector('#v-dash .kpi');
+  await page.waitForSelector('#v-dash .hero .stack');
   const commitBefore = await page.evaluate(() => ST.dash.commit);
   ok('시드 확정예정 예산 확보 표시', commitBefore > 0, commitBefore);
   // 잠정 계획 생성 (확정 체크 안 함)
@@ -553,7 +569,31 @@ try {
   ok('대시보드 CCG 막대 도식', (await page.$$('#v-dash .bars .brow')).length > 0);
   ok('막대 범례 3색(완료/처리중/확정)', (await page.$$('#v-dash .lgd i')).length === 3);
   const refTxt = await page.textContent('#v-dash .ref');
-  ok('잠정은 표에서 빼고 참고로만 표기', refTxt.includes('잠정 계획') && refTxt.includes('반영되지 않'), refTxt.slice(0, 40));
+  // 잠정 설명은 예산 hero 한 곳에만 (v10.0 이전엔 hero·CCG 두 곳에 같은 문장이 찍혔다)
+  ok('CCG 참고줄은 건수·인원만', refTxt.includes('실제 출장') && refTxt.includes('참여 인원'), refTxt.slice(0, 40));
+  const planSent = await page.evaluate(() =>
+    [...document.querySelectorAll('#v-dash')].map(x => x.textContent)
+      .join('').split('예산에 반영되지 않').length - 1);
+  ok('“예산 미반영” 문장 중복 없음', planSent === 1, planSent);
+
+  // 비목 구성 — CCG(누가) 다음 축(무엇에). 합계는 위 막대와 같아야 한다
+  const cost = await page.evaluate(() => {
+    const wrap = document.querySelector('#v-dash .cost');
+    if (!wrap) return null;
+    const keys = [...wrap.querySelectorAll('.skey span')].map(x => x.textContent.replace(/\s+/g, ' ').trim());
+    const sum = +(wrap.querySelector('.ct').textContent.match(/([\d,]+)원/) || [0, '0'])[1].replace(/,/g, '');
+    const segs = [...wrap.querySelectorAll('.stack i')].length;
+    return { keys, sum, segs };
+  });
+  ok('비목 구성 렌더', !!cost && cost.segs > 0, cost);
+  ok('비목 항목 = 교통·숙박·식대·기타',
+     cost.keys.every(k => /교통비|숙박비|식대&잡비|기타/.test(k)), cost.keys);
+  const barSum = await page.evaluate(() => {
+    const t = document.querySelector('#v-dash .hero .skey').textContent;
+    const n = [...t.matchAll(/([\d,]+)/g)].map(m => +m[1].replace(/,/g, ''));
+    return n[0] + n[1] + n[2];        // 처리완료 + 처리중 + 확정예정
+  });
+  ok('비목 합계 = 예산 막대 집행 합계', cost.sum === barSum, { cost: cost.sum, bar: barSum });
   const ccgTh = await page.$$eval('#v-dash .fold th', e => e.map(x => x.textContent.trim()));
   ok('CCG 금액표에 잠정계획 열 없음', !ccgTh.includes('잠정계획'), ccgTh);
   ok('CCG 금액표는 기본 접힘', !(await page.isVisible('#v-dash .fold table')));
@@ -597,6 +637,74 @@ try {
   ok('화면 안내에 인쇄용 링크', await page.isVisible('#v-guide a[href="/travelbudget/guide"]'));
   const gLen = (await page.textContent('#v-guide')).length;
   ok('화면 안내는 요약(장문 중복 아님)', gLen < 2100, gLen);
+
+  /* ── 19. v10 회귀 방지 — CSS 삭제·구성비 축·사이드바 구조 ── */
+  console.log('\n-- 19. v10 회귀 방지 --');
+  // 센터 제출 리포트가 쓰는 .kpi 스타일이 살아 있는가 (대시보드에서 KPI를 뺄 때 함께 지워졌던 회귀)
+  await page.evaluate(() => { document.getElementById('mailCard')?.remove(); nav('dash'); });
+  await page.waitForSelector('#v-dash button:has-text("센터 제출 리포트")');
+  await page.click('#v-dash button:has-text("센터 제출 리포트")');
+  await page.waitForSelector('.mailcard .kpis', { timeout: 5000 });
+  const kpiCss = await page.evaluate(() => {
+    const g = getComputedStyle(document.querySelector('.mailcard .kpis'));
+    const b = document.querySelector('.mailcard .kpi b');
+    const sp = document.querySelector('.mailcard .kpi span');
+    return { display: g.display, cols: g.gridTemplateColumns.split(' ').length,
+             bDisp: getComputedStyle(b).display, bSize: getComputedStyle(b).fontSize,
+             spDisp: getComputedStyle(sp).display };
+  });
+  ok('리포트 KPI 그리드 살아있음', kpiCss.display === 'grid' && kpiCss.cols === 4, kpiCss);
+  ok('리포트 KPI 라벨·숫자 줄바꿈', kpiCss.spDisp === 'block' && kpiCss.bDisp === 'block', kpiCss);
+  ok('리포트 KPI 숫자 크기 적용', parseFloat(kpiCss.bSize) >= 18, kpiCss.bSize);
+  await page.evaluate(() => document.getElementById('mailCard')?.remove());
+
+  // CCG 구성비 — 합계와 같은 축이어야 (확정만 있는 팀이 금액은 있는데 0% 로 찍히던 문제)
+  await page.evaluate(() => nav('dash'));
+  await page.waitForSelector('#v-dash .bars .brow');
+  const shares = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#v-dash .bars .brow')].map(r => {
+      const t = r.querySelector('.bval').textContent;
+      const m = t.match(/([\d,]+)\s*(\d+)%/);
+      return m ? { amt: +m[1].replace(/,/g, ''), pct: +m[2] } : null;
+    }).filter(Boolean);
+    return rows;
+  });
+  ok('금액이 있는데 0% 인 팀 없음', shares.every(r => !(r.amt > 0 && r.pct === 0)), shares);
+  ok('구성비 합 ≈ 100%', Math.abs(shares.reduce((a, r) => a + r.pct, 0) - 100) <= shares.length, 
+     shares.reduce((a, r) => a + r.pct, 0));
+
+  // 사이드바 DOM — nav/div 태그 짝, 활성 표시, 외부 링크 위계
+  const navDom = await page.evaluate(() => {
+    const main = document.querySelector('nav.nav[aria-label]');
+    const on = document.querySelector('.nav a.on');
+    const ext = document.querySelector('.nav a.ext');
+    return { hasLandmark: !!main, ariaCurrent: on && on.getAttribute('aria-current'),
+             onWeight: on && getComputedStyle(on).fontWeight,
+             extWeight: ext && getComputedStyle(ext).fontWeight,
+             utilLast: !!document.querySelector('.nav.util') };
+  });
+  ok('주 메뉴에 nav 랜드마크', navDom.hasLandmark, navDom);
+  ok('활성 항목 aria-current=page', navDom.ariaCurrent === 'page', navDom);
+  ok('외부 링크가 활성 항목보다 가벼움',
+     Number(navDom.extWeight) < Number(navDom.onWeight), navDom);
+  ok('도움말 유틸 그룹 분리', navDom.utilLast);
+
+  // 레이아웃 — 사이드바와 본문이 정말 좌우로 붙어 있는가
+  // (nav 를 </div> 로 닫으면 파서가 aside 와 .app 까지 함께 닫아 main 이 그리드 밖으로 밀려난다.
+  //  DOM·CSS·기능 테스트는 전부 통과하므로 실제 좌표로 확인한다)
+  const lay = await page.evaluate(() => {
+    const app = document.querySelector('.app'), a = document.querySelector('aside'), m = document.querySelector('main');
+    const ra = a.getBoundingClientRect(), rm = m.getBoundingClientRect();
+    return { appHasAside: app.contains(a), appHasMain: app.contains(m),
+             asideInAside: !!a.querySelector('.nav.util') && !!a.querySelector('.contact'),
+             display: getComputedStyle(app).display,
+             cols: getComputedStyle(app).gridTemplateColumns.split(' ').length,
+             sideBySide: ra.right <= rm.left + 1 && rm.top < ra.bottom };
+  });
+  ok('.app 안에 aside·main 둘 다', lay.appHasAside && lay.appHasMain, lay);
+  ok('도움말·연락처가 aside 안에 남아있음', lay.asideInAside, lay);
+  ok('.app 2열 그리드 유지', lay.display === 'grid' && lay.cols === 2, lay);
+  ok('사이드바와 본문이 좌우 배치', lay.sideBySide, lay);
 
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));

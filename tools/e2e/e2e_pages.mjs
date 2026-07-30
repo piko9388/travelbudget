@@ -34,7 +34,7 @@ try {
   const nums = await page.evaluate(() => ({ alloc: ST.dash.alloc, done: ST.dash.done, wip: ST.dash.wip, remain: ST.dash.remain, groups: ST.groups.length }));
   ok('시드 8건 로드', nums.groups === 8, nums.groups);
   ok('잔여 = 총예산−완료−처리중', nums.remain === nums.alloc - nums.done - nums.wip, nums);
-  const heroLabel = await page.textContent('#v-dash .hero .label');
+  const heroLabel = await page.textContent('#v-dash .hright');
   ok('소진율(%) 노출', /소진율\s*\d+%/.test(heroLabel), heroLabel);
 
   // guide screen
@@ -142,6 +142,20 @@ try {
   await page.waitForFunction(() => document.querySelector('#v-dash .hero'), { timeout: 8000 });
   const persisted = await page.evaluate(() => ST.groups.find(g => g.org === '페이지테스트'));
   ok('새로고침 후 데이터 유지(localStorage)', !!persisted && persisted.roll === '처리 완료', persisted && persisted.roll);
+
+  // 정적 사본(tools/tb_local.js)이 core.py 와 같은 계산을 하는지 — 예전에 여기만 뒤처져
+  // CCG 구성비 분모가 달라 '금액은 있는데 0%' 가 정적판에만 남았다
+  const mirror = await page.evaluate(() => {
+    const d = ST.dash;
+    const cost = (d.byCost || []).reduce((a, c) => a + c.amt, 0);
+    return { used: d.done + d.wip + d.commit, cost, nTrips: d.nTrips,
+             zero: (d.byCcg || []).filter(r => r.total > 0 && Math.round(r.share * 100) === 0).length,
+             names: (d.byCost || []).map(c => c.name) };
+  });
+  ok('정적판 비목 합계 = 집행 합계', mirror.cost === mirror.used, mirror);
+  ok('정적판 비목 4종', mirror.names.join(',') === '교통비,숙박비,식대&잡비,기타', mirror.names);
+  ok('정적판 CCG 0% 없음', mirror.zero === 0, mirror);
+  ok('정적판 nTrips 제공', typeof mirror.nTrips === 'number', mirror.nTrips);
 
   // no external CDN, no code errors, XSS didn't fire
   const cdnBlocked = errs.some(e => /Failed to load resource|ERR_TUNNEL|jsdelivr/.test(e));

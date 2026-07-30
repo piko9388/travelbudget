@@ -29,7 +29,7 @@
     { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
     { team: 'Target 소재팀', ccg: 'C1707' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
-  var APP_VERSION = 'v9.9', APP_BUILD = '2026-07-27';
+  var APP_VERSION = 'v10.0', APP_BUILD = '2026-07-27';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
@@ -206,6 +206,7 @@
     var B = (data.budget || []).filter(function (b) { return b.yq === yq; });
     var alloc = B.reduce(function (s, b) { return s + num(b.amt); }, 0);
     var doneAmt = 0, wipAmt = 0, planAmt = 0, commitAmt = 0, nDone = 0, nWip = 0, nPlan = 0, nConfirm = 0, nCancel = 0, nPeople = 0;
+    var costMap = {}; KEYS.forEach(function (k) { costMap[k] = 0; });
     var map = {}; CCG_TEAMS.forEach(function (t) { map[t.ccg] = { team: t.team, ccg: t.ccg, done: 0, wip: 0, commit: 0, plan: 0, groups: {}, people: 0 }; });
     map._ETC = { team: '기타(미등록 CCG)', ccg: '-', done: 0, wip: 0, commit: 0, plan: 0, groups: {}, people: 0 };
     // 확정 예정 = 계획 금액 선확보(가용 차감), 잠정 = 참고. 실적 이후는 개인 실효 상태 기준.
@@ -216,20 +217,25 @@
       g.travelers.forEach(function (p) {
         nPeople++; var row = map[p.ccg] || map._ETC;
         if (gs === ST_PLAN) { var pl = pSum(p, 'p'); planAmt += pl; if (row) row.plan += pl; }
-        else if (gs === ST_CONFIRM) { var pc = pSum(p, 'p'); commitAmt += pc; if (row) row.commit += pc; }
+        else if (gs === ST_CONFIRM) {
+          var pc = pSum(p, 'p'); commitAmt += pc; if (row) row.commit += pc;
+          KEYS.forEach(function (k) { costMap[k] += num(p['p_' + k]); });
+        }
         else {
           var eff = effStatus(p, g), a = pSum(p, 'a');
           if (eff === ST_DONE) { doneAmt += a; if (row) row.done += a; }
           else { wipAmt += a; if (row) row.wip += a; }
+          KEYS.forEach(function (k) { costMap[k] += num(p['a_' + k]); });
         }
         if (row) { row.groups[g.group_id] = 1; row.people++; }
       });
     });
     var remain = alloc - doneAmt - wipAmt;
     var avail = remain - commitAmt;
-    var usedTotal = doneAmt + wipAmt, byCcg = [];
+    // 구성비 분모 = 화면 합계와 같은 축 (확정 예정 포함) — core.py 와 동일해야 한다
+    var usedTotal = doneAmt + wipAmt + commitAmt, byCcg = [];
     Object.keys(map).forEach(function (k) {
-      var row = map[k], tot = row.done + row.wip; if (row.people === 0) return;
+      var row = map[k], tot = row.done + row.wip + row.commit; if (row.people === 0) return;
       byCcg.push({ team: row.team, ccg: row.ccg, done: row.done, wip: row.wip, commit: row.commit, total: tot, plan: row.plan, share: usedTotal ? tot / usedTotal : 0, groups: Object.keys(row.groups).length, people: row.people });
     });
     byCcg.sort(function (a, b) { return (b.total + b.commit) - (a.total + a.commit); });
@@ -244,8 +250,13 @@
       short: avail < 0 && alloc > 0,
       noBudget: alloc <= 0 && (doneAmt + wipAmt + commitAmt) > 0,
       nDone: nDone, nWip: nWip, nPlan: nPlan, nConfirm: nConfirm, nCancel: nCancel, nPeople: nPeople,
+      nTrips: nPlan + nConfirm + nWip + nDone,
       nHold: G.reduce(function (s, g) { return s + g.proc.hold; }, 0),
-      byCcg: byCcg, todo: todo
+      byCcg: byCcg,
+      byCost: COST.map(function (c) {
+        return { key: c[0], name: c[1], amt: costMap[c[0]], share: usedTotal ? costMap[c[0]] / usedTotal : 0 };
+      }),
+      todo: todo
     };
   }
 

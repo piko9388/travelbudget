@@ -32,7 +32,7 @@ const TITLES = {guide:'이용 안내', dash:'대시보드', plan:'출장 계획 
   list:'출장 내역', process:'이관·처리 관리', budget:'예산 관리', data:'데이터 관리',
   bulk:'엑셀 일괄 등록'};
 const SUBS = {guide:'계획 작성부터 처리 완료까지 — 한눈에 보는 처리 흐름',
-  dash:'잔여 = 총예산 − 처리완료 − 처리중', plan:'동행 출장은 출장자 행을 추가해 한 번에 등록',
+  dash:'잔여 = 총 예산 − 처리 완료 − 처리 중', plan:'동행 출장은 출장자 행을 추가해 한 번에 등록',
   actual:'실적 저장 시 실비 이관 인폼이 자동 생성됩니다', list:'분기 전체 출장 이력',
   process:'실적 입력·인폼 → 소재 이관 → 처리 완료', budget:'예산 리비전 등록·이력 (감액은 자동 음수 처리)',
   data:'CSV 내보내기 · 자동 백업(30개) · 복원',
@@ -114,7 +114,11 @@ async function load(){
 }
 function nav(v){
   VIEW = v;
-  $$('.nav a[data-view]').forEach(a => a.classList.toggle('on', a.dataset.view === v));
+  $$('.nav a[data-view]').forEach(a => {
+    const on = a.dataset.view === v;
+    a.classList.toggle('on', on);
+    a.setAttribute('aria-current', on ? 'page' : 'false');
+  });
   $$('.view').forEach(x => x.classList.remove('on'));
   $('#v-' + v).classList.add('on');
   $('#pageTitle').textContent = TITLES[v];
@@ -329,7 +333,7 @@ function rGuide(){
       <h2>출장비, 이렇게 흘러갑니다</h2>
       <p>출장자는 <b>계획</b>과 <b>실적</b>만 입력하면 됩니다. 인폼(메일)·이관·정산·이력은 시스템과 <b>소재 출장 예산 담당자</b>가 이어받습니다.
       입력은 한 번, 실비 이관 인폼은 <b>그룹당 한 통</b>이에요.</p>
-      <div class="g-formula">가용 잔여 = 총예산 − 처리완료 − 처리중 − 확정예정(확보)</div>
+      <div class="g-formula">가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정(확보)</div>
     </div>
     <div class="card">
       <div class="flowbar">
@@ -359,15 +363,15 @@ function rGuide(){
       '', '');
   const money = `
       <div class="note" style="margin:14px 0 0">
-        💡 예산 계산: <b>가용 잔여 = 총예산 − 처리완료 − 처리중 − 확정예정(확보)</b>.
-        <b>잠정 계획</b>은 참고만(미반영), <b>확정 예정</b>은 미리 확보(가용 차감), 실제 집행은 처리중·처리완료로 반영됩니다.
+        💡 예산 계산: <b>가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정(확보)</b>.
+        <b>잠정 계획</b>은 참고만(미반영), <b>확정 예정</b>은 미리 확보(가용 차감), 실제 집행은 처리 중·처리 완료로 반영됩니다.
       </div></div>`;
   const legend = `
     <div class="card"><h2>상태 색상 보는 법</h2>
       <p class="cap">‘출장 내역’과 화면 곳곳의 배지 색으로 지금 어느 단계인지 한눈에 알 수 있어요.</p>
       <div class="glegend">
         <span><span class="status">계획 등록</span> 아직 계획만</span>
-        <span><span class="status wip">처리중</span> 실적·인폼 / 소재 이관</span>
+        <span><span class="status wip">처리 중</span> 실적·인폼 / 소재 이관</span>
         <span><span class="status done">처리 완료</span> 정산 끝</span>
         <span><span class="status cancel">취소</span> 취소된 건</span>
         <span><span class="status urgent">긴급</span> 긴급 출장</span>
@@ -387,21 +391,43 @@ function rDash(){
   const d = ST.dash;
   const av = d.avail !== undefined ? d.avail : d.remain;
   const burn = d.alloc ? Math.round((d.done + d.wip + (d.commit || 0)) / d.alloc * 100) : 0;
+  // 예산 한 장 — 큰 숫자 1개(가용) + 구성 막대 1개.
+  // 이전엔 hero 공식과 KPI 카드 4장이 총 예산·처리 완료·처리 중·확정 예정 을 두 번씩
+  // 보여주고 있었다(같은 네 숫자의 중복). 막대 하나로 합쳐 한 번만 보여준다.
+  const segs = [
+    {k: 'done', label: '처리 완료', v: d.done},
+    {k: 'wip',  label: '처리 중',   v: d.wip},
+    {k: 'cmt',  label: '확정 예정', v: d.commit || 0},
+    {k: 'ava',  label: '가용 잔여', v: Math.max(0, av)},
+  ].filter(x => x.v > 0);
+  const segTot = segs.reduce((a, x) => a + x.v, 0) || 1;
   const hero = `
     <div class="hero ${d.short ? 'alert' : ''}">
-      <span class="lamp"></span>
-      <div style="flex:1">
-        <div class="msg">${d.short
-          ? '확정·집행이 예산을 초과했습니다 — 센터 검토 및 추가 확보 필요'
-          : d.noBudget ? '이 분기 예산이 아직 배정되지 않았습니다 — 예산 관리에서 배정하세요'
-          : '소재 국내 출장비 잔액이 있어 정상 운영 중입니다'}</div>
-        <div class="fig">총예산 <b>${won(d.alloc)}원</b> − 처리완료 <b>${won(d.done)}원</b> − 처리중 <b>${won(d.wip)}원</b> − 확정예정 <b>${won(d.commit || 0)}원</b> = 가용 <b style="color:${av < 0 ? 'var(--red)' : 'var(--navy)'}">${av < 0 ? '−' : ''}${won(Math.abs(av))}원</b></div>
-        <div class="fig" style="color:var(--faint)">잠정 계획 ${won(d.planAmt)}원은 참고(예산 미반영) · 확정 시 위 ‘확정예정’으로 선확보됩니다</div>
+      <div class="hmain">
+        <div class="hleft">
+          <div class="label"><span class="lamp"></span>가용 잔여 <span class="sub">확정 확보 반영</span></div>
+          <div class="amount">${av < 0 ? '−' : ''}${won(Math.abs(av))}<span class="won">원</span></div>
+          <div class="msg">${d.short
+            ? '확정·집행이 예산을 초과했습니다 — 센터 검토 및 추가 확보 필요'
+            : d.noBudget ? '이 분기 예산이 아직 배정되지 않았습니다 — 예산 관리에서 배정하세요'
+            : '정상 운영 중입니다'}</div>
+        </div>
+        <div class="hright">
+          <div class="label">총 예산</div>
+          <div class="htot">${won(d.alloc)}<span class="won">원</span></div>
+          <div class="sub">소진율 ${burn}% · 리비전 ${ST.budget.length}회</div>
+        </div>
       </div>
-      <div style="text-align:right">
-        <div class="label">가용 잔여 (확정 확보 반영) · 소진율 ${burn}%</div>
-        <div class="amount">${av < 0 ? '−' : ''}${won(Math.abs(av))}원</div>
+      ${d.alloc > 0 ? `
+      <div class="stack" role="img" aria-label="예산 구성">
+        ${segs.map(x => `<i class="s-${x.k}" style="width:${(x.v / segTot * 100).toFixed(2)}%"
+           title="${x.label} ${won(x.v)}원"></i>`).join('')}
       </div>
+      <div class="skey">
+        ${segs.map(x => `<span><i class="s-${x.k}"></i>${x.label} <b>${won(x.v)}</b></span>`).join('')}
+      </div>` : ''}
+      <div class="hnote">잠정 계획 <b>${won(d.planAmt)}원</b> (${d.nPlan || 0}건) 은 예산에 반영되지 않습니다
+        — 실제로 가는 건은 <b>출장 확정</b> 시 위 ‘확정 예정’으로 잡힙니다.</div>
     </div>`;
   const nt = (ST.settings && ST.settings.notice) || '';
   const ns = (ST.settings && ST.settings.notice_sub) || '';
@@ -423,13 +449,6 @@ function rDash(){
         </div>
       </div>
     </div>` : '';
-  const kpi = `
-    <div class="kpis">
-      <div class="kpi"><span>총 예산</span><b>${won(d.alloc)}</b><small>리비전 ${ST.budget.length}회</small></div>
-      <div class="kpi"><span>확정 예정 <span class="au">예산 확보</span></span><b>${won(d.commit || 0)}</b><small>${d.nConfirm || 0}건 · 가용서 차감</small></div>
-      <div class="kpi"><span>처리중 (인폼·이관)</span><b>${won(d.wip)}</b><small>${d.nWip}건 진행</small></div>
-      <div class="kpi"><span>처리 완료</span><b>${won(d.done)}</b><small>${d.nDone}건 · 정산 완료</small></div>
-    </div>`;
   const aw = d.todo.actual_wait.length, pw = d.todo.process_wait.length, hd = (d.todo.hold || []).length;
   const todo = (aw || pw || hd) ? `
     <div class="card"><h2>바로 할 일</h2><p class="cap">대시보드에서 바로 이동해 처리하세요.</p>
@@ -443,14 +462,14 @@ function rDash(){
       <div class="btns" style="margin-top:0"><button class="btn" onclick="showReport()">센터 제출 리포트</button></div></div>`;
   // ── CCG팀별 집행 — 막대로 도식화. 잠정(예산 미반영)은 표에서 빼고 아래에 따로 표기.
   //    (잠정 금액을 같은 표에 두면 실제 집행액보다 커져 숫자가 튀어 보임)
-  const rowsData = d.byCcg.filter(r => (r.done + r.wip + (r.commit || 0)) > 0);
+  const rowsData = d.byCcg.filter(r => (r.done + r.wip + (r.commit || 0)) > 0);   // 합계 = 완료+처리중+확정 (구성비 분모와 동일 축)
   const peak = Math.max(1, ...rowsData.map(r => r.done + r.wip + (r.commit || 0)));
   const seg = (v, cls) => v > 0 ? `<i class="${cls}" style="width:${(v / peak * 100).toFixed(2)}%"></i>` : '';
   const bars = rowsData.map(r => {
     const sum = r.done + r.wip + (r.commit || 0);
     return `<div class="brow">
       <div class="bnm">${esc(r.team)}<span class="sub"> ${r.people}명</span></div>
-      <div class="bbar" title="완료 ${won(r.done)} · 처리중 ${won(r.wip)} · 확정 ${won(r.commit || 0)}">
+      <div class="bbar" title="완료 ${won(r.done)} · 처리 중 ${won(r.wip)} · 확정 ${won(r.commit || 0)}">
         ${seg(r.done, 'sd')}${seg(r.wip, 'sw')}${seg(r.commit || 0, 'sc')}</div>
       <div class="bval">${won(sum)}<span class="sub"> ${(r.share * 100).toFixed(0)}%</span></div>
     </div>`;
@@ -467,17 +486,29 @@ function rDash(){
   const tot = rowsData.reduce((a, r) => ({done: a.done + r.done, wip: a.wip + r.wip,
     commit: a.commit + (r.commit || 0), people: a.people + r.people}), {done:0, wip:0, commit:0, people:0});
   const totSum = tot.done + tot.wip + tot.commit;
-  const planTot = d.byCcg.reduce((a, r) => a + (r.plan || 0), 0);
+  // 비목 구성 — CCG(누가 썼나) 다음에 무엇에 썼나. 같은 합계를 다른 축으로 한 줄만.
+  function costStrip(d){
+    const cs = (d.byCost || []).filter(c => c.amt > 0);
+    const sum = cs.reduce((a, c) => a + c.amt, 0);
+    if (!sum) return '';
+    return `<div class="cost"><div class="ct">비목 구성 <span style="font-weight:400;color:var(--mut)">합계 ${won(sum)}원</span></div>
+      <div class="stack" role="img" aria-label="비목 구성">
+        ${cs.map((c, i) => `<i class="c${i + 1}" style="width:${(c.amt / sum * 100).toFixed(2)}%"
+          title="${c.name} ${won(c.amt)}원"></i>`).join('')}
+      </div>
+      <div class="skey">${cs.map((c, i) => `<span><i class="c${i + 1}"></i>${c.name}
+        <b>${won(c.amt)}</b> ${Math.round(c.share * 100)}%</span>`).join('')}</div></div>`;
+  }
 
   const ccg = `
     <div class="card">
       <div class="card-head"><h2>CCG팀(부서)별 집행 현황</h2>
-        <div class="lgd"><span><i class="sd"></i>처리완료</span><span><i class="sw"></i>처리중</span>
+        <div class="lgd"><span><i class="sd"></i>처리 완료</span><span><i class="sw"></i>처리 중</span>
           <span><i class="sc"></i>확정 예정</span></div></div>
       <div class="bars">${bars}</div>
       <details class="fold"><summary>금액 표로 보기</summary>
         <div class="scroll" style="margin-top:10px"><table>
-          <thead><tr><th>CCG팀</th><th class="num">처리완료</th><th class="num">처리중</th>
+          <thead><tr><th>CCG팀</th><th class="num">처리 완료</th><th class="num">처리 중</th>
             <th class="num">확정 예정</th><th class="num">합계</th><th class="num">구성비</th>
             <th class="num">인원</th></tr></thead>
           <tbody>${rows}</tbody>
@@ -485,11 +516,11 @@ function rDash(){
             <td class="num">${won(tot.commit)}</td><td class="num">${won(totSum)}</td>
             <td class="num">${totSum ? '100.0%' : '–'}</td><td class="num">${tot.people}</td></tr></tfoot>
         </table></div></details>
-      <div class="ref">참고 · <b>잠정 계획 ${d.nPlan || 0}건 · ${won(planTot)}원</b> — 예산에 반영되지 않습니다.
-        실제로 가는 건은 <b>출장 확정</b>을 눌러야 예산이 잡힙니다.
-        <span class="sub">이번 분기 실제 출장 ${d.nTrips || 0}건 · 참여 인원 ${d.nPeople || 0}명</span></div>
+      ${costStrip(d)}
+      <div class="ref">이번 분기 실제 출장 <b>${d.nTrips || 0}건</b> · 참여 인원 <b>${d.nPeople || 0}명</b>
+        <span class="sub">위 금액은 확정된 출장만 집계합니다 (잠정 계획 ${d.nPlan || 0}건 제외)</span></div>
     </div>`;
-  $('#v-dash').innerHTML = notice + hero + kpi + todo + ccg;
+  $('#v-dash').innerHTML = notice + hero + todo + ccg;
 }
 let NOTICE_EDIT = false;
 function editNotice(on){
@@ -1254,7 +1285,7 @@ function rProcess(){
     </div>`;
   };
   $('#v-process').innerHTML = `
-    <div class="note">실적 입력·인폼 → <b>소재 이관</b>(실비 이관 접수) → <b>처리 완료</b>(전표 처리 종료). 처리 완료·처리중(인폼·이관·<b>보류</b>) 금액만 잔여에서 차감됩니다.
+    <div class="note">실적 입력·인폼 → <b>소재 이관</b>(실비 이관 접수) → <b>처리 완료</b>(전표 처리 종료). 처리 완료·처리 중(인폼·이관·<b>보류</b>) 금액만 잔여에서 차감됩니다.
       <br>같은 출장이라도 <b>출장자별로 따로</b> 처리·보류할 수 있어요 — 아래 ‘처리(인당)’ 버튼. 다 같이 처리할 땐 상단 ‘전체’ 버튼을 쓰세요.</div>
     <div class="card"><h2>${YQ} 이관·처리 관리 (출장자 개인별)</h2>
       ${G.map(block).join('') || '<div style="color:var(--faint);text-align:center;padding:22px">대상이 없습니다.</div>'}
@@ -1459,7 +1490,7 @@ async function showReport(){
   const revs = r.revisions.map(b => `<tr><td class="num">${esc(b.rev_dt)}</td><td>${esc(b.rev_type)}</td>
     <td class="num">${b.amt >= 0 ? '+' : '−'}${won(Math.abs(b.amt))}</td><td>${esc(b.reason || '')}</td></tr>`).join('');
   const text = [`[${r.yq} 소재 국내 출장비 집행 현황]`, '',
-    `배정 ${won(r.alloc)}원 / 집행 ${won(r.used)}원 (완료 ${won(r.done)} + 처리중 ${won(r.wip)})`,
+    `배정 ${won(r.alloc)}원 / 집행 ${won(r.used)}원 (완료 ${won(r.done)} + 처리 중 ${won(r.wip)})`,
     `확정 예정(확보) ${won(r.commit)}원 · 소진율 ${(r.burn * 100).toFixed(1)}%`,
     `가용 잔여 ${won(r.avail)}원` + (r.need > 0 ? ` · 추가 필요 예상 ${won(r.need)}원` : ''), '',
     `출장 ${r.nDone + r.nWip + r.nConfirm}건 (완료 ${r.nDone} · 진행 ${r.nWip} · 확정 ${r.nConfirm}) · 연인원 ${r.nPeople}명`].join('\n');
@@ -1471,13 +1502,13 @@ async function showReport(){
     <div class="body">
       <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
         <div class="kpi"><span>배정</span><b>${won(r.alloc)}</b></div>
-        <div class="kpi"><span>집행(완료+처리중)</span><b>${won(r.used)}</b></div>
+        <div class="kpi"><span>집행(완료+처리 중)</span><b>${won(r.used)}</b></div>
         <div class="kpi"><span>확정 예정</span><b>${won(r.commit)}</b></div>
         <div class="kpi"><span>${r.need > 0 ? '추가 필요' : '가용 잔여'}</span><b style="color:${r.need > 0 ? 'var(--red)' : 'var(--navy)'}">${won(r.need > 0 ? r.need : r.avail)}</b></div>
       </div>
       <p class="cap" style="margin:6px 0 10px">소진율 ${(r.burn * 100).toFixed(1)}% · 출장 ${r.nDone + r.nWip + r.nConfirm}건 · 연인원 ${r.nPeople}명</p>
-      <table style="width:100%"><thead><tr><th>CCG팀</th><th class="num">완료</th><th class="num">처리중</th>
-        <th class="num">확정예정</th><th class="num">합계</th><th class="num">건</th><th class="num">인원</th></tr></thead>
+      <table style="width:100%"><thead><tr><th>CCG팀</th><th class="num">완료</th><th class="num">처리 중</th>
+        <th class="num">확정 예정</th><th class="num">합계</th><th class="num">건</th><th class="num">인원</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--faint);padding:14px">집행 없음</td></tr>'}</tbody></table>
       <h2 style="font-size:13px;margin:14px 0 6px;color:var(--navy)">예산 리비전</h2>
       <table style="width:100%"><thead><tr><th class="num">반영일</th><th>유형</th><th class="num">증감</th><th>사유</th></tr></thead>

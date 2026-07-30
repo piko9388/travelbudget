@@ -41,7 +41,7 @@ CCG_TEAMS = [
 ]
 CCG_BY_NM = {t["team"]: t["ccg"] for t in CCG_TEAMS}
 
-APP_VERSION = "v9.9"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_VERSION = "v10.0"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-07-27"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -327,6 +327,9 @@ def dash(data, yq):
 
     done_amt = wip_amt = plan_amt = commit_amt = 0
     nDone = nWip = nPlan = nConfirm = nCancel = nPeople = 0
+    # 비목(교통·숙박·식대&잡비·기타) 구성 — 예산에 잡힌 축(확정 예정 이후)만 담는다.
+    # 확정 전은 계획값(p_*), 확정 후는 실적값(a_*) 으로 위 합계와 같은 금액이 되게 한다.
+    cost_map = {k: 0 for k, _ in COST}
     ccg_map = {}
     for t in CCG_TEAMS:
         ccg_map[t["ccg"]] = dict(team=t["team"], ccg=t["ccg"], done=0, wip=0,
@@ -362,6 +365,8 @@ def dash(data, yq):
                 commit_amt += pl
                 if row:
                     row["commit"] += pl
+                for k, _ in COST:
+                    cost_map[k] += num(p.get("p_" + k))
             else:
                 eff = eff_status(p, g)
                 a = p_sum(p, "a")
@@ -373,16 +378,20 @@ def dash(data, yq):
                     wip_amt += a
                     if row:
                         row["wip"] += a
+                for k, _ in COST:
+                    cost_map[k] += num(p.get("a_" + k))
             if row:
                 row["groups"].add(g["group_id"])
                 row["people"] += 1
     remain = alloc - done_amt - wip_amt              # 실집행 잔여
     avail = remain - commit_amt                      # 가용 잔여 (확정 예산 확보 반영)
 
-    used_total = done_amt + wip_amt
+    # 구성비 분모 = 화면에 찍는 합계와 같은 축이어야 한다.
+    # (분자에 확정예정을 넣고 분모에서 빼면, 확정만 있는 팀이 310,000원 · 0% 로 찍힌다)
+    used_total = done_amt + wip_amt + commit_amt
     by_ccg = []
     for row in ccg_map.values():
-        tot = row["done"] + row["wip"]
+        tot = row["done"] + row["wip"] + row["commit"]
         if row["people"] == 0:
             continue
         by_ccg.append(dict(team=row["team"], ccg=row["ccg"], done=row["done"],
@@ -411,7 +420,11 @@ def dash(data, yq):
         # 두 팀이 함께 간 1건이 양쪽에 잡힌다. 합계에는 반드시 이 값을 쓸 것.
         "nTrips": nPlan + nConfirm + nWip + nDone,
         "nHold": sum(g["proc"]["hold"] for g in G),
-        "byCcg": by_ccg, "todo": todo,
+        "byCcg": by_ccg, "byCost": [
+            dict(key=k, name=nm, amt=cost_map[k],
+                 share=(cost_map[k] / used_total) if used_total else 0)
+            for k, nm in COST],
+        "todo": todo,
     }
 
 

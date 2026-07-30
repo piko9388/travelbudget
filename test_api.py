@@ -692,5 +692,52 @@ for _hf in ('servera/travelbudget/templates/index.html',
     ok(f'{_hf.split("/")[-1]} Pretendard 미사용(주석 제외)',
        not any('Pretendard' in l for l in _decl), [l for l in _decl if 'Pretendard' in l])
 
+# 컨테이너 태그 짝 — nav 를 </div> 로 닫으면 브라우저 파서가 aside 와 .app 까지 함께 닫아
+# 사이드바/본문 2열 그리드가 통째로 무너진다. DOM·기능 테스트는 전부 통과하므로 여기서 막는다.
+from html.parser import HTMLParser as _HP
+_VOID = {'area','base','br','col','embed','hr','img','input','link','meta',
+         'param','source','track','wbr'}
+_WATCH = {'div','nav','aside','main','section','table','thead','tbody','tr','td','th','form','a'}
+
+class _Bal(_HP):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.stack, self.bad = [], []
+    def handle_starttag(self, tag, attrs):
+        if tag not in _VOID:
+            self.stack.append((tag, self.getpos()[0]))
+    def handle_startendtag(self, tag, attrs):
+        pass
+    def handle_endtag(self, tag):
+        if tag in _VOID:
+            return
+        if not self.stack:
+            self.bad.append(f'{self.getpos()[0]}행: 여는 태그 없는 </{tag}>')
+            return
+        top, line = self.stack[-1]
+        if top == tag:
+            self.stack.pop()
+        elif any(t == tag for t, _ in self.stack):
+            # 짝이 안 맞는 채로 닫힘 — 브라우저는 사이 태그들을 강제로 닫아버린다
+            while self.stack and self.stack[-1][0] != tag:
+                t, l = self.stack.pop()
+                if t in _WATCH:
+                    self.bad.append(f'{self.getpos()[0]}행 </{tag}> 이(가) {l}행 <{t}> 을(를) 강제로 닫음')
+            self.stack.pop()
+        else:
+            self.bad.append(f'{self.getpos()[0]}행: 열린 적 없는 </{tag}>')
+
+for _hf in ('servera/travelbudget/templates/index.html',
+            'servera/travelbudget/templates/traveler_guide.html',
+            'docs/index.html', 'docs/traveler_guide.html'):
+    if not os.path.exists(_hf):
+        continue
+    _p = _Bal()
+    _p.feed(open(_hf, encoding='utf-8').read())
+    _p.close()
+    _left = [f'{t}({l}행)' for t, l in _p.stack if t in _WATCH]
+    ok(f'{_hf.split("/")[-1]} 태그 짝 맞음', not _p.bad, _p.bad[:3])
+    ok(f'{_hf.split("/")[-1]} 닫히지 않은 컨테이너 없음', not _left, _left[:3])
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)
