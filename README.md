@@ -1,4 +1,4 @@
-# 소재 국내 출장비 관리 v9.8
+# 소재 국내 출장비 관리 v9.9
 
 소재전략 국내 출장비 계획·실적·인폼·정산 관리 (Flask + data.json 단일 파일 저장)
 
@@ -123,11 +123,12 @@ python3 tools/build_docs.py      # 정적(GitHub Pages) 재조립
 
 | 명령 | 필요 조건 | 결과 | 운영 데이터 |
 |---|---|---|---|
-| `python3 test_api.py` | Flask만 | **248 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
+| `python3 test_api.py` | Flask만 | **301 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
 | `python3 smoke_test.py [URL]` | 기동 중인 서버 | **19 passed / 0 failed** | 읽기 전용 (변경 없음) |
 | `python3 tools/e2e/fuzz.py` | Flask만 | 퍼징 1,302회 → 500 오류 **0건** | 임시 폴더 |
-| `node tools/e2e/e2e.mjs` | Node 18+ · Playwright | **82 passed / 0 failed** | 임시 폴더 |
+| `node tools/e2e/e2e.mjs` | Node 18+ · Playwright | **100 passed / 0 failed** | 임시 폴더 |
 | `node tools/e2e/e2e_pages.mjs` | Node 18+ · Playwright | **19 passed / 0 failed** | 해당 없음(정적판) |
+| `node tools/e2e/bulk_debug.mjs` | Node 18+ · Playwright | **49 passed / 0 failed** | 임시 폴더 |
 
 Playwright 가 기본 경로에 없으면 `PLAYWRIGHT_PATH=/경로/playwright/index.js` 로 지정합니다.
 브라우저 스크립트는 개발용이며 **사내 서버 배포에는 필요 없습니다** — 서버에서는 `smoke_test.py` 만 쓰세요.

@@ -302,7 +302,7 @@ padding:13px 16px;margin-bottom:14px}
     { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
     { team: 'Target 소재팀', ccg: 'C1707' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
-  var APP_VERSION = 'v9.8', APP_BUILD = '2026-07-27';
+  var APP_VERSION = 'v9.9', APP_BUILD = '2026-07-27';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
@@ -1058,7 +1058,14 @@ const fmtD = d => d ? d.slice(5).replace('-', '/') : '';
 const KEYS = ['trans', 'lodg', 'meal', 'etc'];
 
 /* 금액칸 — 천단위 자동 구분(0 개수 오입력 방지). 값 읽기는 반드시 mnum() 사용 */
-const mnum = el => Number(String(el && el.value || '').replace(/[^0-9]/g, '')) || 0;
+function numFrom(t){
+  // 붙여넣기·입력 공통 금액 파서. 콤마·'원'·공백은 버리고 소수점은 살려 반올림한다.
+  // (소수점을 그냥 지우면 70000.4 → 700004 로 10배가 되어 원장이 틀어진다)
+  const m = String(t ?? '').replace(/[^0-9.]/g, '').match(/^\d*\.?\d*/);
+  const v = m ? parseFloat(m[0]) : NaN;
+  return Number.isFinite(v) ? Math.round(v) : 0;
+}
+const mnum = el => numFrom(el && el.value);
 function moneyFmt(el){
   const before = el.value.slice(0, el.selectionStart ?? el.value.length).replace(/[^0-9]/g, '').length;
   const raw = el.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
@@ -1936,7 +1943,7 @@ function bParse(text){
     if (g.travelers.some(t => t.emp_no === o.emp_no)) { errs.push(`${ln}행: 같은 출장에 사번 ${o.emp_no} 중복`); return; }
     const t = {name: o.name, emp_no: o.emp_no,
       rank: bnorm(o.rank) === '팀장' ? '팀장' : 'TL', ccg_nm: team};
-    KEYS.forEach(k => { t['p_' + k] = mnum({value: o['p_' + k]}); t['a_' + k] = mnum({value: o['a_' + k]}); });
+    KEYS.forEach(k => { t['p_' + k] = numFrom(o['p_' + k]); t['a_' + k] = numFrom(o['a_' + k]); });
     g.travelers.push(t); g._rows.push(ln);
   });
   return {groups: [...byKey.values()], errs};
@@ -1981,11 +1988,14 @@ async function bSubmit(){
     if (r.ok) okN++; else fail.push(`${g.city} ${g.org}: ${(r.data.errors || ['실패'])[0]}`);
   }
   await load();
-  $('#bkText').value = ''; BULK_ROWS = null;
+  BULK_ROWS = null;
+  rBulk(); nav('bulk');                     // 화면을 먼저 새로 그린 뒤 결과를 넣는다
+  $('#bkText').value = fail.length ? $('#bkText').value : '';   // 실패가 있으면 원본을 남겨 고칠 수 있게
   $('#bkOut').innerHTML = `<div class="${fail.length ? 'err' : 'note'}" style="margin:10px 0 0">
-    <b>${okN}건 등록 완료</b>${fail.length ? `\n실패 ${fail.length}건:\n${fail.map(esc).join('\n')}` : ''}</div>`;
+    <b>${okN}건 등록 완료</b>${fail.length
+      ? `\n실패 ${fail.length}건 — 아래 내용을 고쳐 다시 등록하세요:\n${fail.map(esc).join('\n')}`
+      : ''}</div>`;
   toast(`${okN}건 등록 완료${fail.length ? ` · 실패 ${fail.length}건` : ''}`);
-  rBulk(); nav('bulk');
 }
 function rBulk(){
   $('#v-bulk').innerHTML = `

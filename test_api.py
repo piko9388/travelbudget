@@ -681,7 +681,16 @@ ok('화면 인폼 카드에 드래그 안내', '끌어다 놓기' in _appjs or '
 for _ghost in ('SAP', '전표', '승인', '반려'):
     ok(f'안내에 없는 기능 "{_ghost}" 미언급', _ghost not in _gd)
 ok('안내는 자체 완결(외부 CDN 없음)', 'http://' not in _gd and 'cdn' not in _gd.lower())
-ok('안내 글꼴 = 화면과 동일 스택', 'Malgun Gothic' in _gd and 'Pretendard' in _gd)
+# 윈도우에서 라틴/한글이 섞이지 않도록 모든 배포 HTML 이 맑은 고딕을 맨 앞에 둔다
+for _hf in ('servera/travelbudget/templates/index.html',
+            'servera/travelbudget/templates/traveler_guide.html'):
+    _h = open(_hf, encoding='utf-8').read()
+    _decl = [l for l in _h.split('\n') if 'font-family:' in l and 'monospace' not in l]
+    _body = [l for l in _decl if 'Malgun Gothic' in l]
+    ok(f'{_hf.split("/")[-1]} 본문 글꼴 맑은고딕 우선',
+       any(l.strip().startswith('font-family:"Malgun Gothic"') for l in _decl), _decl[:2])
+    ok(f'{_hf.split("/")[-1]} Pretendard 미사용(주석 제외)',
+       not any('Pretendard' in l for l in _decl), [l for l in _decl if 'Pretendard' in l])
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)
