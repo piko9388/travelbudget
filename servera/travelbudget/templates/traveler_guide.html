@@ -26,11 +26,11 @@ html{color-scheme:only light;background:#F5F6F8}
 body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;
   word-break:keep-all;overflow-wrap:break-word;   /* 한국어는 단어 중간에서 끊지 않는다 */
   font-family:"Malgun Gothic","맑은 고딕","Segoe UI",system-ui,sans-serif}
-.wrap{max-width:840px;margin:0 auto;padding:32px 22px 56px;display:flex;flex-direction:column;gap:16px}
+.wrap{max-width:840px;margin:0 auto;padding:24px 24px 48px;display:flex;flex-direction:column;gap:16px}
 
 /* 머리말 */
 .head{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--navy);
-  border-radius:2px;padding:24px 26px;display:flex;flex-direction:column;gap:8px}
+  border-radius:2px;padding:24px 24px;display:flex;flex-direction:column;gap:8px}
 .eyebrow{color:var(--faint);font-size:11.5px;font-weight:700;letter-spacing:.06em}
 h1{margin:0;color:var(--navy);font-size:26px;font-weight:800;letter-spacing:-.01em;line-height:1.25;text-wrap:balance}
 .lead{margin:0;color:var(--ink2);font-size:14.5px;max-width:62ch}
@@ -38,48 +38,48 @@ h1{margin:0;color:var(--navy);font-size:26px;font-weight:800;letter-spacing:-.01
 
 /* 단계 — 실제 처리 순서라 번호가 의미를 가집니다 */
 .steps{display:flex;flex-direction:column;gap:12px}
-.step{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:18px 20px;
-  display:grid;grid-template-columns:34px minmax(0,1fr);gap:0 14px;align-items:start}
+.step{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:16px 16px;
+  display:grid;grid-template-columns:34px minmax(0,1fr);gap:0 12px;align-items:start}
 .n{grid-row:1/span 3;width:30px;height:30px;border-radius:50%;background:var(--navy);color:var(--on-navy);
   display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;
   font-variant-numeric:tabular-nums}
 .step h2{margin:0 0 2px;color:var(--navy);font-size:16.5px;font-weight:800}
-.where{color:var(--faint);font-size:12px;font-weight:700;margin-bottom:9px}
+.where{color:var(--faint);font-size:12px;font-weight:700;margin-bottom:8px}
 .where .m{display:inline-block;background:var(--chip-bg);border:1px solid var(--chip-line);
-  color:var(--navy);border-radius:2px;padding:1px 7px;font-weight:700}
-.step ul{margin:0;padding-left:17px;color:var(--ink2);display:flex;flex-direction:column;gap:3px}
+  color:var(--navy);border-radius:2px;padding:1px 8px;font-weight:700}
+.step ul{margin:0;padding-left:16px;color:var(--ink2);display:flex;flex-direction:column;gap:2px}
 .step li::marker{color:var(--faint)}
 .step b{color:var(--ink)}
-.press{margin-top:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+.press{margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   color:var(--faint);font-size:12px;font-weight:700}
 .btn{display:inline-flex;align-items:center;background:var(--navy);color:var(--on-navy);border-radius:2px;
-  padding:5px 13px;font-size:12.5px;font-weight:700;letter-spacing:-.01em}
+  padding:4px 12px;font-size:12.5px;font-weight:700;letter-spacing:-.01em}
 .btn.g{background:transparent;color:var(--navy);border:1px solid var(--chip-line)}
-.tip{margin-top:10px;padding:9px 12px;background:var(--soft);border-left:3px solid var(--blue);
+.tip{margin-top:8px;padding:8px 12px;background:var(--soft);border-left:3px solid var(--blue);
   border-radius:2px;color:var(--ink2);font-size:12.5px}
 .tip b{color:var(--navy)}
 
 /* 예산 안내 — 색만이 아니라 글자로도 구분 */
 .warn{background:var(--warn-bg);border:1px solid var(--warn-line);border-left:4px solid var(--warn-bar);
-  border-radius:2px;padding:13px 16px;color:var(--warn-ink);font-size:13px}
+  border-radius:2px;padding:12px 16px;color:var(--warn-ink);font-size:13px}
 .warn b{font-weight:800}
 
 /* 인계 밴드 */
-.hand{background:var(--shade);border:1px solid var(--line);border-radius:2px;padding:15px 18px;
+.hand{background:var(--shade);border:1px solid var(--line);border-radius:2px;padding:16px 16px;
   color:var(--ink2);font-size:13.5px}
 .hand b{color:var(--navy)}
-.hand .t{display:block;color:var(--navy);font-weight:800;font-size:14px;margin-bottom:3px}
+.hand .t{display:block;color:var(--navy);font-weight:800;font-size:14px;margin-bottom:2px}
 
 /* 상태 표 */
-.card{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:18px 20px}
-.card > h2{margin:0 0 3px;color:var(--navy);font-size:16.5px;font-weight:800}
-.card > .cap{margin:0 0 13px;color:var(--faint);font-size:12.5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:16px 16px}
+.card > h2{margin:0 0 2px;color:var(--navy);font-size:16.5px;font-weight:800}
+.card > .cap{margin:0 0 12px;color:var(--faint);font-size:12.5px}
 .tbl{width:100%;border-collapse:collapse}
 .tbl td{padding:8px 4px;border-bottom:1px solid var(--line2);vertical-align:top;
   color:var(--ink2);font-size:13px}
 .tbl tr:last-child td{border-bottom:0}
-.tbl td:first-child{width:1%;white-space:nowrap;padding-right:14px}
-.st{display:inline-block;padding:2px 9px;border:1px solid var(--chip-line);background:var(--chip-bg);
+.tbl td:first-child{width:1%;white-space:nowrap;padding-right:12px}
+.st{display:inline-block;padding:2px 8px;border:1px solid var(--chip-line);background:var(--chip-bg);
   color:var(--s1);font-size:11.5px;font-weight:700;border-radius:2px;white-space:nowrap}
 .st.confirm{background:var(--confirm-bg);border-color:var(--confirm-line);color:var(--s1)}
 .st.wip{background:var(--s2);border-color:var(--s2);color:#FFF}
@@ -87,7 +87,7 @@ h1{margin:0;color:var(--navy);font-size:26px;font-weight:800;letter-spacing:-.01
 .st.cancel{background:var(--shade);color:var(--faint);text-decoration:line-through}
 
 /* 자주 묻는 것 */
-.qa{display:flex;flex-direction:column;gap:11px;margin-top:2px}
+.qa{display:flex;flex-direction:column;gap:12px;margin-top:2px}
 .q{color:var(--navy);font-weight:800;font-size:13.5px;margin-bottom:1px}
 .a{color:var(--ink2);font-size:13px}
 .a b{color:var(--ink)}
@@ -96,14 +96,14 @@ h1{margin:0;color:var(--navy);font-size:26px;font-weight:800;letter-spacing:-.01
 .foot b{color:var(--mut)}
 
 @media (max-width:560px){
-  .wrap{padding:20px 14px 40px}
+  .wrap{padding:16px 12px 48px}
   h1{font-size:22px}
-  .step{grid-template-columns:1fr;gap:10px}
+  .step{grid-template-columns:1fr;gap:8px}
   .n{grid-row:auto}
 }
 @media print{
   body{background:#fff;font-size:11pt}
-  .wrap{max-width:none;padding:0;gap:10px}
+  .wrap{max-width:none;padding:0;gap:8px}
   .step,.card,.head,.hand,.warn{break-inside:avoid;box-shadow:none}
 }
 </style>

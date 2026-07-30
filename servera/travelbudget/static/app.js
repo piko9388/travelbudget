@@ -569,8 +569,9 @@ function travRow(p = {}){
     <td><input class="w-nm t-nm" value="${esc(p.name || '')}" placeholder="성명"></td>
     <td><input class="w-no t-no" value="${esc(p.emp_no || '')}" placeholder="사번"></td>
     <td><select class="w-rk t-rk">${ranks}</select></td>
-    <td><select class="w-tm t-tm" onchange="syncCcg(this)"><option value="">선택</option>${teams}</select></td>
-    <td><input class="w-cc t-cc auto" value="${esc(p.ccg || '')}" readonly placeholder="자동"></td>
+    <td><select class="w-tm t-tm" onchange="syncCcg(this)"><option value="">선택</option>${teams}</select>
+      <input class="t-cc" type="hidden" value="${esc(p.ccg || '')}">
+      <div class="ccgno">CCG <b class="t-cc-v">${esc(p.ccg || '–')}</b></div></td>
     ${KEYS.map(k => `<td>${mfield('w-mn t-p-' + k, p['p_' + k], '0', 'planSum()')}</td>`).join('')}
     <td class="num t-sum" style="font-weight:700">0</td>
     <td><button class="btn sm" onclick="this.closest('tr').remove(); planSum()">삭제</button></td>
@@ -578,7 +579,10 @@ function travRow(p = {}){
 }
 function syncCcg(sel){
   const t = ST.ccg.find(x => x.team === sel.value);
-  sel.closest('tr').querySelector('.t-cc').value = t ? t.ccg : '';
+  const tr = sel.closest('tr');
+  tr.querySelector('.t-cc').value = t ? t.ccg : '';
+  const v = tr.querySelector('.t-cc-v');
+  if (v) v.textContent = t ? t.ccg : '–';
 }
 function planSum(){
   let tot = 0;
@@ -644,7 +648,7 @@ function rPlan(){
   $('#v-plan').innerHTML = justPanel() + `
     <div class="card">
       <div class="card-head"><h2>${ed ? '출장 계획 수정' : '출장 계획 등록'}</h2>
-        ${ed ? '' : `<select id="copySel" style="width:auto;min-width:250px" onchange="copyPlan(this.value)">
+        ${ed ? '' : `<select id="copySel" class="headsel" onchange="copyPlan(this.value)">
           <option value="">이전 출장 복사…</option>${copyOpts}</select>`}</div>
       ${ed ? `<div class="note"><b>${esc(gname(ed))}</b> · ${fmtD(ed.dep_dt)}–${fmtD(ed.ret_dt)} 를 수정합니다.
         <span class="status ${stClass(ed.roll)}">${esc(dispSt(ed.roll))}</span>
@@ -674,8 +678,13 @@ function rPlan(){
       </div>
       <label style="margin-top:4px">출장자 <span class="au">동행자는 행 추가</span></label>
       <div class="scroll trav-table"><table>
-        <thead><tr><th>성명<span class="rq">*</span></th><th>사번<span class="rq">*</span></th><th>직책<span class="rq">*</span></th><th>CCG팀<span class="rq">*</span></th><th>CCG No.</th>
-          ${m.cost.map(c => `<th class="num">계획 ${c.label}</th>`).join('')}<th class="num">합계</th><th></th></tr></thead>
+        <thead>
+          <tr><th rowspan="2">성명<span class="rq">*</span></th><th rowspan="2">사번<span class="rq">*</span></th>
+            <th rowspan="2">직책<span class="rq">*</span></th><th rowspan="2">CCG팀<span class="rq">*</span></th>
+            <th class="num grp" colspan="${m.cost.length}">계획 비용</th>
+            <th class="num" rowspan="2">합계</th><th rowspan="2"></th></tr>
+          <tr>${m.cost.map(c => `<th class="num sub2">${c.label}</th>`).join('')}</tr>
+        </thead>
         <tbody id="travBody"></tbody>
       </table></div>
       <div class="btns" style="margin-top:10px">
@@ -793,7 +802,7 @@ function pickActual(gid){
     return `<tr data-emp="${esc(p.emp_no)}">
       <td><b>${esc(p.name)}</b> <span class="sub">${esc(p.rank)} · ${esc(p.emp_no)}</span></td>
       <td>${esc(p.ccg_nm)}</td>
-      ${KEYS.map(k => `<td>${mfield('a-' + k, p['a_' + k], '계획 ' + won(p['p_' + k]), 'actSum()')}</td>`).join('')}
+      ${KEYS.map(k => `<td>${mfield('w-mn a-' + k, p['a_' + k], '계획 ' + won(p['p_' + k]), 'actSum()')}</td>`).join('')}
       <td class="num a-sum" style="font-weight:700">0</td>
       <td class="num a-var">–</td>
     </tr>`;
@@ -801,9 +810,12 @@ function pickActual(gid){
   box.innerHTML = `
     <div class="note"><b>${esc(gname(g))}</b> · ${esc(g.purpose)} · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} (${g.days}일) · ${g.travelers.length}명 · 계획 합계 ${won(g.plan_tot)}원</div>
     <div class="scroll trav-table"><table>
-      <thead><tr><th>출장자</th><th>CCG팀</th>
-        ${m.cost.map(c => `<th class="num">실적 ${c.label}</th>`).join('')}
-        <th class="num">실적 합계</th><th class="num">계획 대비</th></tr></thead>
+      <thead>
+        <tr><th rowspan="2">출장자</th><th rowspan="2">CCG팀</th>
+          <th class="num grp" colspan="${m.cost.length}">실적 비용</th>
+          <th class="num" rowspan="2">실적 합계</th><th class="num" rowspan="2">계획 대비</th></tr>
+        <tr>${m.cost.map(c => `<th class="num sub2">${c.label}</th>`).join('')}</tr>
+      </thead>
       <tbody id="actRows">${rows}</tbody>
       <tfoot><tr><td colspan="2">그룹 합계</td>
         ${KEYS.map(k => `<td class="num" id="af-${k}">0</td>`).join('')}

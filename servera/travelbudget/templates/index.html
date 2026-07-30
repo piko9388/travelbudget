@@ -30,6 +30,8 @@
 --faint:#5C6878;--navy2:#17365D;--blue:#35618F;
 }
 *{box-sizing:border-box}
+/* 여백 — 4 · 8 · 12 · 16 · 24 다섯 단계만 쓴다.
+   4=라벨과 입력 사이, 8=한 덩어리 안, 12=칸과 칸 사이, 16=블록과 블록 사이, 24=큰 구획 */
 /* 글꼴 — 사내 윈도우 데스크톱 전용. 맑은 고딕을 맨 앞에.
    Pretendard 를 앞에 두면 윈도우엔 설치돼 있지 않아 라틴=Segoe UI / 한글=맑은고딕 으로
    두 가족이 섞여 렌더링돼 지저분해진다. 맑은 고딕 하나면 숫자·영문·한글이 같은 가족.
@@ -38,37 +40,38 @@ body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1
 font-family:"Malgun Gothic","맑은 고딕","Segoe UI",system-ui,sans-serif}
 .app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}
 aside{position:sticky;top:0;height:100vh;background:var(--white);border-right:1px solid var(--line);
-padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
-.brand{padding:0 10px 16px;border-bottom:1px solid var(--line);color:var(--navy);font-size:16px;font-weight:800;line-height:1.3}
-.nav-label{margin:16px 10px 4px;color:var(--mut);font-size:11px;font-weight:700;letter-spacing:.04em}
+padding:24px 16px;display:flex;flex-direction:column;overflow-y:auto}
+.brand{padding:0 8px 16px;border-bottom:1px solid var(--line);color:var(--navy);font-size:16px;font-weight:800;line-height:1.3}
+.nav-label{margin:16px 8px 4px;color:var(--mut);font-size:11px;font-weight:700;letter-spacing:.04em}
 .nav a{display:block;margin:1px 0;padding:8px 12px;color:var(--ink2);border:1px solid transparent;
 cursor:pointer;border-radius:2px;font-size:13px;user-select:none}
 .nav a:hover,.nav a.on{background:var(--soft);border-color:#E3E7ED;color:var(--navy);font-weight:700}
 .nav a .lk{font-size:11px;color:var(--mut);margin-left:4px;font-weight:600}
 .nav a.ext{color:var(--ink2);font-weight:400;font-size:12px;text-decoration:none}
 .nav a.ext::after{content:' ↗';color:var(--mut);font-size:11px}
-.ver{padding:0 10px 6px;color:var(--mut);font-size:11px;letter-spacing:.02em}
+.ver{padding:0 8px 8px;color:var(--mut);font-size:11px;letter-spacing:.02em}
 .util{margin-top:auto}
-.contact{padding:14px 10px 0;border-top:1px solid var(--line);font-size:11px;color:var(--mut);line-height:1.65}
+.contact{padding:16px 8px 0;border-top:1px solid var(--line);font-size:11px;color:var(--mut);line-height:1.65}
 .contact b{display:block;color:var(--navy);font-size:12px}
 .contact a{color:var(--navy);text-decoration:none}
-main{width:100%;max-width:1560px;padding:22px 28px 48px}
+main{width:100%;max-width:1560px;padding:24px 24px 48px}
 .top{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 .top h1{margin:0;color:var(--navy);font-size:20px}
 .top .sub{color:var(--mut);font-size:12px}
 .top select{margin-left:auto;width:130px}
 .view{display:none}.view.on{display:block}
 .card{background:var(--white);border:1px solid var(--line);box-shadow:0 1px 2px rgba(16,24,40,.03);
-padding:16px;margin-bottom:14px;border-radius:2px}
+padding:16px;margin-bottom:16px;border-radius:2px}
 .card h2{margin:0 0 4px;color:var(--navy);font-size:16px}
 .card .cap{margin:0 0 12px;color:var(--mut);font-size:12px}
-.card-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.headsel{width:auto;min-width:200px;max-width:260px}
 /* 예산 한 장 — 큰 숫자 + 구성 막대. KPI 카드 4장을 대체한다 */
 .hero{background:var(--white);border:1px solid var(--line);border-radius:2px;
-padding:20px 24px;margin-bottom:16px}
+padding:24px 24px;margin-bottom:16px}
 .hero.alert{background:#FFFAFB;border-color:#E6B7BD}
 .hmain{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap}
-.hero .label{color:var(--mut);font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px}
+.hero .label{color:var(--mut);font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px}
 .hero .label .sub{color:var(--mut);font-weight:500}
 .hero .lamp{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
 .hero.alert .lamp{background:var(--red)}
@@ -89,24 +92,24 @@ font-variant-numeric:tabular-nums;line-height:1.15}
 .stack i+i{box-shadow:-1px 0 0 #FFF}          /* 인접 음영이 붙어 보이지 않게 */
 /* 잠정 계획 — 예산에 반영되지 않으므로 위 막대에 섞지 않고, 같은 축·같은 폭으로 아래 따로 */
 .ghost{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
-.ghost .gl{font-size:12px;color:var(--mut);margin-bottom:6px}
+.ghost .gl{font-size:12px;color:var(--mut);margin-bottom:8px}
 .ghost .gl b{color:var(--ink2)}
 .ghost .stack{margin-top:0;height:8px;background:var(--track)}
 .ghost .stack i{background:var(--s4)}
-.skey{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:8px;font-size:12px;color:var(--ink2)}
-.skey span{display:flex;align-items:center;gap:6px}
+.skey{display:flex;flex-wrap:wrap;gap:4px 24px;margin-top:8px;font-size:12px;color:var(--ink2)}
+.skey span{display:flex;align-items:center;gap:8px}
 .skey i{width:9px;height:9px;border-radius:2px;display:block;flex-shrink:0}
 .skey b{font-variant-numeric:tabular-nums;color:var(--navy)}
-.hnote{margin-top:14px;padding-top:12px;border-top:1px solid var(--line2);
+.hnote{margin-top:16px;padding-top:12px;border-top:1px solid var(--line2);
 font-size:12px;color:var(--mut)}
 .hnote b{color:var(--ink2)}
 /* 센터 제출 리포트 모달 전용 — 대시보드는 더 이상 쓰지 않지만 리포트가 쓴다 */
-.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
-.kpi{background:var(--white);border:1px solid var(--line);padding:14px 16px;border-radius:2px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--white);border:1px solid var(--line);padding:16px 16px;border-radius:2px}
 .kpi span{display:block;color:var(--mut);font-size:12px}
 .kpi b{display:block;margin-top:4px;color:var(--navy);font-size:20px;font-variant-numeric:tabular-nums}
 .kpi small{color:var(--mut);font-size:11px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .form-grid{display:grid;gap:12px;margin-bottom:12px}
 .c2{grid-template-columns:repeat(2,minmax(0,1fr))}.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .c4{grid-template-columns:repeat(4,minmax(0,1fr))}
@@ -120,18 +123,18 @@ input[readonly],.auto{background:var(--shade);color:var(--mut)}
 input[type=number],input.mny{text-align:right;font-variant-numeric:tabular-nums}
 input.bad{border-color:var(--red);background:#FFF5F5}
 .fwarn{color:var(--red);font-size:11px;font-weight:600;margin-top:4px}
-.promptbox{margin:12px 0 0;padding:12px 14px;background:#FAFBFC;border:1px solid var(--line);border-radius:2px;
+.promptbox{margin:12px 0 0;padding:12px 16px;background:#FAFBFC;border:1px solid var(--line);border-radius:2px;
 max-height:420px;overflow:auto;font-size:11px;line-height:1.6;white-space:pre-wrap;word-break:break-word;
 font-family:Consolas,"D2Coding","Malgun Gothic","맑은 고딕",monospace;color:var(--ink2)}
 .card.just{border-left:4px solid var(--s2);background:#F7FAFD}
-.just .jt{font-weight:800;color:var(--navy);font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.just .jw{color:var(--ink2);font-size:12px;margin:6px 0 10px}
+.just .jt{font-weight:800;color:var(--navy);font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.just .jw{color:var(--ink2);font-size:12px;margin:8px 0 8px}
 .nav a:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
   outline:2px solid var(--s2);outline-offset:1px}
 textarea{min-height:66px;resize:vertical}
-.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;align-items:center}
 .btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid #CFD5DF;background:#FFF;
-color:var(--ink2);padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer;text-decoration:none;border-radius:2px}
+color:var(--ink2);padding:8px 16px;font-weight:700;font-size:12px;cursor:pointer;text-decoration:none;border-radius:2px}
 .btn:hover{background:#F7F8FA}
 .btn.pri{background:var(--navy);border-color:var(--navy);color:#FFF}.btn.pri:hover{background:var(--navy)}
 .btn.red{color:var(--red);border-color:#E2B4BA}
@@ -154,15 +157,15 @@ td .sub{color:var(--mut);font-size:11px}
 .status.urgent{background:#FBEDEE;border-color:#E6B7BD;color:var(--red)}
 .status.hold{background:#FBEDEE;border-color:#E6B7BD;color:var(--red)}
 .status.confirm{background:var(--s3bg);border-color:#8FB0D2;color:var(--s1)}
-.pgroup{border:1px solid var(--line);border-radius:2px;margin-bottom:10px;overflow:hidden}
-.pg-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 12px;background:#FAFBFC;border-bottom:1px solid var(--line2)}
+.pgroup{border:1px solid var(--line);border-radius:2px;margin-bottom:8px;overflow:hidden}
+.pg-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 12px;background:#FAFBFC;border-bottom:1px solid var(--line2)}
 .pg-head .nm{font-weight:700;color:var(--navy)}
 .pg-sum{font-size:11px;color:var(--mut)}
 .pg-sum b{color:var(--red)}
-.pg-head .gb{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.pg-head .gb{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
 /* CCG 집행 막대 — 라이브러리 없이 div 로. 색은 상태 3색만 사용 */
 .bars{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.brow{display:grid;grid-template-columns:150px minmax(0,1fr) 130px;align-items:center;gap:10px}
+.brow{display:grid;grid-template-columns:150px minmax(0,1fr) 130px;align-items:center;gap:8px}
 .bnm{font-size:12px;font-weight:700;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bbar{height:16px;background:var(--shade);border-radius:2px;display:flex;overflow:hidden}
 .bbar i{display:block;height:100%}
@@ -176,53 +179,65 @@ td .sub{color:var(--mut);font-size:11px}
 .lgd i{width:10px;height:10px;border-radius:2px;display:block}
 /* 비목 구성 — 단계가 아니라 범주다. 색으로 나누면 단계 음영과 헷갈리므로
    전부 같은 색 한 겹으로 두고 이름과 길이로만 구분한다 */
-.cost{margin-top:16px;padding-top:14px;border-top:1px solid var(--line2)}
+.cost{margin-top:16px;padding-top:16px;border-top:1px solid var(--line2)}
 .cost .ct{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px}
 .cost .ct span{font-weight:400;color:var(--mut)}
 .cost .bbar i{background:var(--s2)}
-.fold{margin-top:14px}
+.fold{margin-top:16px}
 .fold summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--navy);padding:4px 0;user-select:none}
 .fold summary:hover{text-decoration:underline}
-.ref{margin-top:14px;padding:10px 12px;background:var(--soft);border-left:3px solid var(--mut);
+.ref{margin-top:16px;padding:8px 12px;background:var(--soft);border-left:3px solid var(--mut);
 border-radius:2px;font-size:12px;color:var(--ink2)}
 .ref b{color:var(--navy)}
 .ref .sub{display:block;margin-top:4px}
-.note{padding:10px 12px;border:1px solid var(--line);background:#F6F7F9;color:#475467;font-size:12px;border-radius:2px;margin-bottom:12px}
-.err{margin-bottom:12px;padding:10px 12px;border:1px solid #E2B4BA;background:#FFF7F8;color:var(--red);font-size:12px;border-radius:2px;white-space:pre-line}
-.trav-table input,.trav-table select{min-width:0;padding:6px 8px;font-size:13px}
-.trav-table td{padding:4px 4px}
-.trav-table .w-nm{min-width:86px}.trav-table .w-no{min-width:88px}.trav-table .w-rk{min-width:74px}
-.trav-table .w-tm{min-width:132px}.trav-table .w-cc{min-width:72px}.trav-table .w-mn{min-width:92px}
-.trav-table th:first-child,.trav-table td:first-child{position:sticky;left:0;z-index:1;background:#FFF}
-.trav-table thead th:first-child{background:#F5F6F8}
+.note{padding:8px 12px;border:1px solid var(--line);background:#F6F7F9;color:#475467;font-size:12px;border-radius:2px;margin-bottom:12px}
+.err{margin-bottom:12px;padding:8px 12px;border:1px solid #E2B4BA;background:#FFF7F8;color:var(--red);font-size:12px;border-radius:2px;white-space:pre-line}
+/* 출장자 표 — 1280px 에서 가로 스크롤 없이 들어가도록 열 폭을 맞춘다.
+   첫 칸 고정(sticky)은 쓰지 않는다: 스크롤되면 뒷칸 위에 겹쳐 올라가
+   사번·직책 칸이 성명 칸 밑으로 사라졌다(최대 72px 침범). 행이 1~4개뿐이라 고정이 필요 없다. */
+.trav-table input,.trav-table select{min-width:0;padding:8px 8px;font-size:13px}
+.trav-table td{padding:4px}
+.trav-table .w-nm{min-width:84px}.trav-table .w-no{min-width:82px}.trav-table .w-rk{min-width:72px}
+.trav-table .w-tm{min-width:128px}
+/* 금액칸은 두 표(계획·실적)에서 같은 크기여야 한다.
+   폭을 안 잡으면 열이 적은 실적 표에서 195px 까지 늘어나 계획 표와 리듬이 어긋난다.
+   남는 폭은 칸을 늘리지 않고 여백으로 둔다 — 오른쪽 정렬이라 숫자 열은 그대로 맞는다. */
+.trav-table .w-mn{min-width:76px;max-width:110px;display:block;margin-left:auto}
+.trav-table .ccgno{margin-top:2px;font-size:11px;color:var(--mut);line-height:1.3}
+.trav-table .ccgno b{color:var(--ink2);font-weight:700}
+/* 비용 4열을 묶는 그룹 머리 — 열 폭이 '계획 식대&잡비' 같은 긴 머리글에 끌려다니지 않게 */
+.trav-table thead th{vertical-align:bottom}
+.trav-table th.grp{text-align:center;border-bottom:1px solid var(--line2);
+font-weight:700;color:var(--mut);padding-bottom:4px}
+.trav-table th.sub2{font-weight:700;color:#475467}
 .mailcard{position:fixed;right:16px;bottom:16px;width:520px;max-width:calc(100vw - 32px);max-height:min(72vh,760px);
 background:#FFF;border:1px solid #CDD4DF;box-shadow:0 8px 24px rgba(16,24,40,.16);z-index:90;display:flex;flex-direction:column;border-radius:3px;overflow:hidden}
-.mailcard .mh{background:var(--navy);color:#FFF;padding:10px 14px;font-size:12px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.mailcard .mh{background:var(--navy);color:#FFF;padding:8px 16px;font-size:12px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
 .mailcard .mh button{background:none;border:0;color:#B9C6DC;font-size:16px;cursor:pointer;line-height:1;padding:0 4px}
 .mailcard .mh button:hover{color:#FFF}
 .mailcard .mhb{display:flex;gap:2px;align-items:center}
 /* 접으면 제목줄만 남아 화면 아래 버튼을 가리지 않는다 */
 .mailcard.min .how,.mailcard.min .meta,.mailcard.min .body,.mailcard.min .mf{display:none}
-.mailcard .meta{padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--line);font-size:11px}
+.mailcard .meta{padding:8px 16px;background:var(--bg);border-bottom:1px solid var(--line);font-size:11px}
 .mailcard .meta .row{display:flex;gap:8px;margin-bottom:4px}
 .mailcard .meta .k{color:var(--mut);font-weight:700;width:36px;flex-shrink:0}
-.mailcard .how{padding:8px 14px;background:#F0F5FB;border-bottom:1px solid var(--line);
+.mailcard .how{padding:8px 16px;background:#F0F5FB;border-bottom:1px solid var(--line);
 font-size:12px;color:var(--ink2);line-height:1.55}
 .mailcard .how b{color:var(--navy)}
 .mailcard .how .sub{color:var(--mut)}
-.mailcard .body{padding:14px;overflow:auto;flex:1;cursor:grab}
+.mailcard .body{padding:16px;overflow:auto;flex:1;cursor:grab}
 .mailcard .body:active{cursor:grabbing}
 .mailcard .mfhint{margin-left:auto;font-size:11px;color:var(--mut)}
-.mailcard .mf{padding:8px 14px;border-top:1px solid var(--line);background:var(--bg);display:flex;gap:8px;flex-wrap:wrap}
-.modal{position:fixed;inset:0;background:rgba(16,24,40,.46);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.mailcard .mf{padding:8px 16px;border-top:1px solid var(--line);background:var(--bg);display:flex;gap:8px;flex-wrap:wrap}
+.modal{position:fixed;inset:0;background:rgba(16,24,40,.46);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px}
 .modal-box{width:330px;max-width:96vw;background:#FFF;border:1px solid #CDD4DF;border-radius:3px;overflow:hidden}
 .modal-box .mh{background:var(--navy);color:#FFF;padding:12px 16px;font-size:14px;font-weight:700}
 .modal-box .mb{padding:16px}
-.modal-box .hint{font-size:11px;color:var(--mut);background:var(--shade);padding:8px 10px;margin:10px 0 12px;border-radius:2px}
+.modal-box .hint{font-size:11px;color:var(--mut);background:var(--shade);padding:8px 8px;margin:8px 0 12px;border-radius:2px}
 .modal-box .hint b{color:var(--navy)}
 .modal-box .merr{color:var(--red);font-size:11px;margin-bottom:8px;display:none}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#182C46;color:#FFF;
-padding:10px 16px;z-index:200;font-size:12px;font-weight:600;border-radius:2px}
+padding:8px 16px;z-index:200;font-size:12px;font-weight:600;border-radius:2px}
 .filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
 .filter-row input,.filter-row select{width:auto;min-width:170px}
 .filter-row input{flex:1;min-width:200px}
@@ -233,29 +248,29 @@ th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
 th.sortable:hover{background:#E8EDF5;color:var(--navy)}
 th .sic{color:var(--s2);font-size:11px}
 tr.filt th{background:#FAFBFC;padding:4px 4px;border-bottom:1px solid var(--line)}
-.colf{width:100%;min-width:74px;padding:4px 6px;font-size:12px;border:1px solid #DCE1E9;border-radius:2px}
+.colf{width:100%;min-width:74px;padding:4px 8px;font-size:12px;border:1px solid #DCE1E9;border-radius:2px}
 .colf::placeholder{color:#B6BECB;font-size:11px}
 @media(max-width:980px){.filter-row input,.filter-row select,.filter-row .btn{width:100%;min-width:0}}
 /* 대시보드 안내 문구 */
 .notice{background:#FFF8E8;border:1px solid #E8D4B0;border-left:4px solid #C79A3A;border-radius:2px;
-padding:12px 16px;margin-bottom:14px}
+padding:12px 16px;margin-bottom:16px}
 .notice .nt{color:#7A5410;font-size:13px;font-weight:700;line-height:1.6;white-space:pre-line}
 .notice .ns{color:#845F2C;font-size:12px;margin-top:4px}
 .notice .ne{margin-top:8px}
 .notice textarea{min-height:60px;font-size:13px}
 /* 이용 안내(흐름) */
-.g-lead{background:linear-gradient(180deg,#FBFCFE,#F2F6FB);border:1px solid var(--line);border-radius:2px;padding:16px 20px;margin-bottom:14px}
-.g-lead h2{margin:0 0 6px;color:var(--navy);font-size:16px}
+.g-lead{background:linear-gradient(180deg,#FBFCFE,#F2F6FB);border:1px solid var(--line);border-radius:2px;padding:16px 24px;margin-bottom:16px}
+.g-lead h2{margin:0 0 8px;color:var(--navy);font-size:16px}
 .g-lead p{margin:0;color:var(--ink2);font-size:13px;line-height:1.65}
 .g-formula{display:inline-block;margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:2px;padding:8px 12px;font-size:13px;font-weight:800;color:var(--navy)}
 .flowbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:4px}
-.flowbar .pill{padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid #D6DCE5;background:#F3F5F8;color:var(--navy)}
+.flowbar .pill{padding:8px 12px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid #D6DCE5;background:#F3F5F8;color:var(--navy)}
 .flowbar .pill{background:#FFF;border-color:var(--s4ln);color:var(--s1)}
 .flowbar .pill.confirm{background:var(--s3bg);border-color:#8FB0D2;color:var(--s1)}
 .flowbar .pill.wip{background:var(--s2);border-color:var(--s2);color:#FFF}
 .flowbar .pill.done{background:var(--s1);border-color:var(--s1);color:#FFF}
 .flowbar .arrow{color:var(--mut);font-weight:800}
-.gstep{display:flex;gap:14px;padding:16px 2px;border-top:1px solid var(--line2)}
+.gstep{display:flex;gap:16px;padding:16px 2px;border-top:1px solid var(--line2)}
 .gstep:first-of-type{border-top:0}
 .gnum{width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0}
 .gstep.admin .gnum{background:var(--s2)}.gstep.cancel .gnum{background:var(--mut)}
@@ -264,13 +279,13 @@ padding:12px 16px;margin-bottom:14px}
 .grole{padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700}
 /* 역할은 단계가 아니다 — 음영 램프를 쓰지 않고 중립 회색 칩 하나로 */
 .grole.owner,.grole.admin{background:var(--shade);color:var(--ink2);border:1px solid var(--line)}
-.gwhat{margin:6px 0 8px;color:var(--ink2);font-size:13px;line-height:1.65}
-.gauto{font-size:12px;color:var(--ink2);background:var(--soft);border:1px solid var(--line);border-radius:2px;padding:6px 10px;display:inline-block}
+.gwhat{margin:8px 0 8px;color:var(--ink2);font-size:13px;line-height:1.65}
+.gauto{font-size:12px;color:var(--ink2);background:var(--soft);border:1px solid var(--line);border-radius:2px;padding:8px 8px;display:inline-block}
 .glegend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--mut);margin-top:4px}
-.glegend span{display:inline-flex;align-items:center;gap:6px}
+.glegend span{display:inline-flex;align-items:center;gap:8px}
 .glegend .arrow{color:var(--mut);font-weight:700}
 @media(max-width:980px){.app{grid-template-columns:minmax(0,1fr)}aside,main{min-width:0;max-width:100%}aside{position:relative;height:auto}
-.contact{margin-top:18px}.kpis,.grid2,.c4,.c3,.c2{grid-template-columns:1fr}main{padding:16px}
+.contact{margin-top:16px}.kpis,.grid2,.c4,.c3,.c2{grid-template-columns:1fr}main{padding:16px}
 .top select{margin-left:0}.mailcard{left:12px;right:12px;width:auto}
 .hero{flex-wrap:wrap}.hero>div{min-width:0}.hero .amount{font-size:20px}.hero .fig{word-break:keep-all;white-space:normal}}
 @media print{

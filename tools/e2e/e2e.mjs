@@ -780,6 +780,75 @@ try {
      segHues.length === 0 || Math.max(...segHues) - Math.min(...segHues) < 25,
      segHues.map(h => Math.round(h)));
 
+  /* ── 21. 입력 칸 겹침 — 좁은 화면에서 표가 무너지지 않는가 ── */
+  console.log('\n-- 21. 입력 칸 겹침 --');
+  // 첫 칸 고정(sticky)을 쓰면 가로 스크롤 시 뒷칸 위로 올라와 사번·직책이 성명 밑으로 사라졌다.
+  // 좌표를 직접 재서 막는다 — CSS 단언으로는 잡히지 않는 종류의 결함이다.
+  const overlapAt = async (w, view, prep) => {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.evaluate(v => nav(v), view);
+    if (prep) await prep();
+    await sleep(250);
+    return page.evaluate(() => {
+      const root = document.querySelector('.view.on');
+      const sc = root.querySelector('.trav-table');
+      if (!sc) return null;
+      sc.scrollLeft = 200;                       // 스크롤된 상태에서 재는 것이 핵심
+      const hit = [];
+      for (const tr of root.querySelectorAll('table tr')) {
+        const cells = [...tr.children].map(c => c.getBoundingClientRect()).filter(r => r.width > 0);
+        for (let i = 0; i < cells.length - 1; i++) {
+          const ox = Math.min(cells[i].right, cells[i + 1].right) - Math.max(cells[i].left, cells[i + 1].left);
+          if (ox > 1) hit.push(Math.round(ox));
+        }
+      }
+      return { hit, minW: sc.querySelector('table').scrollWidth, avail: sc.clientWidth };
+    });
+  };
+  const addRows = async () => { for (let i = 0; i < 2; i++) await page.click('button:has-text("+ 동행자 추가")'); };
+  for (const w of [1920, 1440, 1280, 1152, 1024]) {
+    const r = await overlapAt(w, 'plan', w === 1920 ? addRows : null);
+    ok(`계획 등록 ${w}px — 칸 겹침 없음`, r && r.hit.length === 0, r && r.hit.slice(0, 4));
+    if (w >= 1152) ok(`계획 등록 ${w}px — 가로 스크롤 없음`, r.minW <= r.avail + 1, r);
+  }
+  // 실적 입력 표도 같은 기준
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.evaluate(() => nav('actual'));
+  await page.waitForSelector('#actSel');
+  const anyGid = await page.evaluate(() => { const o = [...$('#actSel').options].find(x => x.value); return o && o.value; });
+  if (anyGid) {
+    await page.selectOption('#actSel', anyGid);
+    await page.waitForSelector('#actRows tr');
+    const ra = await overlapAt(1152, 'actual');
+    ok('실적 입력 1152px — 칸 겹침 없음', ra && ra.hit.length === 0, ra && ra.hit.slice(0, 4));
+  }
+  // CCG No. 는 팀을 고르면 자동으로 채워지는 읽기전용 값 — 열을 차지하지 않고 팀 칸 안에 표기
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => nav('plan'));
+  await page.waitForSelector('#travBody tr');
+  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'Gas 소재팀');
+  const ccg = await page.evaluate(() => {
+    const tr = document.querySelector('#travBody tr');
+    return { hidden: tr.querySelector('.t-cc').value, shown: tr.querySelector('.t-cc-v').textContent.trim(),
+             cols: document.querySelectorAll('#v-plan thead tr:first-child th').length };
+  });
+  ok('CCG 코드 자동 채움 유지', ccg.hidden === 'C1202' && ccg.shown === 'C1202', ccg);
+  ok('CCG No. 전용 열 없음(팀 칸 안 표기)',
+     !(await page.textContent('#v-plan thead')).includes('CCG No.'), ccg.cols);
+
+  // 금액칸은 두 표에서 같은 크기 — 폭을 안 잡으면 열이 적은 실적 표에서 혼자 늘어난다
+  const planMn = await page.evaluate(() =>
+    Math.round(document.querySelector('#travBody .w-mn').getBoundingClientRect().width));
+  await page.evaluate(() => nav('actual'));
+  await page.waitForSelector('#actRows .w-mn');
+  const actMn = await page.evaluate(() =>
+    Math.round(document.querySelector('#actRows .w-mn').getBoundingClientRect().width));
+  // 계획 표는 10열이라 1440px 에서 금액칸이 상한(110px)까지 못 간다 — 완전 동일은 불가능.
+  // 막으려는 것은 '한쪽만 두 배로 늘어나는' 상태다(고치기 전 실적 195 vs 계획 110).
+  ok('계획·실적 금액칸 폭이 서로 어긋나지 않음',
+     Math.abs(planMn - actMn) <= 12, { plan: planMn, actual: actMn });
+  ok('금액칸이 과도하게 늘어나지 않음', actMn <= 112, actMn);
+
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));
   ok('콘솔 JS 에러 없음 (외부 CDN 제외)', codeErrs.length === 0, codeErrs.slice(0, 3));

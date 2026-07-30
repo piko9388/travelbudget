@@ -1,8 +1,8 @@
-# 사내 Flask 서버 업로드 방법 (v10.1)
+# 사내 Flask 서버 업로드 방법 (v10.2)
 
 ## 0. 준비물
 
-- 패키지 `travelbudget_flask_v10.1.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
+- 패키지 `travelbudget_flask_v10.2.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
 - 사내 서버에 Python 3.8+ 와 Flask 3.x
 
 ```
@@ -16,7 +16,7 @@ pip install -r requirements.txt      # Flask 뿐입니다
 압축을 풀면 이 구조입니다.
 
 ```
-travelbudget_flask_v10.1/
+travelbudget_flask_v10.2/
 └─ servera/
    └─ travelbudget/          ← 이 폴더 하나만 서버로 옮기면 됩니다
       ├─ __init__.py
@@ -83,7 +83,7 @@ Windows 서비스라면 서비스 환경변수에 `TB_DATA_DIR` 을 등록합니
 material.skhynix.com/travelbudget
 ```
 
-좌측 하단에 **v10.1 · 2026-07-30** 이 보이면 이 버전이 올라간 것입니다.
+좌측 하단에 **v10.2 · 2026-07-30** 이 보이면 이 버전이 올라간 것입니다.
 (버전이 안 바뀌었으면 브라우저 캐시 — `Ctrl+F5`)
 
 ---
@@ -143,7 +143,7 @@ cp $TB_DATA_DIR/data.json.bak $TB_DATA_DIR/data.json
 
 ## 8. HTML/화면만 바꿔 올릴 때 (데이터 그대로)
 
-v10.0~v10.1 변경은 **화면(HTML·JS)과 계산 표시**만이라 `data.json` 을 손대지 않습니다.
+v10.0~v10.2 변경은 **화면(HTML·JS)과 계산 표시**만이라 `data.json` 을 손대지 않습니다.
 스키마도 그대로여서 기존 원장을 그대로 쓰면 됩니다.
 
 바꿀 파일 — `servera/travelbudget/` 안 5개:

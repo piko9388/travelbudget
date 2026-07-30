@@ -692,8 +692,28 @@ for _hf in ('servera/travelbudget/templates/index.html',
     ok(f'{_hf.split("/")[-1]} Pretendard 미사용(주석 제외)',
        not any('Pretendard' in l for l in _decl), [l for l in _decl if 'Pretendard' in l])
 
-# 단계 음영 팔레트 — 단계는 진하기로, 신호(좋다/나쁘다)는 색으로. 둘을 섞으면 안 된다.
+# 여백 척도 — 4·8·12·16·24 다섯 단계만. (1·2px 은 선·미세보정, 48px 은 본문 하단 여유)
+# 값이 늘어나면 "여기는 왜 14px 이지" 를 매번 판단해야 하고 화면마다 리듬이 어긋난다.
+import re as _re
+_SPACE_OK = {0, 1, 2, 4, 8, 12, 16, 24, 48}
+_PROPS = r'(?:margin|padding|gap|row-gap|column-gap)(?:-(?:top|bottom|left|right))?'
+for _hf in ('servera/travelbudget/templates/index.html',
+            'servera/travelbudget/templates/traveler_guide.html'):
+    _h = open(_hf, encoding='utf-8').read()
+    _bad = set()
+    for _m in _re.finditer(r'\b' + _PROPS + r'\s*:\s*([^;}\n]+)', _h):
+        for _t in _m.group(1).split():
+            if _t.endswith('px') and int(_t[:-2]) not in _SPACE_OK:
+                _bad.add(_t)
+    ok(f'{_hf.split("/")[-1]} 여백이 척도 안', not _bad, sorted(_bad))
+
+# 출장자 표 — 첫 칸 고정은 가로 스크롤 시 뒷칸을 덮는다. 다시 넣으면 안 된다.
 _ix = open('servera/travelbudget/templates/index.html', encoding='utf-8').read()
+ok('출장자 표에 sticky 첫 칸 없음',
+   'trav-table th:first-child' not in _ix and 'trav-table td:first-child' not in _ix)
+ok('CCG No. 는 팀 칸 안 캡션', '.trav-table .ccgno' in _ix and 'w-cc' not in _ix)
+
+# 단계 음영 팔레트 — 단계는 진하기로, 신호(좋다/나쁘다)는 색으로. 둘을 섞으면 안 된다.
 _gd2 = open('servera/travelbudget/templates/traveler_guide.html', encoding='utf-8').read()
 for _f, _src in (('index.html', _ix), ('traveler_guide.html', _gd2)):
     ok(f'{_f} 단계 램프 4단 선언', all(f'--s{i}:' in _src for i in (1, 2, 3, 4)), _f)
