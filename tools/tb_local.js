@@ -29,7 +29,7 @@
     { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
     { team: 'Target 소재팀', ccg: 'C1707' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
-  var APP_VERSION = 'v10.2', APP_BUILD = '2026-07-30';
+  var APP_VERSION = 'v10.3', APP_BUILD = '2026-07-30';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
@@ -642,7 +642,10 @@
         if (cur4.plan_type !== '긴급' && gSum(normalizeGroup(cur4), 'p') <= 0) return err('계획 비용이 있어야 예산을 확보(확정)할 수 있습니다.');
       }
       if (want === ST_PLAN && PRE.indexOf(cur4.status) < 0) return err('확정 예정 건만 잠정 계획으로 되돌릴 수 있습니다.');
-      if ((want === ST_TRANSFER || want === ST_DONE || locked(cur4)) && !isAdmin)
+      // 취소는 따로 — 실적 입력·인폼 건은 locked() 가 False 라 무인증 취소가 통과했다.
+      // (routes.py 와 같은 규칙이어야 한다. 한쪽만 고치면 정적 미러가 다른 권한을 갖는다)
+      if ((want === ST_TRANSFER || want === ST_DONE || locked(cur4)
+           || (want === ST_CANCEL && PRE.indexOf(cur4.status) < 0)) && !isAdmin)
         return err('관리자 인증이 필요합니다.', 401);
       if ([ST_INFORM, ST_TRANSFER, ST_DONE].indexOf(want) >= 0 && gSum(normalizeGroup(cur4), 'a') <= 0)
         return err('실적이 입력된 건만 이관·처리할 수 있습니다.');

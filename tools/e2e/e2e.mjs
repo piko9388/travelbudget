@@ -849,6 +849,99 @@ try {
      Math.abs(planMn - actMn) <= 12, { plan: planMn, actual: actMn });
   ok('금액칸이 과도하게 늘어나지 않음', actMn <= 112, actMn);
 
+  /* ── 22. v10.3 — 막대 축·큐·배지 중복 ── */
+  console.log('\n-- 22. 막대 축 · 큐 · 배지 중복 --');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => nav('dash'));
+  await page.waitForSelector('#v-dash .card > .bars .brow');
+  // 막대 폭과 옆의 % 라벨이 같은 분모를 써야 한다.
+  // 최댓값 정규화였을 때 '34%' 라벨 옆에서 막대가 가로를 꽉 채워 그림이 숫자와 반대였다.
+  const axis = await page.evaluate(() => {
+    const read = sel => [...document.querySelectorAll(sel)].map(r => {
+      const w = parseFloat(r.querySelector('.bbar i').style.width) || 0;
+      const seg = [...r.querySelectorAll('.bbar i')]
+        .reduce((a, i) => a + (parseFloat(i.style.width) || 0), 0);
+      const m = r.querySelector('.bval').textContent.match(/(\d+)%/);
+      return { seg: +seg.toFixed(1), pct: m ? +m[1] : null, first: w };
+    });
+    return { ccg: read('#v-dash .card > .bars .brow'), cost: read('#v-dash .cost .brow') };
+  });
+  const axisOk = rows => rows.length > 0 && rows.every(r => r.pct != null && Math.abs(r.seg - r.pct) <= 1.2);
+  ok('CCG 막대 폭 = 구성비 라벨', axisOk(axis.ccg), axis.ccg);
+  ok('비목 막대 폭 = 구성비 라벨', axisOk(axis.cost), axis.cost);
+  ok('막대가 라벨보다 부풀지 않음',
+     [...axis.ccg, ...axis.cost].every(r => r.seg <= 100.5), [...axis.ccg, ...axis.cost].map(r => r.seg));
+
+  // 바로 할 일 — 건수가 아니라 큐. 각 행이 특정 건을 가리키고 그 건으로 이동해야 한다.
+  const q = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#v-dash .qrow')];
+    return rows.map(r => ({
+      kind: r.querySelector('.qk').textContent.trim(),
+      name: r.querySelector('.qnm').textContent.trim().slice(0, 20),
+      d: r.querySelector('.qd').textContent.trim(),
+      go: r.querySelector('button').getAttribute('onclick'),
+    }));
+  });
+  ok('바로 할 일이 행 큐', q.length > 0, q.length);
+  ok('각 행이 특정 group_id 로 이동', q.every(r => /^open(Actual|Process)\('TB-[0-9A-Fa-f]+'\)$/.test(r.go)), q.map(r => r.go));
+  ok('경과일 표시', q.every(r => /^(D\+\d+|–)$/.test(r.d)), q.map(r => r.d));
+  const dnums = q.map(r => r.d.startsWith('D+') ? +r.d.slice(2) : -1);
+  ok('오래 묵은 건이 위로', dnums.every((v, i) => i === 0 || v <= dnums[i - 1]), dnums);
+  ok('건수만 적힌 버튼 없음',
+     !/대기 \d+건 →/.test(await page.textContent('#v-dash')), '건수 버튼 잔존');
+
+  // 딥링크 — 큐에서 누른 그 건이 실적 화면에서 선택돼 있어야 한다
+  const actRow = q.find(r => r.go.startsWith('openActual'));
+  if (actRow) {
+    const gid = actRow.go.match(/'(TB-\d+)'/)[1];
+    await page.evaluate(g => openActual(g), gid);
+    await page.waitForSelector('#actRows tr', { timeout: 4000 });
+    const sel = await page.inputValue('#actSel');
+    ok('큐 → 실적 입력 딥링크 (그 건이 선택됨)', sel === gid, { want: gid, got: sel });
+  }
+
+  // 묶기 모드에서 행 배지가 머리행과 중복되지 않아야 한다
+  await page.evaluate(() => nav('list'));
+  await page.waitForSelector('#listBody tr');
+  const dup = await page.evaluate(() => {
+    const grouped = document.querySelector('#listGroup')?.checked ?? true;
+    const heads = document.querySelectorAll('#listBody tr.grp-head').length;
+    const rowBadges = [...document.querySelectorAll('#listBody tr:not(.grp-head) td:first-child .status')]
+      .filter(b => !b.classList.contains('urgent')).length;
+    return { grouped, heads, rowBadges };
+  });
+  ok('묶기 모드: 머리행 존재', dup.heads > 0, dup);
+  ok('묶기 모드: 행 배지 중복 없음', !dup.grouped || dup.rowBadges === 0, dup);
+  // 묶기를 끄면 행마다 상태를 알 수 있어야 한다
+  await page.evaluate(() => toggleGroup(false));
+  await sleep(200);
+  const ung = await page.evaluate(() => ({
+    heads: document.querySelectorAll('#listBody tr.grp-head').length,
+    rowBadges: [...document.querySelectorAll('#listBody tr td:first-child .status')]
+      .filter(b => !b.classList.contains('urgent')).length,
+  }));
+  ok('묶기 해제: 행마다 상태 배지', ung.heads === 0 && ung.rowBadges > 0, ung);
+  await page.evaluate(() => toggleGroup(true));
+
+  // 단계 램프 — 제일 헷갈리는 쌍(처리 중 ↔ 확정 예정)이 가장 넓게 벌어져야 한다
+  const chain = await page.evaluate(() => {
+    const px = s => (s.match(/\d+/g) || []).map(Number);
+    const lin = c => { c /= 255; return c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; };
+    const lum = ([r, g, b]) => .2126 * lin(r) + .7152 * lin(g) + .0722 * lin(b);
+    const cr = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + .05) / (lo + .05); };
+    const c = n => px(getComputedStyle(document.querySelector(n)).backgroundColor);
+    const probe = document.createElement('div');
+    document.body.appendChild(probe);
+    const tok = t => { probe.style.background = `var(${t})`; return px(getComputedStyle(probe).backgroundColor); };
+    const [s1, s2, s3, tr] = ['--s1', '--s2', '--s3', '--track'].map(tok);
+    probe.remove();
+    return { a: cr(s1, s2), b: cr(s2, s3), c: cr(s3, tr) };
+  });
+  ok('막대 사슬 인접 대비 2.0 이상', Math.min(chain.a, chain.b, chain.c) >= 2.0,
+     { '완료|처리중': +chain.a.toFixed(2), '처리중|확정': +chain.b.toFixed(2), '확정|가용': +chain.c.toFixed(2) });
+  ok('가장 헷갈리는 쌍(처리중|확정)이 제일 넓음', chain.b > chain.a,
+     { '처리중|확정': +chain.b.toFixed(2), '완료|처리중': +chain.a.toFixed(2) });
+
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));
   ok('콘솔 JS 에러 없음 (외부 CDN 제외)', codeErrs.length === 0, codeErrs.slice(0, 3));

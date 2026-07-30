@@ -285,8 +285,13 @@ def change_status(gid):
         if want == C.ST_PLAN and cur.get("status") not in C.PRE:
             return _err("확정 예정 건만 잠정 계획으로 되돌릴 수 있습니다.")
         # 관리자 통제 상태로 들어가거나, 이미 예산 담당자 영역인 건(부분 완료 포함)의
-        # 어떤 전환이든 관리자 인증 필요. — 취소로 정산금을 지우던 우회 경로 차단.
-        if (want in (C.ST_TRANSFER, C.ST_DONE) or C.locked(cur)) and not admin:
+        # 어떤 전환이든 관리자 인증 필요.
+        # 취소는 따로 본다 — 실적이 들어간 건(실적 입력·인폼)은 travelers 에 개인 처리 상태가
+        # 아직 없어서 locked() 가 False 다. 그 틈으로 무인증 취소가 통과해 정산금이
+        # 처리 중 집계에서 통째로 빠지고 가용 잔여가 늘어난 것처럼 보였다.
+        # 계획 등록·확정 예정(PRE) 단계의 취소는 출장자 본인이 하는 정상 동작이라 공개로 둔다.
+        if (want in (C.ST_TRANSFER, C.ST_DONE) or C.locked(cur)
+                or (want == C.ST_CANCEL and cur.get("status") not in C.PRE)) and not admin:
             return _err("관리자 인증이 필요합니다.", 401)
         # 이관·완료·인폼(되돌림 포함) 상태는 실적이 있어야만.
         if want in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE) and C.g_sum(C.normalize_group(cur), "a") <= 0:

@@ -468,22 +468,51 @@ function rDash(){
         </div>
       </div>
     </div>` : '';
+  // 바로 할 일 — 건수 버튼이 아니라 큐. 서버가 group_id 배열을 정확히 주는데(core.dash todo)
+  // 전에는 .length 만 쓰고 버렸다. 그래서 '1건'을 눌러 가면 드롭다운엔 4건이 있고,
+  // 어느 1건인지, 며칠 묵었는지가 화면 어디에도 없었다.
   const aw = d.todo.actual_wait.length, pw = d.todo.process_wait.length, hd = (d.todo.hold || []).length;
-  const todo = (aw || pw || hd) ? `
-    <div class="card"><h2>바로 할 일</h2><p class="cap">대시보드에서 바로 이동해 처리하세요.</p>
-      <div class="btns" style="margin-top:0">
-        ${aw ? `<button class="btn pri" onclick="nav('actual')">실적 입력 대기 ${aw}건 → 실적 입력</button>` : ''}
-        ${pw ? `<button class="btn" onclick="goProcess()">이관·처리 대기 ${pw}건 → 처리 관리</button>` : ''}
-        ${hd ? `<button class="btn red" onclick="goProcess()">보류 ${d.nHold}명 (예산부족 등) → 처리 관리</button>` : ''}
-        <button class="btn" onclick="showReport()">센터 제출 리포트</button>
-      </div></div>` : `
+  const QMAX = 6;
+  const qitem = (gid, kind, cls, label, act, fn) => {
+    const g = ST.groups.find(x => x.group_id === gid);
+    if (!g) return null;
+    const n = daysSince(g.ret_dt);
+    return {g, kind, cls, label, act, fn, d: (n != null && n >= 0) ? n : null};
+  };
+  const qrows = [
+    ...(d.todo.hold || []).map(id => qitem(id, 'hold', 'red', '보류', '처리 관리 →', 'openProcess')),
+    ...d.todo.actual_wait.map(id => qitem(id, 'act', '', '실적 대기', '실적 입력 →', 'openActual')),
+    ...d.todo.process_wait.map(id => qitem(id, 'proc', '', '이관·처리', '처리 관리 →', 'openProcess')),
+  ].filter(Boolean).sort((a, b) => (b.d ?? -1) - (a.d ?? -1));   // 오래 묵은 건이 위로
+  const dcol = n => n == null ? 'var(--mut)'
+    : n >= 7 ? 'var(--red)' : n >= 3 ? 'var(--amber)' : 'var(--mut)';
+  // 복귀 전(d=null)은 급할 이유가 없으니 큐 아래로
+  const todo = qrows.length ? `
+    <div class="card"><h2>바로 할 일</h2>
+      <p class="cap">복귀일 기준으로 오래 묵은 순. 눌러서 그 건으로 바로 갑니다.</p>
+      <div class="queue">
+        ${qrows.slice(0, QMAX).map(r => `<div class="qrow">
+          <div class="qk${r.cls === 'red' ? ' warn' : ''}">${r.label}</div>
+          <div class="qnm">${esc(gname(r.g))} <span class="sub">${esc(names(r.g))}</span></div>
+          <div class="qd" style="color:${dcol(r.d)}">${r.d == null ? '–' : 'D+' + r.d}</div>
+          <button class="btn sm${r.cls === 'red' ? ' red' : ''}"
+            onclick="${r.fn}('${r.g.group_id}')">${r.act}</button>
+        </div>`).join('')}
+        ${qrows.length > QMAX ? `<div class="qmore">외 ${qrows.length - QMAX}건 —
+          <a onclick="nav('list')" style="color:var(--navy);cursor:pointer;font-weight:700">출장 내역</a>에서 전체 보기</div>` : ''}
+      </div>
+      <div class="btns"><button class="btn" onclick="showReport()">센터 제출 리포트</button></div>
+    </div>` : `
     <div class="card"><h2>바로 할 일</h2><p class="cap">지금 처리할 건이 없습니다.</p>
       <div class="btns" style="margin-top:0"><button class="btn" onclick="showReport()">센터 제출 리포트</button></div></div>`;
   // ── CCG팀별 집행 — 막대로 도식화. 잠정(예산 미반영)은 표에서 빼고 아래에 따로 표기.
   //    (잠정 금액을 같은 표에 두면 실제 집행액보다 커져 숫자가 튀어 보임)
   const rowsData = d.byCcg.filter(r => (r.done + r.wip + (r.commit || 0)) > 0);   // 합계 = 완료+처리중+확정 (구성비 분모와 동일 축)
-  const peak = Math.max(1, ...rowsData.map(r => r.done + r.wip + (r.commit || 0)));
-  const seg = (v, cls) => v > 0 ? `<i class="${cls}" style="width:${(v / peak * 100).toFixed(2)}%"></i>` : '';
+  // 막대 분모 = 옆에 찍는 구성비의 분모(표 합계)와 같아야 한다.
+  // 최댓값 기준으로 그리면 '34%' 라벨 옆에서 막대가 가로를 꽉 채워 그림이 숫자와 반대 말을 한다.
+  // (총예산 기준은 쓰지 않는다 — 최대 팀이 6%라 6개 막대가 전부 슬라이버가 된다)
+  const barTot = Math.max(1, rowsData.reduce((a, r) => a + r.done + r.wip + (r.commit || 0), 0));
+  const seg = (v, cls) => v > 0 ? `<i class="${cls}" style="width:${(v / barTot * 100).toFixed(2)}%"></i>` : '';
   const bars = rowsData.map(r => {
     const sum = r.done + r.wip + (r.commit || 0);
     return `<div class="brow">
@@ -511,11 +540,12 @@ function rDash(){
     const cs = (d.byCost || []).filter(c => c.amt > 0);
     const sum = cs.reduce((a, c) => a + c.amt, 0);
     if (!sum) return '';
-    const top = Math.max(...cs.map(c => c.amt));
+    // CCG 막대와 같은 규칙 — 분모는 합계. 라벨이 35%면 막대도 35%.
+    const denom = Math.max(1, sum);
     return `<div class="cost"><div class="ct">비목 구성 <span>합계 ${won(sum)}원</span></div>
       <div class="bars">${cs.map(c => `<div class="brow">
         <div class="bnm">${c.name}</div>
-        <div class="bbar" title="${c.name} ${won(c.amt)}원"><i style="width:${(c.amt / top * 100).toFixed(2)}%"></i></div>
+        <div class="bbar" title="${c.name} ${won(c.amt)}원"><i style="width:${(c.amt / denom * 100).toFixed(2)}%"></i></div>
         <div class="bval">${won(c.amt)}<span class="sub"> ${Math.round(c.share * 100)}%</span></div>
       </div>`).join('')}</div></div>`;
   }
@@ -558,6 +588,30 @@ async function saveNotice(){
   await load(); nav('dash');
 }
 function goProcess(){ if (!adminPw()) { askAdmin(() => nav('process')); return; } nav('process'); }
+/* 'YYYY-MM-DD' 를 Date.parse 에 넘기면 UTC 로 잡혀 KST 오전에 하루가 모자란다.
+   로컬 자정 기준으로 직접 만든다. */
+function dLocal(s){ const [y, m, d] = String(s || '').split('-').map(Number);
+  return (y && m && d) ? new Date(y, m - 1, d) : null; }
+function daysSince(s){ const t = dLocal(s); return t == null ? null
+  : Math.floor((new Date().setHours(0, 0, 0, 0) - t) / 864e5); }
+/* 큐에서 바로 그 건으로 — 이동 후 다시 찾게 만들지 않는다 */
+function openActual(gid){
+  nav('actual');
+  const sel = $('#actSel');
+  if (!sel) return;
+  if (![...sel.options].some(o => o.value === gid)) { toast('이번 분기 실적 입력 대상이 아닙니다'); return; }
+  const f = $('#actFilter');
+  if (f && f.value) { f.value = ''; filterActual(); }   // 필터가 켜져 있으면 option.hidden 과 충돌한다
+  sel.value = gid; pickActual(gid);
+}
+function openProcess(gid){
+  const go = () => { nav('process');
+    const el = document.querySelector(`#v-process [data-gid="${gid}"]`);
+    if (el) { el.scrollIntoView({block: 'center'}); el.classList.add('flash');
+              setTimeout(() => el.classList.remove('flash'), 1400); } };
+  if (!adminPw()) { askAdmin(go); return; }
+  go();
+}
 
 /* ═══ 출장 계획 등록 ═══ */
 let TRAV_N = 0;
@@ -1168,7 +1222,7 @@ function clearList(){ LQ.q = ''; LQ.col = {}; rList(); nav('list'); }
 function toggleGroup(on){ LQ.group = on; renderListBody(); }
 function toggleLDir(){ LQ.dir = LQ.dir === 'asc' ? 'desc' : 'asc'; renderListBody(); }
 
-function listRowHtml(g){
+function listRowHtml(g, grouped){
   const acts = [];
   if (g.status === '계획 등록') {          // 잠정: 확정하거나 흔적 없이 삭제
     acts.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','확정 예정')">출장 확정</button>`);
@@ -1182,13 +1236,15 @@ function listRowHtml(g){
   if (g.act_tot > 0)                       // 인폼 카드를 닫았어도 언제든 다시 발행
     acts.push(`<button class="btn sm" onclick="reopenMail('${g.group_id}')">인폼 보기</button>`);
   return `<tr>
-    <td><span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>${g.plan_type === '긴급' ? ' <span class="status urgent">긴급</span>' : ''}</td>
+    <td>${grouped ? '' : `<span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>`}${
+      g.plan_type === '긴급' ? '<span class="status urgent">긴급</span>' : ''}${
+      ''}</td>
     <td><b>${esc(gname(g))}</b><div class="sub">${esc(g.purpose)}</div></td>
     <td>${names(g)} <span class="sub">${g.travelers.length}명</span>${procTag(g)}</td>
     <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
     <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
     <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td>
-    <td>${acts.join(' ') || '<span class="sub">진행/처리 단계</span>'}</td></tr>`;
+    <td>${acts.join(' ') || `<span class="sub">${g.roll === '취소' ? '–' : '진행/처리 단계'}</span>`}</td></tr>`;
 }
 function renderListBody(){
   const {all, G} = listRows();
@@ -1201,7 +1257,7 @@ function renderListBody(){
         <span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>
         <b style="margin-left:6px">${n}건</b></td></tr>`;
     }
-    body += listRowHtml(g);
+    body += listRowHtml(g, LQ.group);
   });
   const tb = $('#listBody');
   if (!tb) return;
@@ -1303,7 +1359,7 @@ function rProcess(){
         <td class="num">${a ? won(a) : '–'}</td>
         <td>${b.join(' ')}</td></tr>`;
     }).join('');
-    return `<div class="pgroup">
+    return `<div class="pgroup" data-gid="${g.group_id}">
       <div class="pg-head">
         <span class="status ${stClass(g.roll)}">${esc(g.roll)}</span>
         <span class="nm">${esc(gname(g))}</span>

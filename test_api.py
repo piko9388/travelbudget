@@ -318,6 +318,35 @@ r = c.post(f'/travelbudget/api/groups/{i2}/status', json={'status':'취소'})
 ok('부분완료 건 무인증 취소 401', r.status_code==401, r.status_code)
 ok('정산 금액 보존', _dash()['done']==d_before, (d_before, _dash()['done']))
 
+# 13-2b. 실적만 든 건(실적 입력·인폼)도 무인증 취소 불가.
+# locked() 는 개인 처리 상태가 하나라도 ADMIN_ZONE 일 때만 True 라, 실적만 넣고
+# 아직 아무도 이관·완료가 아닌 그룹은 게이트를 그냥 통과했다. 그 틈으로 취소하면
+# 정산금이 '처리 중' 집계에서 통째로 빠지고 가용 잔여가 늘어난 것처럼 보였다.
+i2b, _ = _mk('ZBB', 2)
+ok('실적만 든 건은 아직 locked 아님(전제 확인)', not _C.locked(_grp(i2b)))
+w_before = _dash()['wip']
+r = c.post(f'/travelbudget/api/groups/{i2b}/status', json={'status': '취소'})
+ok('실적 든 건 무인증 취소 401', r.status_code == 401, r.status_code)
+ok('처리 중 금액 보존', _dash()['wip'] == w_before, (w_before, _dash()['wip']))
+r = c.post(f'/travelbudget/api/groups/{i2b}/status', json={'status': '취소'}, headers=ADM)
+ok('관리자는 취소 가능', r.status_code == 200, r.status_code)
+# 계획 단계(잠정·확정 예정)의 취소는 출장자 본인이 하는 정상 동작 — 계속 공개여야 한다
+_pg = c.post('/travelbudget/api/groups', json=dict(plan_type='계획', city='c', org='ZPRE', purpose='p',
+    kind='정기 Audit', dep_dt=f'{yy}-{mm}-14', ret_dt=f'{yy}-{mm}-15', car='미사용',
+    travelers=[dict(name='p', emp_no='ZP0', rank='TL', ccg_nm='Gas 소재팀', p_trans=50000)])).get_json()['group']['group_id']
+ok('잠정 계획 무인증 취소 허용',
+   c.post(f'/travelbudget/api/groups/{_pg}/status', json={'status': '취소'}).status_code == 200)
+_cg = c.post('/travelbudget/api/groups', json=dict(plan_type='계획', city='c', org='ZCF', purpose='p',
+    kind='정기 Audit', dep_dt=f'{yy}-{mm}-14', ret_dt=f'{yy}-{mm}-15', car='미사용',
+    travelers=[dict(name='p', emp_no='ZC0', rank='TL', ccg_nm='Gas 소재팀', p_trans=50000)])).get_json()['group']['group_id']
+c.post(f'/travelbudget/api/groups/{_cg}/status', json={'status': '확정 예정'})
+ok('확정 예정 무인증 취소 허용',
+   c.post(f'/travelbudget/api/groups/{_cg}/status', json={'status': '취소'}).status_code == 200)
+# 정적 미러도 같은 규칙이어야 한다 (한쪽만 고치면 서로 다른 권한을 갖는다)
+_tbl = open('tools/tb_local.js', encoding='utf-8').read()
+ok('정적 미러도 취소 게이트 보유',
+   'want === ST_CANCEL' in _tbl and 'PRE.indexOf(cur4.status) < 0' in _tbl)
+
 # 13-3. 이관 건 금액 무인증 변조 불가 (PUT / 실적 재입력 양쪽)
 i3,g3 = _mk('ZC',1)
 c.post(f'/travelbudget/api/groups/{i3}/status', json={'status':'소재 이관'}, headers=ADM)

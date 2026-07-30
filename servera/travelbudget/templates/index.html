@@ -14,10 +14,13 @@
 /* 단계 음영 — 계획(잠정) → 확정 예정 → 처리 중 → 처리 완료.
    이 넷은 서로 다른 범주가 아니라 한 파이프라인의 단계다.
    색상(hue)을 바꾸면 무관한 것들처럼 읽히므로 명도만 바꾼다.
-   진할수록 돈이 확정된 쪽. 인접 단계 대비 2.09 / 1.98 / 1.70 */
+   진할수록 돈이 확정된 쪽.
+   막대에서 실제로 맞닿는 사슬은 s1|s2|s3|가용 넷뿐이다(잠정은 아래 참고 막대에 혼자 놓임).
+   실무에서 제일 헷갈리는 쌍이 '이미 쓴 돈(처리 중)'과 '쓰기로 한 돈(확정 예정)'이라
+   그 간격을 가장 넓게 잡았다 — 1.98 → 2.51. 사슬 최소 2.05 */
 --s1:#12304F;       /* 처리 완료 — 이미 나간 돈 */
---s2:#35618F;       /* 처리 중 */
---s3:#6892BE;       /* 확정 예정 */
+--s2:#33608E;       /* 처리 중 */
+--s3:#7BA4CE;       /* 확정 예정 */
 --s4:#9FBBD8;       /* 계획(잠정) — 예산 미반영 */
 --track:#E9EEF4;    /* 가용 잔여 · 빈 트랙 */
 --s3bg:#D3E1F0;     /* 확정 예정 배지 바탕 */
@@ -27,7 +30,7 @@
 --amber:#8A5A10;    /* 경과 주의 (D+3~6) */
 --red:#BE3A45;      /* 초과 · 취소 · 긴급 · 예산 부족 */
 /* 하위호환 — 기존 선언이 참조하던 이름 */
---faint:#5C6878;--navy2:#17365D;--blue:#35618F;
+--faint:#5C6878;--navy2:#17365D;--blue:#33608E;
 }
 *{box-sizing:border-box}
 /* 여백 — 4 · 8 · 12 · 16 · 24 다섯 단계만 쓴다.
@@ -89,7 +92,7 @@ font-variant-numeric:tabular-nums;line-height:1.15}
 .stack i{display:block;height:100%}
 .s-done{background:var(--s1)}.s-wip{background:var(--s2)}
 .s-cmt{background:var(--s3)}.s-ava{background:var(--track)}
-.stack i+i{box-shadow:-1px 0 0 #FFF}          /* 인접 음영이 붙어 보이지 않게 */
+.stack i+i{box-shadow:-2px 0 0 #FFF}          /* 같은 색상 음영이라 경계선이 구분의 절반을 담당한다 */
 /* 잠정 계획 — 예산에 반영되지 않으므로 위 막대에 섞지 않고, 같은 축·같은 폭으로 아래 따로 */
 .ghost{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
 .ghost .gl{font-size:12px;color:var(--mut);margin-bottom:8px}
@@ -163,6 +166,20 @@ td .sub{color:var(--mut);font-size:11px}
 .pg-sum{font-size:11px;color:var(--mut)}
 .pg-sum b{color:var(--red)}
 .pg-head .gb{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+/* 바로 할 일 큐 — 건수가 아니라 '무엇이 며칠 묵었는가'. 눌러서 그 건으로 바로 간다 */
+.queue{border:1px solid var(--line);border-radius:2px;margin-top:12px}
+.qrow{display:grid;grid-template-columns:76px minmax(0,1fr) 56px 104px;align-items:center;
+gap:12px;padding:8px 12px;border-bottom:1px solid var(--line2)}
+.qrow:last-child{border-bottom:0}
+.qrow:hover{background:#FAFBFC}
+/* 큐의 종류 표시는 배지가 아니라 글자 — 단계 배지와 뜻이 겹치지 않게 */
+.qk{font-size:11px;font-weight:700;color:var(--mut)}
+.qk.warn{color:var(--red)}
+.qnm{font-size:13px;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qd{text-align:right;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.qmore{padding:8px 12px;font-size:12px;color:var(--mut);border-top:1px solid var(--line2)}
+/* 큐에서 넘어온 건을 잠깐 표시 — 스크롤만 하면 어느 블록인지 모른다 */
+.pgroup.flash{outline:2px solid var(--s2);outline-offset:2px}
 /* CCG 집행 막대 — 라이브러리 없이 div 로. 색은 상태 3색만 사용 */
 .bars{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .brow{display:grid;grid-template-columns:150px minmax(0,1fr) 130px;align-items:center;gap:8px}
@@ -172,7 +189,7 @@ td .sub{color:var(--mut);font-size:11px}
 .bbar i.sd,.lgd i.sd{background:var(--s1)}
 .bbar i.sw,.lgd i.sw{background:var(--s2)}
 .bbar i.sc,.lgd i.sc{background:var(--s3)}
-.bbar i+i{box-shadow:-1px 0 0 #FFF}
+.bbar i+i{box-shadow:-2px 0 0 #FFF}
 .bval{text-align:right;font-size:12px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums}
 .lgd{display:flex;gap:12px;font-size:11px;color:var(--mut);font-weight:600;flex-wrap:wrap}
 .lgd span{display:flex;align-items:center;gap:4px}
