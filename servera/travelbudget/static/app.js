@@ -22,12 +22,14 @@ const mfield = (cls, val, ph, fn) =>
   `<input type="text" inputmode="numeric" class="mny ${cls}" value="${val ? won(val) : ''}" placeholder="${ph}" oninput="moneyFmt(this);${fn}">`;
 
 const TITLES = {guide:'이용 안내', dash:'대시보드', plan:'출장 계획 등록', actual:'출장 실적 입력',
-  list:'출장 내역', process:'이관·처리 관리', budget:'예산 관리', data:'데이터 관리'};
+  list:'출장 내역', process:'이관·처리 관리', budget:'예산 관리', data:'데이터 관리',
+  bulk:'엑셀 일괄 등록'};
 const SUBS = {guide:'계획 작성부터 처리 완료까지 — 한눈에 보는 처리 흐름',
   dash:'잔여 = 총예산 − 처리완료 − 처리중', plan:'동행 출장은 출장자 행을 추가해 한 번에 등록',
   actual:'실적 저장 시 실비 이관 인폼이 자동 생성됩니다', list:'분기 전체 출장 이력',
   process:'실적 입력·인폼 → 소재 이관 → 처리 완료', budget:'예산 리비전 등록·이력 (감액은 자동 음수 처리)',
-  data:'CSV 내보내기 · 자동 백업(30개) · 복원'};
+  data:'CSV 내보내기 · 자동 백업(30개) · 복원',
+  bulk:'센터 관리 시트에서 복사해 붙여넣으면 한 번에 등록됩니다'};
 
 let ST = null, YQ = null, VIEW = 'dash';
 
@@ -130,7 +132,7 @@ document.addEventListener('keydown', e => {
   const fn = el.closest('#v-plan') ? submitPlan : el.closest('#v-actual') && ACT_GID ? submitActual : null;
   if (fn) { e.preventDefault(); fn(); }
 });
-function renderAll(){ rGuide(); rDash(); rPlan(); rActual(); rList(); rProcess(); rBudget(); rData(); }
+function renderAll(){ rGuide(); rDash(); rPlan(); rBulk(); rActual(); rList(); rProcess(); rBudget(); rData(); }
 
 /* QWEN_PROMPT_START — QWEN_PROMPT.md 에서 자동 주입. 직접 고치지 말 것 */
 const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
@@ -315,8 +317,8 @@ function rGuide(){
     </div>`;
   const lead = `
     <div class="g-lead">
-      <a class="btn sm" href="/travelbudget/guide" target="_blank" rel="noopener"
-         style="float:right;margin-left:12px">출장자용 안내 (인쇄·메일용) ↗</a>
+      <a class="btn sm pri" href="/travelbudget/guide" target="_blank" rel="noopener"
+         style="float:right;margin-left:12px">자세한 사용법 · 인쇄용 ↗</a>
       <h2>출장비, 이렇게 흘러갑니다</h2>
       <p>출장자는 <b>계획</b>과 <b>실적</b>만 입력하면 됩니다. 인폼(메일)·이관·정산·이력은 시스템과 <b>소재 출장 예산 담당자</b>가 이어받습니다.
       입력은 한 번, 실비 이관 인폼은 <b>그룹당 한 통</b>이에요.</p>
@@ -331,22 +333,22 @@ function rGuide(){
       </div>`;
   const steps =
     step(1, '', '계획 등록', '계획을 올리고, 실제로 갈 건 ‘확정’', '담당자', 'owner',
-      '도시·업체·목적·일자와 <b>출장자별 예상 비용</b>을 입력합니다(동행자는 행 추가). 처음엔 <b>잠정 계획</b>이고, 실제로 갈 건 <b>‘출장 확정’</b> 하면 계획 금액만큼 <b>예산이 미리 확보</b>돼요. 안 가게 된 잠정 계획은 ‘출장 내역’에서 <b>삭제</b>(흔적 없이 사라짐).',
+      '<b>출장 계획 등록</b>에서 도시·업체·목적·일자와 출장자별 예상 비용을 넣습니다. 여러 건은 <b>엑셀 일괄 등록</b>에 붙여넣기.',
       '잠정 계획은 예산 미반영(참고), 확정하면 가용 잔여에서 차감됩니다.',
       `<button class="btn pri" onclick="nav('plan')">출장 계획 등록으로 가기 →</button>`) +
     step(2, '', '실적 입력·인폼', '출장을 다녀온 뒤, 실제 쓴 금액을 넣습니다', '담당자', 'owner',
-      '실제 사용액을 입력하면 <b>실비 이관 요청 인폼(메일)</b>이 그룹당 1통 자동으로 만들어집니다. 표 그대로 <b>복사</b>하거나 <b>Outlook으로 바로 열기</b> 할 수 있어요.',
+      '<b>출장 실적 입력</b>에서 실제 쓴 금액을 넣으면 인폼이 자동 생성됩니다. 표를 끌어다 메일에 놓아 보내세요.',
       '계획 대비 차액이 자동 계산됩니다. (긴급 출장은 비고 필수)',
       `<button class="btn pri" onclick="nav('actual')">출장 실적 입력으로 가기 →</button>`) +
     step(3, 'admin', '소재 이관', '예산 담당자가 이관 후 소재 담당자에게 인폼', '예산 담당자', 'admin',
-      '<b>소재 출장 예산 담당자</b>가 실비 이관 결재를 상신하고, <b>소재 담당자에게 이관 인폼(메일)</b>을 보냅니다 — “이관 결재 상신했습니다. 참조자로 추가했으니 이관 후 비용 처리 부탁드립니다.” <b>같은 출장이라도 사람마다 사정이 다르면</b>(예: 5명 중 1명만 예산 부족) <b>출장자별로 따로</b> 이관·완료·<b>보류</b>할 수 있어요.',
+      '예산 담당자가 이관 결재를 올리고 소재 담당자에게 인폼을 보냅니다. <b>출장자별로 따로</b> 이관·완료·보류할 수 있습니다.',
       '소재 이관 시 비용 처리 요청 인폼이 자동 생성됩니다. 보류(예산 부족 등)는 대시보드 ‘바로 할 일’에 알림으로 표시돼요.',
       `<button class="btn" onclick="nav('list')">내 출장 상태 확인 (출장 내역) →</button>`) +
     step(4, 'done', '처리 완료', '소재 담당자가 비용 처리하면 완료', '소재 담당자', 'owner',
-      '이관 인폼을 받은 <b>소재 담당자</b>가 전표로 비용 처리를 하면 예산 담당자가 <b>‘처리 완료’</b>로 표시합니다. 이 금액이 예산에서 <b>최종 차감</b>돼요.',
+      '소재 담당자가 비용을 처리하면 예산 담당자가 <b>처리 완료</b>로 표시합니다. 이 금액이 최종 차감됩니다.',
       '', '') +
     step('취', 'cancel', '취소', '안 가게 되면 취소', '담당자·예산 담당자', 'owner',
-      '일정 연기 등으로 출장이 취소되면 <b>계획·인폼 단계</b>에서 취소할 수 있습니다. 취소 건은 예산 계산에서 빠집니다.',
+      '안 가게 되면 잠정은 <b>삭제</b>, 확정 후엔 <b>출장 취소</b>. 취소 건은 예산에서 빠집니다.',
       '', '');
   const money = `
       <div class="note" style="margin:14px 0 0">
@@ -432,31 +434,54 @@ function rDash(){
       </div></div>` : `
     <div class="card"><h2>바로 할 일</h2><p class="cap">지금 처리할 건이 없습니다.</p>
       <div class="btns" style="margin-top:0"><button class="btn" onclick="showReport()">센터 제출 리포트</button></div></div>`;
-  const rows = d.byCcg.map(r => `<tr>
+  // ── CCG팀별 집행 — 막대로 도식화. 잠정(예산 미반영)은 표에서 빼고 아래에 따로 표기.
+  //    (잠정 금액을 같은 표에 두면 실제 집행액보다 커져 숫자가 튀어 보임)
+  const rowsData = d.byCcg.filter(r => (r.done + r.wip + (r.commit || 0)) > 0);
+  const peak = Math.max(1, ...rowsData.map(r => r.done + r.wip + (r.commit || 0)));
+  const seg = (v, cls) => v > 0 ? `<i class="${cls}" style="width:${(v / peak * 100).toFixed(2)}%"></i>` : '';
+  const bars = rowsData.map(r => {
+    const sum = r.done + r.wip + (r.commit || 0);
+    return `<div class="brow">
+      <div class="bnm">${esc(r.team)}<span class="sub"> ${r.people}명</span></div>
+      <div class="bbar" title="완료 ${won(r.done)} · 처리중 ${won(r.wip)} · 확정 ${won(r.commit || 0)}">
+        ${seg(r.done, 'sd')}${seg(r.wip, 'sw')}${seg(r.commit || 0, 'sc')}</div>
+      <div class="bval">${won(sum)}<span class="sub"> ${(r.share * 100).toFixed(0)}%</span></div>
+    </div>`;
+  }).join('') || '<div class="note" style="margin:0">집행 내역이 없습니다.</div>';
+
+  const rows = rowsData.map(r => `<tr>
     <td><b>${esc(r.team)}</b> <span class="sub">${r.ccg}</span></td>
     <td class="num">${won(r.done)}</td><td class="num">${won(r.wip)}</td>
-    <td class="num"><b>${won(r.total)}</b></td>
-    <td class="num">${(r.share * 100).toFixed(1)}%</td>
     <td class="num" style="color:var(--blue)">${won(r.commit || 0)}</td>
-    <td class="num sub">${won(r.plan)}</td>
-    <td class="num">${r.groups}</td><td class="num">${r.people}</td></tr>`).join('')
-    || '<tr><td colspan="9" style="color:var(--faint);text-align:center;padding:18px">집행 내역이 없습니다.</td></tr>';
-  const tot = d.byCcg.reduce((a, r) => (
-    {done:a.done + r.done, wip:a.wip + r.wip, total:a.total + r.total, commit:a.commit + (r.commit||0), plan:a.plan + r.plan,
-     groups:a.groups + r.groups, people:a.people + r.people}), {done:0, wip:0, total:0, commit:0, plan:0, groups:0, people:0});
+    <td class="num"><b>${won(r.done + r.wip + (r.commit || 0))}</b></td>
+    <td class="num">${(r.share * 100).toFixed(1)}%</td>
+    <td class="num">${r.people}</td></tr>`).join('')
+    || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">집행 내역이 없습니다.</td></tr>';
+  const tot = rowsData.reduce((a, r) => ({done: a.done + r.done, wip: a.wip + r.wip,
+    commit: a.commit + (r.commit || 0), people: a.people + r.people}), {done:0, wip:0, commit:0, people:0});
+  const totSum = tot.done + tot.wip + tot.commit;
+  const planTot = d.byCcg.reduce((a, r) => a + (r.plan || 0), 0);
+
   const ccg = `
-    <div class="card"><div class="card-head"><h2>CCG팀(부서)별 집행 현황</h2>
-      <span class="cap" style="margin:0">총사용액 = 처리완료 + 처리중 · 확정예정은 선확보(가용 차감) · 잠정은 참고<br>
-        참여 출장 = 그 팀이 참여한 건수(두 팀이 함께 간 출장은 양쪽에 표시) · 합계는 실제 출장 건수</span></div>
-    <div class="scroll" style="margin-top:12px"><table>
-      <thead><tr><th>CCG팀</th><th class="num">처리완료</th><th class="num">처리중</th>
-        <th class="num">총사용액</th><th class="num">구성비</th><th class="num">확정예정</th><th class="num">잠정계획</th>
-        <th class="num">참여 출장</th><th class="num">참여 인원</th></tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot><tr><td>합계</td><td class="num">${won(tot.done)}</td><td class="num">${won(tot.wip)}</td>
-        <td class="num">${won(tot.total)}</td><td class="num">${tot.total ? '100.0%' : '–'}</td><td class="num">${won(tot.commit)}</td><td class="num">${won(tot.plan)}</td>
-        <td class="num">${d.nTrips}</td><td class="num">${tot.people}</td></tr></tfoot>
-    </table></div></div>`;
+    <div class="card">
+      <div class="card-head"><h2>CCG팀(부서)별 집행 현황</h2>
+        <div class="lgd"><span><i class="sd"></i>처리완료</span><span><i class="sw"></i>처리중</span>
+          <span><i class="sc"></i>확정 예정</span></div></div>
+      <div class="bars">${bars}</div>
+      <details class="fold"><summary>금액 표로 보기</summary>
+        <div class="scroll" style="margin-top:10px"><table>
+          <thead><tr><th>CCG팀</th><th class="num">처리완료</th><th class="num">처리중</th>
+            <th class="num">확정 예정</th><th class="num">합계</th><th class="num">구성비</th>
+            <th class="num">인원</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr><td>합계</td><td class="num">${won(tot.done)}</td><td class="num">${won(tot.wip)}</td>
+            <td class="num">${won(tot.commit)}</td><td class="num">${won(totSum)}</td>
+            <td class="num">${totSum ? '100.0%' : '–'}</td><td class="num">${tot.people}</td></tr></tfoot>
+        </table></div></details>
+      <div class="ref">참고 · <b>잠정 계획 ${d.nPlan || 0}건 · ${won(planTot)}원</b> — 예산에 반영되지 않습니다.
+        실제로 가는 건은 <b>출장 확정</b>을 눌러야 예산이 잡힙니다.
+        <span class="sub">이번 분기 실제 출장 ${d.nTrips || 0}건 · 참여 인원 ${d.nPeople || 0}명</span></div>
+    </div>`;
   $('#v-dash').innerHTML = notice + hero + kpi + todo + ccg;
 }
 let NOTICE_EDIT = false;
@@ -776,6 +801,179 @@ async function _submitActual(){
   showMail(data.mail);
 }
 
+/* ═══ 엑셀 일괄 등록 — 센터 양식 시트에서 그대로 붙여넣기 ═══
+   서버 API·data.json 스키마는 그대로. 화면에서 파싱해 기존 POST /api/groups 를 그대로 씁니다. */
+const BULK_COLS = {                        // 표준 열이름 → 내부 키 (별칭 허용)
+  '구분':'plan_type', '출장도시':'city', '도시':'city',
+  '출장기관&업체':'org', '출장기관':'org', '업체':'org', 'BP':'org', 'BP사':'org',
+  '출장목적&사유':'purpose', '출장목적':'purpose', '목적':'목적', '목적&사유':'purpose',
+  '출발일자':'dep_dt', '출발일':'dep_dt', '복귀일자':'ret_dt', '복귀일':'ret_dt',
+  '자차사용여부':'car', '자차':'car', '출장구분':'kind', '비고':'remark',
+  '사번':'emp_no', '성명':'name', '이름':'name', '직책':'rank',
+  'CCG명':'ccg_nm', 'CCG팀':'ccg_nm', 'CCG':'_ccgcode', 'LV2':'_skip',
+  '계획_교통비':'p_trans', '계획_숙박비':'p_lodg', '계획_식대&잡비':'p_meal', '계획_기타':'p_etc',
+  '실적_교통비':'a_trans', '실적_숙박비':'a_lodg', '실적_식대&잡비':'a_meal', '실적_기타':'a_etc',
+  '출장일수':'_skip', '출장시점':'_skip', '계획_총합계':'_skip', '실적_총합계':'_skip',
+};
+const CENTER_ORDER = ['구분','LV2','CCG','CCG명','사번','성명','직책','출장도시','출장기관&업체',
+  '출장목적&사유','출발일자','복귀일자','출장일수','출장시점','자차사용여부','출장구분',
+  '계획_총합계','계획_교통비','계획_숙박비','계획_식대&잡비','계획_기타',
+  '실적_총합계','실적_교통비','실적_숙박비','실적_식대&잡비','실적_기타','비고'];
+let BULK_ROWS = null;
+
+const bnorm = t => String(t || '').replace(/\s+/g, '').replace(/[·・]/g, '·').trim();
+function bTeam(v){                          // 'Gas소재팀' '가스' 등도 정확한 팀명으로
+  const q = bnorm(v).toLowerCase();
+  if (!q) return '';
+  const t = ST.ccg.find(x => bnorm(x.team).toLowerCase() === q)
+        || ST.ccg.find(x => bnorm(x.team).toLowerCase().startsWith(q))
+        || ST.ccg.find(x => x.ccg.toLowerCase() === q);
+  return t ? t.team : '';
+}
+function bDate(v){                           // 2026.8.4 / 26-08-04 / 45000(엑셀 일련번호) 허용
+  const t = String(v || '').trim();
+  if (!t) return '';
+  if (/^\d{5}$/.test(t)) {                   // 엑셀 날짜 일련번호
+    const d = new Date(Date.UTC(1899, 11, 30) + Number(t) * 864e5);
+    return d.toISOString().slice(0, 10);
+  }
+  const m = t.match(/(\d{2,4})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/);
+  if (!m) return '';
+  let y = +m[1]; if (y < 100) y += 2000;
+  return `${y}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+}
+function bKind(v){
+  const q = bnorm(v).toLowerCase();
+  if (!q) return ST.meta.kinds[2];
+  return ST.meta.kinds.find(k => bnorm(k).toLowerCase() === q)
+      || ST.meta.kinds.find(k => bnorm(k).toLowerCase().includes(q) || q.includes(bnorm(k).toLowerCase().slice(0,4)))
+      || '기타';
+}
+function bParse(text){
+  const lines = String(text || '').replace(/\r/g, '').split('\n').filter(l => l.trim());
+  if (!lines.length) return {groups: [], errs: ['붙여넣은 내용이 없습니다.']};
+  const cut = l => l.split('\t').length > 1 ? l.split('\t') : l.split(',');
+  let head = cut(lines[0]).map(bnorm);
+  let map, body;
+  if (head.some(h => BULK_COLS[h])) {        // 머리글이 있는 경우 — 이름으로 매칭
+    map = head.map(h => BULK_COLS[h] || '_skip');
+    body = lines.slice(1);
+  } else {                                   // 머리글 없이 값만 붙인 경우 — 센터 27필드 순서로 가정
+    map = CENTER_ORDER.map(h => BULK_COLS[h] || '_skip');
+    body = lines;
+  }
+  const errs = [], byKey = new Map();
+  body.forEach((line, i) => {
+    const c = cut(line), o = {};
+    map.forEach((k, j) => { if (k && k !== '_skip') o[k] = (c[j] ?? '').trim(); });
+    const ln = i + (body === lines ? 1 : 2);
+    const dep = bDate(o.dep_dt), ret = bDate(o.ret_dt) || bDate(o.dep_dt);
+    const team = bTeam(o.ccg_nm) || bTeam(o._ccgcode);
+    const miss = [];
+    if (!o.city) miss.push('출장도시');
+    if (!o.org) miss.push('기관&업체');
+    if (!o.purpose) miss.push('목적&사유');
+    if (!dep) miss.push('출발일자');
+    if (!o.name) miss.push('성명');
+    if (!o.emp_no) miss.push('사번');
+    if (!team) miss.push('CCG명' + (o.ccg_nm ? `('${o.ccg_nm}' 인식 불가)` : ''));
+    if (miss.length) { errs.push(`${ln}행: ${miss.join(', ')} 없음/오류`); return; }
+    const key = [o.city, o.org, dep, ret, o.purpose].join('|');
+    if (!byKey.has(key)) byKey.set(key, {
+      plan_type: ['계획','변경','긴급'].includes(bnorm(o.plan_type)) ? bnorm(o.plan_type) : '계획',
+      city: o.city, org: o.org, purpose: o.purpose, dep_dt: dep, ret_dt: ret,
+      car: bnorm(o.car).includes('자차') ? '자차사용' : '미사용',
+      kind: bKind(o.kind), remark: o.remark || '', travelers: [], _rows: [],
+    });
+    const g = byKey.get(key);
+    if (g.travelers.some(t => t.emp_no === o.emp_no)) { errs.push(`${ln}행: 같은 출장에 사번 ${o.emp_no} 중복`); return; }
+    const t = {name: o.name, emp_no: o.emp_no,
+      rank: bnorm(o.rank) === '팀장' ? '팀장' : 'TL', ccg_nm: team};
+    KEYS.forEach(k => { t['p_' + k] = mnum({value: o['p_' + k]}); t['a_' + k] = mnum({value: o['a_' + k]}); });
+    g.travelers.push(t); g._rows.push(ln);
+  });
+  return {groups: [...byKey.values()], errs};
+}
+function bPreview(){
+  const {groups, errs} = bParse($('#bkText').value);
+  BULK_ROWS = groups;
+  const rows = groups.map((g, i) => {
+    const pt = g.travelers.reduce((a, t) => a + KEYS.reduce((x, k) => x + t['p_' + k], 0), 0);
+    const at = g.travelers.reduce((a, t) => a + KEYS.reduce((x, k) => x + t['a_' + k], 0), 0);
+    return `<tr><td class="num">${i + 1}</td>
+      <td><b>${esc(g.city)} ${esc(g.org)}</b><div class="sub">${esc(g.purpose)}</div></td>
+      <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
+      <td>${g.travelers.map(t => esc(t.name)).join(', ')} <span class="sub">${g.travelers.length}명</span></td>
+      <td class="num">${pt ? won(pt) : '–'}</td><td class="num">${at ? won(at) : '–'}</td>
+      <td class="sub">${g._rows.join(',')}행</td></tr>`;
+  }).join('');
+  $('#bkOut').innerHTML = `
+    ${errs.length ? `<div class="err">${errs.map(esc).join('\n')}</div>` : ''}
+    ${groups.length ? `<div class="note" style="margin:10px 0 0">
+        <b>${groups.length}건</b> · 출장자 <b>${groups.reduce((a, g) => a + g.travelers.length, 0)}명</b>
+        — 같은 도시·업체·일자·목적은 한 건으로 묶었습니다. 내용을 확인하고 아래 버튼을 누르세요.</div>
+      <div class="scroll" style="margin-top:10px"><table>
+        <thead><tr><th class="num">#</th><th>출장</th><th class="num">기간</th><th>출장자</th>
+          <th class="num">계획</th><th class="num">실적</th><th>원본</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <div class="btns">
+        <button class="btn pri" id="bkGo" onclick="bSubmit()">${groups.length}건 등록</button>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:600;margin:0">
+          <input type="checkbox" id="bkConfirm" style="width:auto;margin:0"> 실제로 가는 출장 — 바로 확정(예산 반영)</label>
+      </div>`
+    : '<div class="note" style="margin:10px 0 0">등록할 수 있는 행이 없습니다.</div>'}`;
+}
+async function bSubmit(){
+  if (!BULK_ROWS || !BULK_ROWS.length) return;
+  const confirmed = $('#bkConfirm')?.checked || false;
+  const btn = $('#bkGo'); if (btn) { btn.disabled = true; btn.textContent = '등록 중…'; }
+  let okN = 0; const fail = [];
+  for (const g of BULK_ROWS) {
+    const body = {...g, confirmed}; delete body._rows;
+    const r = await api('/groups', {method: 'POST', body: JSON.stringify(body)});
+    if (r.ok) okN++; else fail.push(`${g.city} ${g.org}: ${(r.data.errors || ['실패'])[0]}`);
+  }
+  await load();
+  $('#bkText').value = ''; BULK_ROWS = null;
+  $('#bkOut').innerHTML = `<div class="${fail.length ? 'err' : 'note'}" style="margin:10px 0 0">
+    <b>${okN}건 등록 완료</b>${fail.length ? `\n실패 ${fail.length}건:\n${fail.map(esc).join('\n')}` : ''}</div>`;
+  toast(`${okN}건 등록 완료${fail.length ? ` · 실패 ${fail.length}건` : ''}`);
+  rBulk(); nav('bulk');
+}
+function rBulk(){
+  $('#v-bulk').innerHTML = `
+    <div class="card">
+      <h2>엑셀에서 붙여넣어 한 번에 등록</h2>
+      <p class="cap">센터 관리 시트에서 <b>행을 선택해 복사(Ctrl+C)</b> 하고 아래 칸에 <b>붙여넣기(Ctrl+V)</b> 하세요.
+        머리글이 있어도 되고, 없으면 센터 27필드 순서로 읽습니다.</p>
+      <div class="note">
+        <b>꼭 있어야 하는 열</b> · 출장도시 · 출장기관&amp;업체 · 출장목적&amp;사유 · 출발일자 · 성명 · 사번 · CCG명<br>
+        <span class="sub">복귀일자가 없으면 출발일과 같은 날(당일)로, 자차·출장구분·비고가 없으면 기본값으로 넣습니다.
+        같은 도시·업체·일자·목적 행은 <b>동행자</b>로 보고 한 건으로 묶습니다. 금액은 콤마·"원"이 있어도 됩니다.</span>
+      </div>
+      <label for="bkText">붙여넣기</label>
+      <textarea id="bkText" style="min-height:150px;font-family:Consolas,'Malgun Gothic',monospace;font-size:12.5px"
+        placeholder="예)  계획  소재  C1202  Gas 소재팀  20140508  박영희  팀장  청주  원익머트리얼즈  NF3 정기 Audit  2026-08-04  2026-08-05 ..."
+        oninput="bPreview()"></textarea>
+      <div class="btns" style="margin-top:8px">
+        <button class="btn" onclick="bPreview()">확인</button>
+        <button class="btn" onclick="$('#bkText').value='';$('#bkOut').innerHTML='';BULK_ROWS=null">지우기</button>
+        <button class="btn" onclick="bSample()">예시 넣어보기</button>
+        <a class="btn" href="${API}/bulk_template.xls" style="margin-left:auto">엑셀 양식 내려받기 ↓</a>
+      </div>
+      <div id="bkOut"></div>
+    </div>`;
+}
+function bSample(){
+  const yy = YQ.split('-')[0], mm = String(parseInt(YQ.split('-')[1]) * 3).padStart(2, '0');
+  $('#bkText').value =
+    ['구분\tCCG명\t사번\t성명\t직책\t출장도시\t출장기관&업체\t출장목적&사유\t출발일자\t복귀일자\t자차사용여부\t출장구분\t계획_교통비\t계획_숙박비\t계획_식대&잡비',
+     `계획\tGas 소재팀\t20140508\t박영희\t팀장\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
+     `계획\tChemical 소재팀\t2071478\t이정훈\tTL\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
+     `계획\tPhoto 소재팀\t20150322\t김철수\t팀장\t이천\t동우화인켐\tArF PR 품질 실사\t${yy}-${mm}-11\t${yy}-${mm}-11\t미사용\t실사&사양 개선,협의\t80,000\t0\t30,000`].join('\n');
+  bPreview();
+}
+
 /* ═══ 인폼 카드 ═══ */
 async function reopenMail(gid){
   const {ok, data} = await api(`/groups/${gid}/mail`);
@@ -788,35 +986,37 @@ function showMail(mail){
   el.className = 'mailcard'; el.id = 'mailCard';
   el.innerHTML = `
     <div class="mh"><span>${esc(mail.heading || '실비 이관 요청 인폼 (그룹당 1통)')}</span>
-      <button onclick="this.closest('.mailcard').remove()">×</button></div>
+      <span class="mhb">
+        <button title="접기 / 펼치기" onclick="this.closest('.mailcard').classList.toggle('min')">–</button>
+        <button title="닫기" onclick="this.closest('.mailcard').remove()">×</button></span></div>
     <div class="meta">
       <div class="row"><span class="k">수신</span>${mail.to
         ? `<span style="word-break:break-all">${esc(mail.to)}</span>`
         : `<span style="color:var(--red);font-weight:700">${esc(mail.to_hint || '수신자: 직접 지정')}</span>`}</div>
       <div class="row"><span class="k">제목</span><span>${esc(mail.subject)}</span></div>
     </div>
-    <div class="body">${mail.body_html}</div>
+    <div class="how">아래 표를 <b>끌어다 놓기(드래그 &amp; 드롭)</b> 하거나 <b>표 포함 복사</b> 후
+      메일에 붙여넣어 보내주세요. <span class="sub">서식·표가 그대로 유지됩니다.</span></div>
+    <div class="body" id="mailBody" draggable="true">${mail.body_html}</div>
     <div class="mf">
-      <button class="btn sm pri" id="mailOpen">메일 열기 (Outlook)</button>
-      <button class="btn sm" id="mailCopyHtml">표 포함 복사</button>
+      <button class="btn sm pri" id="mailCopyHtml">표 포함 복사</button>
       <button class="btn sm" id="mailCopyText">본문 텍스트 복사</button>
+      <span class="mfhint">수신 · 제목은 위에 있습니다</span>
     </div>`;
   document.body.appendChild(el);
-  $('#mailOpen').onclick = () => {
-    const url = `mailto:${encodeURIComponent(mail.to)}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body_text)}`;
-    if (url.length > 1900) {   // 긴 본문은 mailto 한도 초과로 잘림 — 복사로 대체
-      copyText(mail.body_text, '본문이 길어 메일 대신 복사했습니다 — 새 메일에 붙여넣으세요');
-      return;
-    }
-    location.href = url;
-  };
+  // 드래그로 메일에 바로 떨어뜨릴 수 있게 HTML 서식을 함께 실어 보낸다
+  $('#mailBody').addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/html', mail.body_html);
+    e.dataTransfer.setData('text/plain', mail.body_text);
+    e.dataTransfer.effectAllowed = 'copy';
+  });
   $('#mailCopyHtml').onclick = async () => {
     if (!navigator.clipboard) { copyText(mail.body_text); return; }
     try {
       await navigator.clipboard.write([new ClipboardItem({
         'text/html': new Blob([mail.body_html], {type: 'text/html'}),
         'text/plain': new Blob([mail.body_text], {type: 'text/plain'})})]);
-      toast('표 포함 복사됨 — Outlook에 붙여넣으세요');
+      toast('표 포함 복사됨 — 메일에 붙여넣으세요');
     } catch (e) { copyText(mail.body_text, '텍스트로 복사되었습니다'); }
   };
   $('#mailCopyText').onclick = () => copyText(mail.body_text, '본문을 복사했습니다');

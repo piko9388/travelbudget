@@ -37,6 +37,8 @@ app = app.replace('<a class="btn sm" href="${API}/export.csv?yq=${encodeURICompo
                   '<button class="btn sm" onclick="downloadCsv(YQ)">상세 CSV</button>')
 app = app.replace('<a class="btn sm" href="${API}/export_budget.csv?yq=${encodeURIComponent(YQ)}">예산 CSV</a>',
                   '<button class="btn sm" onclick="downloadBudgetCsv(YQ)">예산 CSV</button>')
+app = app.replace('<a class="btn" href="${API}/bulk_template.xls" style="margin-left:auto">엑셀 양식 내려받기 ↓</a>',
+                  '<a class="btn" href="bulk_template.xls" style="margin-left:auto">엑셀 양식 내려받기 ↓</a>')
 assert 'export_budget.csv' not in app and 'export.csv' not in app, "정적판에 남은 서버 CSV 링크가 있습니다"
 
 # 정적판에는 Flask 라우트가 없다 — 같은 폴더의 파일로 연결

@@ -41,7 +41,7 @@ CCG_TEAMS = [
 ]
 CCG_BY_NM = {t["team"]: t["ccg"] for t in CCG_TEAMS}
 
-APP_VERSION = "v9.7"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_VERSION = "v9.8"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-07-27"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -413,6 +413,56 @@ def dash(data, yq):
         "nHold": sum(g["proc"]["hold"] for g in G),
         "byCcg": by_ccg, "todo": todo,
     }
+
+
+# ── 일괄 등록용 엑셀 양식 (센터 27필드 순서 — 붙여넣기 전제) ──────
+BULK_REQUIRED = ("출장도시", "출장기관&업체", "출장목적&사유", "출발일자", "사번", "성명", "CCG명")
+
+
+def bulk_template_xls():
+    """의존성 없이 HTML 표로 만든 .xls 양식. 채워서 복사 → 화면에 붙여넣기."""
+    font = "'Trebuchet MS','Malgun Gothic','맑은 고딕',sans-serif"
+    req_mark = "<br><span style='font-size:8pt;color:#C00'>필수</span>"
+    th = []
+    for h in CSV_HEADERS:
+        need = h in BULK_REQUIRED
+        th.append('<th style="background:%s;border:1px solid #999;padding:5px 7px;'
+                  'font-family:%s;font-size:11pt;white-space:nowrap">%s%s</th>'
+                  % ("#DCE6F1" if need else "#F2F2F2", font, escape(h), req_mark if need else ""))
+    sample = [
+        ["계획", "소재", "C1202", "Gas 소재팀", "20140508", "박영희", "팀장", "청주", "원익머트리얼즈",
+         "NF3 순도 정기 Audit", "2026-08-04", "2026-08-05", "", "", "자차사용", "정기 Audit",
+         "", "70000", "95000", "65000", "10000", "", "", "", "", "", ""],
+        ["계획", "소재", "C1101", "Chemical 소재팀", "2071478", "이정훈", "TL", "청주", "원익머트리얼즈",
+         "NF3 순도 정기 Audit", "2026-08-04", "2026-08-05", "", "", "자차사용", "정기 Audit",
+         "", "70000", "95000", "65000", "10000", "", "", "", "", "", "동행자 — 같은 출장으로 묶임"],
+        ["계획", "소재", "C1303", "Photo 소재팀", "20150322", "김철수", "팀장", "이천", "동우화인켐",
+         "ArF PR 품질 실사", "2026-08-11", "2026-08-11", "", "", "미사용", "실사&사양 개선,협의",
+         "", "80000", "0", "30000", "0", "", "", "", "", "", "당일 출장"],
+    ]
+    rows = []
+    for r in sample:
+        tds = []
+        for c in r:
+            ns = "mso-number-format:'#,##0';text-align:right" if c.isdigit() and len(c) > 3 else ""
+            tds.append('<td style="border:1px solid #BBB;padding:4px 7px;font-family:%s;'
+                       'font-size:11pt;%s">%s</td>' % (font, ns, escape(c)))
+        rows.append("<tr>" + "".join(tds) + "</tr>")
+    guide = ("붙여넣기 방법 — (1) 아래 표에 데이터를 채웁니다(회색 열은 비워도 됩니다) "
+             "(2) 데이터 행을 선택해 복사(Ctrl+C) (3) 시스템 좌측 메뉴 [엑셀 일괄 등록]에 붙여넣기(Ctrl+V) "
+             "(4) 미리보기 확인 후 [등록]. 같은 도시·업체·일자·목적 행은 동행자로 보고 한 건으로 묶습니다. "
+             "출장일수·총합계·출장시점은 시스템이 자동 계산하므로 비워 두세요.")
+    numfmt = "<style>td,th{mso-number-format:'\\@'}</style>"
+    head = ('<html xmlns:o="urn:schemas-microsoft-com:office:office" '
+            'xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8">'
+            + numfmt + "</head><body>")
+    top = ('<table border="0" cellspacing="0"><tr><td colspan="27" style="font-family:%s;font-size:12pt;'
+           'font-weight:bold;padding:8px 4px;color:#17365D">소재 국내 출장비 — 일괄 등록 양식 '
+           '(센터 관리 시트 27필드 순서)</td></tr><tr><td colspan="27" style="font-family:%s;'
+           'font-size:10pt;padding:4px;color:#444">%s</td></tr>'
+           '<tr><td colspan="27" style="height:6px"></td></tr></table>' % (font, font, guide))
+    return (head + top + '<table border="1" cellspacing="0" cellpadding="0"><thead><tr>'
+            + "".join(th) + "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></body></html>")
 
 
 # ── 센터 제출 리포트 (분기 계획·실적·부족액) ──────────────

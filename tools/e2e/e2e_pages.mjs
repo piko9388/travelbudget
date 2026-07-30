@@ -127,7 +127,8 @@ try {
     && csv.includes('동우화인켐'), csv.slice(0, 40));
 
   // 예산 CSV (정적판 = Blob 다운로드)
-  await page.evaluate(() => { sessionStorage.setItem('tb_pw', '2071478'); nav('budget'); });
+  await page.evaluate(() => { document.getElementById('mailCard')?.remove();   // 카드가 하단 버튼을 가리므로 닫고 진행
+    sessionStorage.setItem('tb_pw', '2071478'); nav('budget'); });
   await page.waitForSelector('#v-budget table', { timeout: 4000 });
   const [bdl] = await Promise.all([
     page.waitForEvent('download', { timeout: 5000 }),

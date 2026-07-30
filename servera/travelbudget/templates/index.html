@@ -2,13 +2,28 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>소재 국내 출장비 관리</title>
 <style>
-:root{--bg:#F5F6F8;--white:#FFF;--ink:#111827;--ink2:#344054;--mut:#667085;--faint:#626B7D;
---line:#D9DEE7;--line2:#EDF0F4;--soft:#EEF1F5;--shade:#F0F2F5;--faint2:#98A2B3;
---navy:#17365D;--navy2:#244C79;--blue:#2563A8;--red:#C23A45;--green:#17725C}
+:root{
+/* 팔레트 — 회색 4단계 + 브랜드 네이비 + 상태 3색(청/황/녹) + 경고 적. 그 외 색은 쓰지 않는다 */
+--bg:#F4F6F8;--white:#FFF;
+--ink:#1A2230;        /* 본문 */
+--ink2:#3D4A5C;       /* 보조 본문 */
+--mut:#5C6878;        /* 캡션 */
+--faint:#5C6878;      /* 캡션과 동일 — 회색 단계를 줄여 단순화 */
+--faint2:#8C97A6;     /* 비활성 아이콘 등 (텍스트에는 쓰지 않음) */
+--line:#D5DBE3;--line2:#E9EDF2;--soft:#EDF1F5;--shade:#EFF2F5;
+--navy:#17365D;--navy2:#254D7A;
+--blue:#2563A8;       /* 확정 · 예산 반영 */
+--amber:#8A5A10;      /* 진행중 */
+--green:#166F59;      /* 완료 */
+--red:#BE3A45;        /* 취소 · 부족 */
+}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;letter-spacing:-.01em;
-font-family:Pretendard,"Pretendard Variable","Segoe UI",-apple-system,"Apple SD Gothic Neo",
-"Malgun Gothic","맑은 고딕","Noto Sans KR",sans-serif;-webkit-font-smoothing:antialiased}
+/* 글꼴 — 사내 윈도우 데스크톱 전용. 맑은 고딕을 맨 앞에.
+   Pretendard 를 앞에 두면 윈도우엔 설치돼 있지 않아 라틴=Segoe UI / 한글=맑은고딕 으로
+   두 가족이 섞여 렌더링돼 지저분해진다. 맑은 고딕 하나면 숫자·영문·한글이 같은 가족.
+   letter-spacing 음수는 한글 가독성을 떨어뜨리므로 쓰지 않는다. */
+body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.55;
+font-family:"Malgun Gothic","맑은 고딕","Segoe UI",system-ui,sans-serif}
 .app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}
 aside{position:sticky;top:0;height:100vh;background:var(--white);border-right:1px solid var(--line);
 padding:20px 14px;display:flex;flex-direction:column;overflow-y:auto}
@@ -41,7 +56,7 @@ display:flex;align-items:center;gap:18px;border-radius:2px}
 .hero.alert{background:#FFFAFB;border-color:#E6B7BD}
 .hero.alert .lamp{background:var(--red);box-shadow:0 0 0 4px rgba(194,58,69,.14)}
 .hero .label{color:var(--mut);font-size:12px}
-.hero .amount{margin:2px 0 0;color:var(--navy);font-size:31px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.hero .amount{margin:2px 0 0;color:var(--navy);font-size:31px;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
 .hero.alert .amount{color:var(--red)}
 .hero .msg{font-size:14px;font-weight:700;color:var(--green)}
 .hero.alert .msg{color:var(--red)}
@@ -50,7 +65,7 @@ display:flex;align-items:center;gap:18px;border-radius:2px}
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
 .kpi{background:var(--white);border:1px solid var(--line);padding:14px 15px;border-radius:2px}
 .kpi span{display:block;color:var(--mut);font-size:12px}
-.kpi b{display:block;margin-top:4px;color:var(--navy);font-size:21px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi b{display:block;margin-top:4px;color:var(--navy);font-size:21px;font-variant-numeric:tabular-nums}
 .kpi small{color:var(--faint);font-size:11.5px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .form-grid{display:grid;gap:12px;margin-bottom:12px}
@@ -104,6 +119,26 @@ td .sub{color:var(--faint);font-size:11px}
 .pg-sum{font-size:11.5px;color:var(--mut)}
 .pg-sum b{color:var(--red)}
 .pg-head .gb{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+/* CCG 집행 막대 — 라이브러리 없이 div 로. 색은 상태 3색만 사용 */
+.bars{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+.brow{display:grid;grid-template-columns:150px minmax(0,1fr) 130px;align-items:center;gap:10px}
+.bnm{font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bbar{height:16px;background:var(--shade);border-radius:2px;display:flex;overflow:hidden}
+.bbar i{display:block;height:100%}
+.bbar i.sd,.lgd i.sd{background:var(--green)}
+.bbar i.sw,.lgd i.sw{background:var(--amber)}
+.bbar i.sc,.lgd i.sc{background:var(--blue)}
+.bval{text-align:right;font-size:12.5px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums}
+.lgd{display:flex;gap:12px;font-size:11.5px;color:var(--mut);font-weight:600;flex-wrap:wrap}
+.lgd span{display:flex;align-items:center;gap:5px}
+.lgd i{width:10px;height:10px;border-radius:2px;display:block}
+.fold{margin-top:14px}
+.fold summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--navy);padding:5px 0;user-select:none}
+.fold summary:hover{text-decoration:underline}
+.ref{margin-top:14px;padding:10px 12px;background:var(--soft);border-left:3px solid var(--faint2);
+border-radius:2px;font-size:12.5px;color:var(--ink2)}
+.ref b{color:var(--navy)}
+.ref .sub{display:block;margin-top:3px}
 .note{padding:10px 12px;border:1px solid var(--line);background:#F6F7F9;color:#475467;font-size:12.5px;border-radius:2px;margin-bottom:12px}
 .err{margin-bottom:12px;padding:10px 12px;border:1px solid #E2B4BA;background:#FFF7F8;color:var(--red);font-size:12.5px;border-radius:2px;white-space:pre-line}
 .trav-table input,.trav-table select{min-width:0;padding:6px 8px;font-size:13px}
@@ -112,14 +147,24 @@ td .sub{color:var(--faint);font-size:11px}
 .trav-table .w-tm{min-width:132px}.trav-table .w-cc{min-width:72px}.trav-table .w-mn{min-width:92px}
 .trav-table th:first-child,.trav-table td:first-child{position:sticky;left:0;z-index:1;background:#FFF}
 .trav-table thead th:first-child{background:#F5F6F8}
-.mailcard{position:fixed;right:16px;bottom:16px;width:600px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);
+.mailcard{position:fixed;right:16px;bottom:16px;width:520px;max-width:calc(100vw - 32px);max-height:min(72vh,760px);
 background:#FFF;border:1px solid #CDD4DF;box-shadow:0 8px 24px rgba(16,24,40,.16);z-index:90;display:flex;flex-direction:column;border-radius:3px;overflow:hidden}
 .mailcard .mh{background:var(--navy);color:#FFF;padding:10px 14px;font-size:12.5px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
-.mailcard .mh button{background:none;border:0;color:#B9C6DC;font-size:17px;cursor:pointer;line-height:1}
+.mailcard .mh button{background:none;border:0;color:#B9C6DC;font-size:17px;cursor:pointer;line-height:1;padding:0 4px}
+.mailcard .mh button:hover{color:#FFF}
+.mailcard .mhb{display:flex;gap:2px;align-items:center}
+/* 접으면 제목줄만 남아 화면 아래 버튼을 가리지 않는다 */
+.mailcard.min .how,.mailcard.min .meta,.mailcard.min .body,.mailcard.min .mf{display:none}
 .mailcard .meta{padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--line);font-size:11.5px}
 .mailcard .meta .row{display:flex;gap:8px;margin-bottom:3px}
 .mailcard .meta .k{color:var(--mut);font-weight:700;width:36px;flex-shrink:0}
-.mailcard .body{padding:14px;overflow:auto;flex:1}
+.mailcard .how{padding:9px 14px;background:#F0F5FB;border-bottom:1px solid var(--line);
+font-size:12px;color:var(--ink2);line-height:1.55}
+.mailcard .how b{color:var(--navy)}
+.mailcard .how .sub{color:var(--mut)}
+.mailcard .body{padding:14px;overflow:auto;flex:1;cursor:grab}
+.mailcard .body:active{cursor:grabbing}
+.mailcard .mfhint{margin-left:auto;font-size:11px;color:var(--mut)}
 .mailcard .mf{padding:9px 14px;border-top:1px solid var(--line);background:var(--bg);display:flex;gap:7px;flex-wrap:wrap}
 .modal{position:fixed;inset:0;background:rgba(16,24,40,.46);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
 .modal-box{width:330px;max-width:96vw;background:#FFF;border:1px solid #CDD4DF;border-radius:3px;overflow:hidden}
@@ -194,6 +239,7 @@ padding:13px 16px;margin-bottom:14px}
     <a data-view="guide">이용 안내 <span class="lk">흐름</span></a>
     <a class="on" data-view="dash">대시보드</a>
     <a data-view="plan">출장 계획 등록</a>
+    <a data-view="bulk">엑셀 일괄 등록 <span class="lk">붙여넣기</span></a>
     <a data-view="actual">출장 실적 입력</a>
     <a data-view="list">출장 내역</a>
     <div class="nav-label">관리</div>
@@ -216,6 +262,7 @@ padding:13px 16px;margin-bottom:14px}
   <section id="v-guide" class="view"></section>
   <section id="v-dash" class="view on"></section>
   <section id="v-plan" class="view"></section>
+  <section id="v-bulk" class="view"></section>
   <section id="v-actual" class="view"></section>
   <section id="v-list" class="view"></section>
   <section id="v-process" class="view"></section>

@@ -85,6 +85,17 @@ def index():
     return render_template("index.html")
 
 
+# ── 일괄 등록용 엑셀 양식 내려받기 (센터 27필드 순서) ──
+@travelbudget.get("/api/bulk_template.xls")
+def bulk_template():
+    html = C.bulk_template_xls()
+    fn = "출장비_일괄등록_양식.xls"
+    return Response(html.encode("utf-8-sig"), mimetype="application/vnd.ms-excel",
+                    headers={"Content-Disposition":
+                             "attachment; filename=bulk_template.xls; "
+                             f"filename*=UTF-8''{quote(fn, safe='')}"})
+
+
 # ── 출장자용 인쇄 가능 안내 (독립 HTML — 메일 첨부·사내 게시용) ──
 @travelbudget.get("/guide")
 def traveler_guide():

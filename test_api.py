@@ -658,7 +658,7 @@ _rt = open('servera/travelbudget/routes.py', encoding='utf-8').read()
 # 안내가 가리키는 메뉴·버튼이 실제로 존재해야 한다
 for _m in ('출장 계획 등록', '출장 실적 입력', '출장 내역', '이용 안내'):
     ok(f'안내의 메뉴 "{_m}" 실재', _m in _gd and _m in _tpl2)
-for _b in ('출장 확정', '실적 저장 및 인폼 생성', '메일 열기 (Outlook)', '표 포함 복사',
+for _b in ('출장 확정', '실적 저장 및 인폼 생성', '표 포함 복사',
            '인폼 다시 보기', '인폼 보기', '+ 동행자 추가', '출장 취소'):
     ok(f'안내의 버튼 "{_b}" 실재', _b in _gd and _b in _appjs)
 # 상태 표기가 화면 표기와 같아야 한다
@@ -673,6 +673,11 @@ ok('안내: 실적 후 수정은 담당자만 = 실제와 일치',
 ok('안내: 인폼 수신자 2명 = 실제와 일치',
    '이정훈 · 김은정' in _gd and len(_store.default_data()['settings']['mail_recipients']) == 2)
 # 없는 기능을 안내하면 안 된다 (SAP 는 v9.4 에서 화면에서 뺐다)
+# mailto(Outlook 열기)는 사내에서 실패해 제거 — 안내에도 남아 있으면 안 된다
+ok('안내에 Outlook 열기 언급 없음', 'Outlook' not in _gd)
+ok('화면에 mailto 없음', 'mailto' not in _appjs)
+ok('안내에 드래그 안내 있음', '끌어다' in _gd or '드래그' in _gd)
+ok('화면 인폼 카드에 드래그 안내', '끌어다 놓기' in _appjs or '드래그' in _appjs)
 for _ghost in ('SAP', '전표', '승인', '반려'):
     ok(f'안내에 없는 기능 "{_ghost}" 미언급', _ghost not in _gd)
 ok('안내는 자체 완결(외부 CDN 없음)', 'http://' not in _gd and 'cdn' not in _gd.lower())

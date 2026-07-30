@@ -540,6 +540,64 @@ try {
   await page.click('#qwToggle');
   ok('다시 접힘', !(await page.isVisible('#qwBox')));
 
+  /* ── 18. v9.8 — 글꼴·대시보드 도식화·드래그 인폼·엑셀 일괄 등록 ── */
+  console.log('\n-- 18. v9.8 개선 --');
+  const fam = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+  ok('본문 글꼴 맑은 고딕 우선(윈도우 혼용 방지)', /^"?Malgun Gothic/.test(fam), fam);
+  const proseFonts = await page.evaluate(() => [...new Set([...document.querySelectorAll('body *')]
+    .map(e => getComputedStyle(e).fontFamily))].filter(f => !/monospace/.test(f)));
+  ok('본문 글꼴 스택 1종', proseFonts.length === 1, proseFonts);
+
+  await page.evaluate(() => { document.getElementById('mailCard')?.remove(); nav('dash'); });
+  await sleep(200);
+  ok('대시보드 CCG 막대 도식', (await page.$$('#v-dash .bars .brow')).length > 0);
+  ok('막대 범례 3색(완료/처리중/확정)', (await page.$$('#v-dash .lgd i')).length === 3);
+  const refTxt = await page.textContent('#v-dash .ref');
+  ok('잠정은 표에서 빼고 참고로만 표기', refTxt.includes('잠정 계획') && refTxt.includes('반영되지 않'), refTxt.slice(0, 40));
+  const ccgTh = await page.$$eval('#v-dash .fold th', e => e.map(x => x.textContent.trim()));
+  ok('CCG 금액표에 잠정계획 열 없음', !ccgTh.includes('잠정계획'), ccgTh);
+  ok('CCG 금액표는 기본 접힘', !(await page.isVisible('#v-dash .fold table')));
+
+  // 인폼 카드 — Outlook 제거 · 드래그 · 접기(하단 버튼 가림 방지)
+  const mgid = await page.evaluate(() => ST.groups.find(g => g.act_tot > 0)?.group_id);
+  await page.evaluate(g => reopenMail(g), mgid);
+  await page.waitForSelector('#mailCard', { timeout: 4000 });
+  ok('Outlook 열기 버튼 없음', !(await page.$('#mailOpen')));
+  ok('드래그 안내 노출', (await page.textContent('#mailCard .how')).includes('끌어다'));
+  ok('본문이 draggable', (await page.getAttribute('#mailBody', 'draggable')) === 'true');
+  const hBefore = await page.evaluate(() => document.getElementById('mailCard').getBoundingClientRect().height);
+  await page.click('#mailCard .mh button[title="접기 / 펼치기"]');
+  await sleep(150);
+  const hAfter = await page.evaluate(() => document.getElementById('mailCard').getBoundingClientRect().height);
+  ok('접으면 제목줄만 남음(하단 버튼 가림 해소)', hAfter < 60 && hAfter < hBefore / 3, {hBefore, hAfter});
+  await page.evaluate(() => document.getElementById('mailCard')?.remove());
+
+  // 엑셀 일괄 등록
+  await page.click('.nav a[data-view="bulk"]');
+  await page.waitForSelector('#bkText');
+  await page.click('button:has-text("예시 넣어보기")');
+  await sleep(400);
+  const bkPrev = await page.textContent('#bkOut');
+  ok('붙여넣기 → 동행자 묶어 미리보기', bkPrev.includes('2건') && bkPrev.includes('3명'), bkPrev.slice(0, 50));
+  const nBefore = await page.evaluate(() => ST.groups.length);
+  await page.click('#bkGo');
+  await sleep(2500);
+  ok('일괄 등록 2건 저장', (await page.evaluate(() => ST.groups.length)) - nBefore === 2);
+  const bulkG = await page.evaluate(() => ST.groups.find(g => g.org === '원익머트리얼즈' && g.travelers.length === 2));
+  ok('동행 2인 1건 · CCG 인식 · 콤마 금액 파싱', bulkG && bulkG.plan_tot === 460000, bulkG && bulkG.plan_tot);
+  ok('일괄 등록은 기본 잠정(예산 미반영)', bulkG && bulkG.status === '계획 등록', bulkG && bulkG.status);
+  // 잘못된 붙여넣기는 행 번호로 알려준다
+  await page.fill('#bkText', '구분\tCCG명\t사번\t성명\t출장도시\t출장기관&업체\t출장목적&사유\t출발일자\n계획\t없는팀\t9\t홍\t\t\t\t');
+  await sleep(300);
+  ok('오류 행을 번호로 안내', (await page.textContent('#bkOut')).includes('2행'), (await page.textContent('#bkOut')).slice(0, 60));
+
+  // 사용법 중복 제거 — 화면은 요약 + 인쇄용 링크 하나
+  await page.click('.nav a[data-view="guide"]');
+  await page.waitForSelector('#v-guide.on .g-lead');
+  ok('화면 안내에 인쇄용 링크', await page.isVisible('#v-guide a[href="/travelbudget/guide"]'));
+  const gLen = (await page.textContent('#v-guide')).length;
+  ok('화면 안내는 요약(장문 중복 아님)', gLen < 2100, gLen);
+
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));
   ok('콘솔 JS 에러 없음 (외부 CDN 제외)', codeErrs.length === 0, codeErrs.slice(0, 3));
