@@ -3,6 +3,9 @@
 ## 0. 준비물
 
 - 패키지 `travelbudget_flask_v10.4.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
+
+> **이미 운영 중인 서버에 올리는 경우 8장부터 보세요.**
+> `python3 check_data.py` 로 데이터 위치를 먼저 확인해야 절차가 정해집니다.
 - 사내 서버에 Python 3.8+ 와 Flask 3.x
 
 ```
@@ -141,29 +144,91 @@ cp $TB_DATA_DIR/data.json.bak $TB_DATA_DIR/data.json
 
 ---
 
-## 8. HTML/화면만 바꿔 올릴 때 (데이터 그대로)
+## 8. 기존 데이터를 그대로 두고 올리기 (업그레이드)
 
-v10.0~v10.4 변경은 **화면(HTML·JS)과 계산 표시**만이라 `data.json` 을 손대지 않습니다.
-스키마도 그대로여서 기존 원장을 그대로 쓰면 됩니다.
+### 8-0. 먼저 이것부터 — 데이터가 어디 있는지 확인
 
-바꿀 파일 — `servera/travelbudget/` 안 5개:
+절차가 여기서 갈립니다. 서버에서 한 번 돌리세요. **읽기만 하고 아무것도 바꾸지 않습니다.**
 
-| 파일 | 이유 |
+```bash
+python3 check_data.py
+```
+
+출력이 둘 중 하나입니다.
+
+| 출력 | 뜻 | 가는 곳 |
+|---|---|---|
+| ✅ 데이터가 앱 폴더 **밖** | `TB_DATA_DIR` 이 잡혀 있음 | 8-2 (폴더 통째로 교체 가능) |
+| ⚠ 데이터가 앱 폴더 **안** | 기본 위치 `data_json/` 사용 | 8-1 (파일만 교체) |
+
+스크립트가 지금 원장의 **출장 건수·배정 합계·실적 합계**도 찍어 줍니다.
+그 숫자를 적어 두고, 올린 뒤 화면에서 같은지 확인하세요. **다르면 즉시 되돌립니다.**
+
+### 8-1. 데이터가 앱 폴더 안에 있는 경우 — 파일 5개만 교체
+
+> ⚠ `servera/travelbudget/` 폴더를 **삭제하고** 붙여넣지 마세요.
+> `data_json/` 이 그 안에 있어서 원장과 자동 백업 30개가 함께 사라집니다.
+> Windows 탐색기의 "덮어쓰기"는 병합이라 안전하지만, "폴더 삭제 후 붙여넣기"는 데이터를 지웁니다.
+
+바꿀 파일은 이 5개뿐입니다. 나머지는 손대지 않습니다.
+
+```
+servera/travelbudget/core.py
+servera/travelbudget/routes.py
+servera/travelbudget/static/app.js
+servera/travelbudget/templates/index.html
+servera/travelbudget/templates/traveler_guide.html
+```
+
+```bash
+# 1. 원장 백업 (앱 폴더 밖으로)
+cp -r servera/travelbudget/data_json ~/tb_backup_$(date +%Y%m%d)
+
+# 2. 5개 파일만 덮어쓰기
+cp travelbudget_flask_v10.4/servera/travelbudget/core.py                       servera/travelbudget/
+cp travelbudget_flask_v10.4/servera/travelbudget/routes.py                     servera/travelbudget/
+cp travelbudget_flask_v10.4/servera/travelbudget/static/app.js                 servera/travelbudget/static/
+cp travelbudget_flask_v10.4/servera/travelbudget/templates/index.html          servera/travelbudget/templates/
+cp travelbudget_flask_v10.4/servera/travelbudget/templates/traveler_guide.html servera/travelbudget/templates/
+
+# 3. 재기동 후 확인
+python3 check_data.py       # 숫자가 그대로인지
+python3 smoke_test.py       # 19개 항목 (읽기만)
+```
+
+`store.py` · `__init__.py` 는 **v9.4 이후 한 번도 바뀌지 않았습니다.** 건드릴 필요가 없습니다.
+
+### 8-2. 데이터가 앱 폴더 밖에 있는 경우 — 폴더 통째로 교체
+
+```bash
+cp -r $TB_DATA_DIR ~/tb_backup_$(date +%Y%m%d)      # 1. 원장 백업
+rm -rf servera/travelbudget                          # 2. 앱 폴더 교체
+cp -r travelbudget_flask_v10.4/servera/travelbudget servera/
+# 3. 재기동 → check_data.py · smoke_test.py
+```
+
+### 8-3. 다음 배포부터 편해지는 준비 (한 번만)
+
+기본 위치를 쓰고 있다면, 이번에 데이터를 앱 밖으로 옮겨 두면 다음부터는 8-2 로 끝납니다.
+
+```bash
+mkdir -p /var/lib/travelbudget
+cp -r servera/travelbudget/data_json/* /var/lib/travelbudget/
+export TB_DATA_DIR=/var/lib/travelbudget      # 서비스 환경변수에 등록
+# 재기동 → python3 check_data.py 로 새 위치가 잡혔는지 확인
+```
+
+Windows 서비스면 서비스 속성의 환경변수에 `TB_DATA_DIR` 을 추가합니다.
+
+### 8-4. 데이터가 안전한 근거
+
+| 확인 | 결과 |
 |---|---|
-| `templates/index.html` | 글꼴·팔레트·막대 CSS·일괄 등록 메뉴 |
-| `static/app.js` | 대시보드 도식화 · 인폼 드래그 · 엑셀 일괄 등록 · 안내 요약 |
-| `templates/traveler_guide.html` | 안내 4단계(드래그 방식) |
-| `core.py` | 비목 집계 · 구성비 분모 · 엑셀 양식 생성 함수 · 버전 표기 |
-| `routes.py` | 양식 내려받기 라우트 1개 · 인폼 재조회 |
-
-`store.py` 는 바뀌지 않았습니다 — **저장 로직·스키마 무변경**.
-
-폴더를 통째로 덮어쓰고 재기동하면 되고, `TB_DATA_DIR` 을 앱 밖에 두셨다면 데이터는 그대로 유지됩니다.
-기본 위치(`data_json/`)를 쓰신다면 **덮어쓰기 전에 그 폴더를 백업**하세요.
-
-되돌리려면 이전 버전 폴더로 교체 후 재기동 — 데이터는 영향받지 않습니다.
-
----
+| `data.json` 스키마 버전 | `2.0` — v9.4 이후 무변경 |
+| `data.json` 에 저장되는 필드 | v9.4와 **완전히 동일** (추가 0 · 삭제 0) |
+| `store.py` (저장·백업 로직) | v9.4 이후 무변경 |
+| 배포 패키지 안의 `data_json/` | **없음** — 압축을 풀어도 원장을 덮지 않음 |
+| 되돌리기 | v10.4가 새 필드를 쓰지 않으므로 이전 버전이 그대로 읽음 |
 
 ## 9. 되돌리기 (롤백)
 

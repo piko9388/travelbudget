@@ -5,7 +5,8 @@
 운영 원장(기존 TB_DATA_DIR 또는 앱 폴더의 data_json)은 읽지도 쓰지도 않는다.
 서버에 올린 뒤 확인은 데이터를 건드리지 않는 smoke_test.py 를 쓸 것.
 """
-import os, shutil, sys, tempfile, atexit
+import os
+import re as _re0, shutil, sys, tempfile, atexit
 
 # ── 운영 데이터 격리 (import 보다 반드시 먼저) ──────────────────
 _PROD = os.environ.get('TB_DATA_DIR')
@@ -720,6 +721,26 @@ for _hf in ('servera/travelbudget/templates/index.html',
        any(l.strip().startswith('font-family:"Malgun Gothic"') for l in _decl), _decl[:2])
     ok(f'{_hf.split("/")[-1]} Pretendard 미사용(주석 제외)',
        not any('Pretendard' in l for l in _decl), [l for l in _decl if 'Pretendard' in l])
+
+# 배포 안전성 — 데이터가 날아가는 경로를 테스트로 막는다
+_st = open('servera/travelbudget/store.py', encoding='utf-8').read()
+ok('저장 위치를 TB_DATA_DIR 로 옮길 수 있음', 'TB_DATA_DIR' in _st)
+ok('기본 저장 위치가 앱 폴더 안임을 경고로 명시', '덮어쓰면 데이터가 날아간다' in _st)
+# data.json 에 저장되는 필드가 늘면 이전 버전으로 되돌릴 때 읽지 못할 수 있다
+_PERSIST = {'act_tot', 'days', 'lead_days', 'lv2', 'plan_tot', 'plan_type', 'proc', 'quarter',
+            'remark', 'roll', 'sap_doc', 'stage', 'status', 'travelers', 'yq'}
+_ng = _re0.search(r'def normalize_group\(g\):(.*?)\ndef ',
+                  open('servera/travelbudget/core.py', encoding='utf-8').read(), _re0.S).group(1)
+_got = set(_re0.findall(r'g\["(\w+)"\]\s*=', _ng)) | set(_re0.findall(r'g\.setdefault\("(\w+)"', _ng))
+ok('data.json 저장 필드 무변경 (되돌리기 안전)', _got == _PERSIST, sorted(_got ^ _PERSIST))
+ok('스키마 버전 2.0 유지', '"schema_version": "2.0"' in _st)
+# 배포 전 점검 스크립트는 읽기만 해야 한다
+_cd = open('check_data.py', encoding='utf-8').read()
+for _bad in ('save_data', 'write_text', 'os.remove', 'shutil.rmtree', 'open(', '.unlink('):
+    if _bad == 'open(':
+        continue
+    ok(f'check_data.py 에 쓰기 동작 없음: {_bad}', _bad not in _cd)
+ok('check_data.py 는 읽기 모드만', "open(" not in _cd or "'w'" not in _cd)
 
 # 화면 부제의 공식이 hero·이용 안내와 같아야 한다 (nav 를 첫 로드에 부르며 드러난 불일치)
 _appjs3 = open('servera/travelbudget/static/app.js', encoding='utf-8').read()
