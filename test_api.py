@@ -725,7 +725,38 @@ ok('안내에 드래그 안내 있음', '끌어다' in _gd or '드래그' in _gd
 ok('화면 인폼 카드에 드래그 안내', '끌어다 놓기' in _appjs or '드래그' in _appjs)
 for _ghost in ('SAP', '전표', '승인', '반려'):
     ok(f'안내에 없는 기능 "{_ghost}" 미언급', _ghost not in _gd)
-ok('안내는 자체 완결(외부 CDN 없음)', 'http://' not in _gd and 'cdn' not in _gd.lower())
+# 자체 완결 — 외부로 나가는 참조가 없어야 파일 하나로 메일·인쇄가 된다.
+# base64 로 끼워 넣은 화면 캡처 안에 우연히 'cdn' 같은 문자열이 생길 수 있으므로
+# 단순 부분문자열이 아니라 '실제 외부 참조'만 본다.
+_gd_nodata = _re0.sub(r'data:image/[a-z]+;base64,[A-Za-z0-9+/=]+', 'DATAURI', _gd)
+_ext = _re0.findall(r'(?:src|href)\s*=\s*["\']((?:https?:)?//[^"\']+)', _gd_nodata)
+ok('안내는 자체 완결(외부 참조 0건)', not _ext, _ext[:3])
+ok('안내에 http 링크 없음', 'http://' not in _gd_nodata)
+
+# 화면 캡처 — 글로만 설명하면 어느 칸인지 못 찾는다. 단계마다 실제 화면이 들어가야 한다.
+_figs = _re0.findall(r'<figure class="shot" data-shot="([^"]+)">(.*?)</figure>', _gd, _re0.S)
+_figkeys = [k for k, _ in _figs]
+_figs = [body for _, body in _figs]
+# 재생성(tools/build_guide.py)이 자리를 찾으려면 키가 있어야 한다
+ok('캡처마다 재생성용 키(data-shot)', len(_figkeys) == len(set(_figkeys)) and all(_figkeys), _figkeys)
+ok('안내에 단계별 화면 캡처 5장', len(_figs) == 5, len(_figs))
+ok('캡처가 전부 파일에 embed (외부 파일 의존 없음)',
+   all('src="data:image/png;base64,' in f for f in _figs))
+ok('캡처마다 설명(figcaption) 있음', all('<figcaption>' in f for f in _figs))
+ok('캡처마다 대체 텍스트(alt) 있음', all(_re0.search(r'alt="[^"]+"', f) for f in _figs))
+# 인쇄할 때 캡처가 단계 중간에서 잘리면 안내가 끊긴다
+ok('인쇄 시 캡처 분할 방지', 'break-inside:avoid' in _gd)
+# 본문에 들어가기 전에 전체 순서가 먼저 보여야 한다 (몇 단계인지 모르고 읽기 시작하지 않게)
+_idx = _re0.search(r'<ol class="index">(.*?)</ol>', _gd, _re0.S)
+ok('맨 위에 전체 순서 목차', bool(_idx))
+ok('목차가 4단계', _idx and len(_re0.findall(r'<li>', _idx.group(1))) == 4,
+   _idx and len(_re0.findall(r'<li>', _idx.group(1))))
+# 목차의 단계 이름이 본문 단계와 어긋나면 안 된다
+for _st in ('출장 계획 등록', '출장 확정', '실적 입력'):
+    ok(f'목차 "{_st}" 가 본문에도 존재', _gd.count(_st) >= 2, _st)
+# 캡처가 커지면 메일에 못 붙는다 — 300KB 를 넘지 않게 (현재 ~120KB)
+_gsz = len(_gd.encode('utf-8'))
+ok('안내 파일 크기 300KB 이하 (메일 첨부 가능)', _gsz < 300_000, f'{_gsz:,} bytes')
 # 윈도우에서 라틴/한글이 섞이지 않도록 모든 배포 HTML 이 맑은 고딕을 맨 앞에 둔다
 for _hf in ('servera/travelbudget/templates/index.html',
             'servera/travelbudget/templates/traveler_guide.html'):
