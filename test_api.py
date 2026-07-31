@@ -717,9 +717,19 @@ for _hf in ('servera/travelbudget/templates/index.html',
     _h = open(_hf, encoding='utf-8').read()
     _decl = [l for l in _h.split('\n') if 'font-family:' in l and 'monospace' not in l]
     _body = [l for l in _decl if 'Malgun Gothic' in l]
-    ok(f'{_hf.split("/")[-1]} 본문 글꼴 맑은고딕 우선',
-       any(l.strip().startswith('font-family:"Malgun Gothic"') for l in _decl), _decl[:2])
-    ok(f'{_hf.split("/")[-1]} Pretendard 미사용(주석 제외)',
+    # 맑은 고딕이 폴백의 맨 앞이어야 한다. 그 앞에 올 수 있는 건 자체 호스팅 글꼴 하나뿐이고,
+    # 그건 파일이 있을 때만 Jinja 로 붙는다(없으면 404 가 매 로드마다 찍힌다).
+    _body_decl = [l for l in _decl if 'Malgun Gothic' in l]
+    ok(f'{_hf.split("/")[-1]} 본문 글꼴 선언 존재', bool(_body_decl), _decl[:2])
+    for _l in _body_decl:
+        # Jinja 조건부 태그를 걷어낸 뒤 실제 글꼴 이름만 본다
+        _stack = _re0.sub(r'\{%.*?%\}', '', _l.split('font-family:')[1])
+        _fams = [x.strip().strip('"\'') for x in _stack.split(',') if x.strip()]
+        ok(f'{_hf.split("/")[-1]} 시스템 글꼴 중 맑은고딕이 첫째',
+           _fams[0] in ('Malgun Gothic', 'TB UI'), _fams[:2])
+    ok(f'{_hf.split("/")[-1]} 외부 글꼴 URL 없음',
+       'fonts.googleapis' not in _h and 'cdn.jsdelivr' not in _h and '//fonts.' not in _h)
+    ok(f'{_hf.split("/")[-1]} Pretendard 를 스택에 직접 넣지 않음(주석 제외)',
        not any('Pretendard' in l for l in _decl), [l for l in _decl if 'Pretendard' in l])
 
 # 배포 안전성 — 데이터가 날아가는 경로를 테스트로 막는다
@@ -762,6 +772,27 @@ ok('부팅 실패 안내에 복구 경로', '백업' in _appjs3 and '재기동' 
 
 # 표 안 Enter 제출 차단
 ok('Enter 제출에서 출장자 표 제외', ".closest('.trav-table')" in _appjs3)
+
+# 타이포 규율 — 윈도우에서 글자가 뭉개지지 않게
+_ix2 = open('servera/travelbudget/templates/index.html', encoding='utf-8').read()
+# 1) 줄높이는 px 정수. 배수(1.55)를 쓰면 12px→18.6px 처럼 소수가 되어 베이스라인이
+#    서브픽셀에 걸리고, 줄마다 다르게 뭉개진다.
+_unitless = _re0.findall(r'line-height:([\d.]+)(?![\d]*px)(?=[;}\s])', _ix2)
+ok('배수 줄높이 없음 (전부 px 정수)', not _unitless, _unitless[:5])
+_lh = set(_re0.findall(r'line-height:(\d+)px', _ix2))
+ok('줄높이가 전부 정수', all(x.isdigit() for x in _lh), sorted(_lh))
+# 2) 맑은 고딕은 400·700 뿐 — 선언과 렌더가 일치해야 위계가 실제로 보인다
+_w = set(_re0.findall(r'font-weight:(\d+)', _ix2))
+ok('굵기는 400·700 두 종만', _w <= {'400', '700'}, sorted(_w))
+# 3) 11px 한글은 맑은 고딕에서 획이 붙는다
+_sz = sorted({int(x) for x in _re0.findall(r'font-size:(\d+)px', _ix2)})
+ok('최소 글씨 12px 이상', min(_sz) >= 12, _sz)
+# 4) 한글에 자간을 주지 않는다
+_ix2_nc = _re0.sub(r'/\*.*?\*/', '', _ix2, flags=_re0.S)      # 주석 제외
+ok('letter-spacing 미사용', 'letter-spacing' not in _ix2_nc)
+# 5) 크기마다 줄높이가 짝지어져 있어야 한다
+_pairs = dict(_re0.findall(r'font-size:(\d+)px;line-height:(\d+)px', _ix2))
+ok('크기↔줄높이 짝 고정', len(_pairs) >= 5, _pairs)
 
 # 여백 척도 — 4·8·12·16·24 다섯 단계만. (1·2px 은 선·미세보정, 48px 은 본문 하단 여유)
 # 값이 늘어나면 "여기는 왜 14px 이지" 를 매번 판단해야 하고 화면마다 리듬이 어긋난다.

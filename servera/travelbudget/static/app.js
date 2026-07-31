@@ -420,7 +420,7 @@ function rDash(){
     <div class="hero ${d.short ? 'alert' : d.alloc > 0 ? '' : 'unset'}">
       <div class="hmain">
         <div class="hleft">
-          <div class="label"><span class="lamp"></span>가용 잔여 <span class="sub">확정 확보 반영</span></div>
+          <div class="label"><span class="lamp"></span>가용 잔여</div>
           <div class="amount">${av < 0 ? '−' : ''}${won(Math.abs(av))}<span class="won">원</span></div>
           <div class="msg">${d.short
             ? '확정·집행이 예산을 초과했습니다 — 센터 검토 및 추가 확보 필요'
@@ -445,8 +445,7 @@ function rDash(){
       </div>` : ''}
       ${d.alloc > 0 && d.planAmt > 0 ? `
       <div class="ghost">
-        <div class="gl">참고 · 잠정 계획 <b>${won(d.planAmt)}원</b> (${d.nPlan || 0}건)
-          — 예산에 반영되지 않습니다. 확정하면 위 막대의 ‘확정 예정’으로 들어옵니다.</div>
+        <div class="gl">잠정 계획 <b>${won(d.planAmt)}원</b> · ${d.nPlan || 0}건 — 아직 예산에 잡히지 않았습니다</div>
         <div class="stack" role="img"
              aria-label="잠정 계획 ${won(d.planAmt)}원, 총 예산 대비 ${(d.planAmt / d.alloc * 100).toFixed(1)}퍼센트">
           <i style="width:${Math.min(100, d.planAmt / d.alloc * 100).toFixed(2)}%"
@@ -497,7 +496,7 @@ function rDash(){
   // 복귀 전(d=null)은 급할 이유가 없으니 큐 아래로
   const todo = qrows.length ? `
     <div class="card"><h2>바로 할 일</h2>
-      <p class="cap">복귀일 기준으로 오래 묵은 순. 눌러서 그 건으로 바로 갑니다.</p>
+      <p class="cap">오래 묵은 순. 누르면 그 건으로 갑니다.</p>
       <div class="queue">
         ${qrows.slice(0, QMAX).map(r => `<div class="qrow">
           <div class="qk${r.cls === 'red' ? ' warn' : ''}">${r.label}</div>
@@ -580,8 +579,8 @@ function rDash(){
             <td class="num">${totSum ? '100.0%' : '–'}</td><td class="num">${tot.people}</td></tr></tfoot>
         </table></div></details>
       ${costStrip(d)}
-      ${d.nTrips ? `<div class="ref">이번 분기 실제 출장 <b>${d.nTrips}건</b> · 참여 인원 <b>${d.nPeople || 0}명</b>
-        <span class="sub">위 금액은 확정된 출장만 집계합니다${d.nPlan ? ` (잠정 계획 ${d.nPlan}건 제외)` : ''}</span></div>` : ''}
+      ${d.nTrips ? `<div class="ref">이번 분기 출장 <b>${d.nTrips}건</b> · 인원 <b>${d.nPeople || 0}명</b>
+        <span class="sub">확정된 출장만 집계합니다</span></div>` : ''}
     </div>`;
   $('#v-dash').innerHTML = notice + hero + todo + ccg;
 }
@@ -722,7 +721,7 @@ function rPlan(){
         <span class="status ${stClass(ed.roll)}">${esc(dispSt(ed.roll))}</span>
         ${ed.act_tot > 0 ? ' — 실적이 입력된 건이라 <b>예산 담당자 모드</b>에서만 저장됩니다.' : ''}
         <br>변경 내용은 감사 로그에 남습니다.</div>`
-      : '<p class="cap">공통 정보는 한 번만 입력하고, 동행자는 출장자 행으로 추가합니다. 긴급 출장은 계획비 없이 등록할 수 있습니다.</p>'}
+      : '<p class="cap">같이 가는 사람은 출장자 행을 추가하세요.</p>'}
       <div id="planErr"></div>
       <div class="form-grid c4">
         <div><label for="pl_type">구분<span class="rq">*</span></label>
@@ -763,7 +762,9 @@ function rPlan(){
         <div><label for="pl_remark">비고</label><input id="pl_remark" placeholder="특이사항이 있으면 적어주세요"></div>
       </div>
       ${ed ? '' : `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:4px">
-        <input type="checkbox" id="pl_confirm" style="width:auto;margin:0"> 이 출장은 <b style="margin:0 2px">실제로 갑니다</b> — 지금 <b style="margin:0 2px;color:var(--s2)">출장 확정 · 예산 반영</b>. 미체크 시 잠정 계획으로 등록됩니다.
+        <input type="checkbox" id="pl_confirm" style="width:auto;margin:0">
+        <b style="margin:0 4px">실제로 가는 출장입니다</b>
+        <span class="sub">체크하면 예산이 확보됩니다. 안 하면 잠정 계획으로 남습니다</span>
       </label>`}
       <div class="btns"><button class="btn pri" id="planBtn" onclick="submitPlan()">${ed ? '수정 저장' : '출장 계획 등록'}</button>
         ${ed ? '<button class="btn" onclick="cancelEdit()">수정 취소</button>' : ''}</div>
@@ -858,7 +859,7 @@ function rActual(){
   $('#v-actual').innerHTML = `
     <div class="card">
       <h2>출장 실적 입력</h2>
-      <p class="cap">대상 출장을 선택해 출장자별 실적을 입력하면, 저장과 동시에 그룹당 1통의 실비 이관 인폼이 생성됩니다.</p>
+      <p class="cap">실적을 저장하면 인폼이 자동으로 만들어집니다.</p>
       <div id="actErr"></div>
       <div class="filter-row">
         <input id="actFilter" placeholder="성명·업체·도시로 검색" oninput="filterActual()">
@@ -1357,7 +1358,8 @@ function rList(){
       + ` placeholder="${esc(c.ph || '')}" oninput="setCol('${c.k}',this.value)"></th>`;
   }).join('');
   $('#v-list').innerHTML = `
-    <div class="note">‘<b>계획(잠정)</b>’은 참고용 리스트 — 실제로 안 가면 <b>삭제</b>(흔적 없이 사라짐). 실제로 갈 건 ‘<b>출장 확정</b>’ 하면 계획 금액만큼 <b>예산이 미리 확보</b>됩니다. (확정 이후 취소는 기록으로 남습니다)</div>
+    <div class="note"><b>계획(잠정)</b>은 참고용이라 예산에 잡히지 않습니다.
+      실제로 가는 건만 <b>출장 확정</b>을 누르면 계획 금액만큼 예산이 확보됩니다.</div>
     <div class="card">
       <div class="card-head"><h2>${YQ} 출장 내역 <span class="sub" id="listCount" style="font-weight:600"></span></h2>
         <a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">CSV 다운로드</a></div>
@@ -1370,7 +1372,7 @@ function rList(){
         <button class="btn" id="listDir" onclick="toggleLDir()">${dirIcon(LQ.dir)}</button>
         <button class="btn" onclick="clearList()">필터 해제</button>
       </div>
-      <p class="cap" style="margin:-4px 0 10px">표 머리글을 누르면 그 항목 기준으로 정렬되고, 머리글 아래 칸에 입력하면 컬럼별로 검색됩니다.</p>
+      <p class="cap" style="margin:-4px 0 12px">머리글을 누르면 정렬, 아래 칸에 입력하면 검색됩니다.</p>
       <div class="scroll"><table>
         <thead>
           <tr>${ths}<th>관리</th></tr>

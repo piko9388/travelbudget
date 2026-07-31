@@ -5,6 +5,8 @@ import uuid
 from datetime import datetime
 from functools import wraps
 from urllib.parse import quote
+from pathlib import Path
+
 from flask import Response, jsonify, render_template, request
 
 from . import travelbudget
@@ -14,6 +16,14 @@ from .store import (LOCK, append_audit, list_backups, load_data, restore_backup,
 
 def _err(msgs, code=400):
     return jsonify({"ok": False, "errors": msgs if isinstance(msgs, list) else [msgs]}), code
+
+
+_FONT_DIR = Path(__file__).resolve().parent / "static" / "fonts"
+
+
+def _has_ui_font():
+    """static/fonts/ 에 ui-400.woff2 · ui-700.woff2 가 둘 다 있으면 True."""
+    return all((_FONT_DIR / f"ui-{w}.woff2").exists() for w in (400, 700))
 
 
 def _is_admin(data):
@@ -82,7 +92,9 @@ def _find(data, gid):
 # ── 화면 ──────────────────────────────────────────────────
 @travelbudget.get("/")
 def index():
-    return render_template("index.html")
+    # 글꼴 파일이 실제로 있을 때만 @font-face 를 내보낸다.
+    # 없는데 선언하면 매 로드마다 404 가 찍혀 서버 로그와 콘솔이 지저분해진다.
+    return render_template("index.html", ui_font=_has_ui_font())
 
 
 # ── 일괄 등록용 엑셀 양식 내려받기 (센터 27필드 순서) ──

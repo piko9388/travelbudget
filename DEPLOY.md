@@ -1,8 +1,8 @@
-# 사내 Flask 서버 업로드 방법 (v10.4)
+# 사내 Flask 서버 업로드 방법 (v10.5)
 
 ## 0. 준비물
 
-- 패키지 `travelbudget_flask_v10.4.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
+- 패키지 `travelbudget_flask_v10.5.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
 
 > **이미 운영 중인 서버에 올리는 경우 8장부터 보세요.**
 > `python3 check_data.py` 로 데이터 위치를 먼저 확인해야 절차가 정해집니다.
@@ -19,7 +19,7 @@ pip install -r requirements.txt      # Flask 뿐입니다
 압축을 풀면 이 구조입니다.
 
 ```
-travelbudget_flask_v10.4/
+travelbudget_flask_v10.5/
 └─ servera/
    └─ travelbudget/          ← 이 폴더 하나만 서버로 옮기면 됩니다
       ├─ __init__.py
@@ -86,7 +86,7 @@ Windows 서비스라면 서비스 환경변수에 `TB_DATA_DIR` 을 등록합니
 material.skhynix.com/travelbudget
 ```
 
-좌측 하단에 **v10.4 · 2026-07-30** 이 보이면 이 버전이 올라간 것입니다.
+좌측 하단에 **v10.5 · 2026-07-30** 이 보이면 이 버전이 올라간 것입니다.
 (버전이 안 바뀌었으면 브라우저 캐시 — `Ctrl+F5`)
 
 ---
@@ -185,11 +185,11 @@ servera/travelbudget/templates/traveler_guide.html
 cp -r servera/travelbudget/data_json ~/tb_backup_$(date +%Y%m%d)
 
 # 2. 5개 파일만 덮어쓰기
-cp travelbudget_flask_v10.4/servera/travelbudget/core.py                       servera/travelbudget/
-cp travelbudget_flask_v10.4/servera/travelbudget/routes.py                     servera/travelbudget/
-cp travelbudget_flask_v10.4/servera/travelbudget/static/app.js                 servera/travelbudget/static/
-cp travelbudget_flask_v10.4/servera/travelbudget/templates/index.html          servera/travelbudget/templates/
-cp travelbudget_flask_v10.4/servera/travelbudget/templates/traveler_guide.html servera/travelbudget/templates/
+cp travelbudget_flask_v10.5/servera/travelbudget/core.py                       servera/travelbudget/
+cp travelbudget_flask_v10.5/servera/travelbudget/routes.py                     servera/travelbudget/
+cp travelbudget_flask_v10.5/servera/travelbudget/static/app.js                 servera/travelbudget/static/
+cp travelbudget_flask_v10.5/servera/travelbudget/templates/index.html          servera/travelbudget/templates/
+cp travelbudget_flask_v10.5/servera/travelbudget/templates/traveler_guide.html servera/travelbudget/templates/
 
 # 3. 재기동 후 확인
 python3 check_data.py       # 숫자가 그대로인지
@@ -203,7 +203,7 @@ python3 smoke_test.py       # 19개 항목 (읽기만)
 ```bash
 cp -r $TB_DATA_DIR ~/tb_backup_$(date +%Y%m%d)      # 1. 원장 백업
 rm -rf servera/travelbudget                          # 2. 앱 폴더 교체
-cp -r travelbudget_flask_v10.4/servera/travelbudget servera/
+cp -r travelbudget_flask_v10.5/servera/travelbudget servera/
 # 3. 재기동 → check_data.py · smoke_test.py
 ```
 
@@ -228,7 +228,7 @@ Windows 서비스면 서비스 속성의 환경변수에 `TB_DATA_DIR` 을 추�
 | `data.json` 에 저장되는 필드 | v9.4와 **완전히 동일** (추가 0 · 삭제 0) |
 | `store.py` (저장·백업 로직) | v9.4 이후 무변경 |
 | 배포 패키지 안의 `data_json/` | **없음** — 압축을 풀어도 원장을 덮지 않음 |
-| 되돌리기 | v10.4가 새 필드를 쓰지 않으므로 이전 버전이 그대로 읽음 |
+| 되돌리기 | v10.5가 새 필드를 쓰지 않으므로 이전 버전이 그대로 읽음 |
 
 ## 9. 되돌리기 (롤백)
 

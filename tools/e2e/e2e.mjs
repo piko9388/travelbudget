@@ -79,7 +79,7 @@ try {
   ok('네 항목이 각각 1회만 노출', dupe.every(([, n]) => n === 1), dupe);
   // 잠정 계획은 예산에 안 잡히므로 위 막대에 섞지 않고 아래 참고 막대(또는 문장)로만 표기
   const ghostTxt = await page.textContent('#v-dash .ghost, #v-dash .hnote');
-  ok('잠정은 예산 미반영으로 안내', ghostTxt.includes('반영되지 않습니다'), ghostTxt.slice(0, 40));
+  ok('잠정은 예산 미반영으로 안내', /예산에 (잡히지|반영되지) 않/.test(ghostTxt), ghostTxt.slice(0, 40));
   const ghostBar = await page.evaluate(() => {
     const g = document.querySelector('#v-dash .ghost .stack i');
     if (!g) return null;
@@ -574,7 +574,9 @@ try {
   /* ── 18. v9.8 — 글꼴·대시보드 도식화·드래그 인폼·엑셀 일괄 등록 ── */
   console.log('\n-- 18. v9.8 개선 --');
   const fam = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-  ok('본문 글꼴 맑은 고딕 우선(윈도우 혼용 방지)', /^"?Malgun Gothic/.test(fam), fam);
+  // 자체 호스팅 글꼴(TB UI)은 파일이 있을 때만 앞에 붙는다. 그 외에는 맑은 고딕이 첫째.
+  ok('본문 글꼴이 맑은 고딕(또는 자체 호스팅) 우선', /^"?(Malgun Gothic|TB UI)/.test(fam), fam);
+  ok('외부 웹폰트 이름 없음', !/Pretendard|Noto|Roboto|Inter/.test(fam), fam);
   const proseFonts = await page.evaluate(() => [...new Set([...document.querySelectorAll('body *')]
     .map(e => getComputedStyle(e).fontFamily))].filter(f => !/monospace/.test(f)));
   ok('본문 글꼴 스택 1종', proseFonts.length === 1, proseFonts);
@@ -585,10 +587,10 @@ try {
   ok('막대 범례 3색(완료/처리중/확정)', (await page.$$('#v-dash .lgd i')).length === 3);
   const refTxt = await page.textContent('#v-dash .ref');
   // 잠정 설명은 예산 hero 한 곳에만 (v10.0 이전엔 hero·CCG 두 곳에 같은 문장이 찍혔다)
-  ok('CCG 참고줄은 건수·인원만', refTxt.includes('실제 출장') && refTxt.includes('참여 인원'), refTxt.slice(0, 40));
+  ok('CCG 참고줄은 건수·인원만', /출장\s*\d+건/.test(refTxt) && /인원\s*\d+명/.test(refTxt), refTxt.slice(0, 40));
   const planSent = await page.evaluate(() =>
     [...document.querySelectorAll('#v-dash')].map(x => x.textContent)
-      .join('').split('예산에 반영되지 않').length - 1);
+      .join('').split(/예산에 (?:잡히지|반영되지) 않/).length - 1);
   // 잠정이 0이면 문장 자체가 안 나오는 게 맞다(0원짜리 안내문 금지). 나올 때는 딱 한 번만.
   const planAmt = await page.evaluate(() => ST.dash.planAmt);
   ok('“예산 미반영” 문장 중복 없음', planAmt > 0 ? planSent === 1 : planSent === 0,
@@ -944,6 +946,30 @@ try {
      { '완료|처리중': +chain.a.toFixed(2), '처리중|확정': +chain.b.toFixed(2), '확정|가용': +chain.c.toFixed(2) });
   ok('가장 헷갈리는 쌍(처리중|확정)이 제일 넓음', chain.b > chain.a,
      { '처리중|확정': +chain.b.toFixed(2), '완료|처리중': +chain.a.toFixed(2) });
+
+  /* ── 22b. 타이포 — 윈도우에서 글자가 뭉개지지 않게 ── */
+  console.log('\n-- 22b. 타이포 규율 --');
+  await page.evaluate(() => nav('dash'));
+  await page.waitForSelector('#v-dash .hmain');
+  const typo = await page.evaluate(() => {
+    const KO = /[가-힣]/, sz = new Set(), wt = new Set(), frac = [];
+    for (const el of document.querySelectorAll('body *')) {
+      if (!el.offsetParent && el.tagName !== 'BODY') continue;
+      const t = [...el.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join('');
+      if (!t || !KO.test(t)) continue;
+      const s = getComputedStyle(el);
+      const fs = parseFloat(s.fontSize), lh = parseFloat(s.lineHeight);
+      sz.add(fs); wt.add(s.fontWeight);
+      if (!Number.isInteger(fs) || (Number.isFinite(lh) && !Number.isInteger(lh)))
+        frac.push({ fs, lh, t: t.slice(0, 14) });
+    }
+    return { sz: [...sz].sort((a, b) => a - b), wt: [...wt].sort(), frac: frac.slice(0, 5), fracN: frac.length };
+  });
+  // 소수점 줄높이는 베이스라인을 서브픽셀에 걸어 줄마다 다르게 뭉갠다 — 이게 '글자 우그러짐'의 주범
+  ok('소수점 크기·줄높이 0건', typo.fracN === 0, typo.frac);
+  ok('11px 이하 한글 없음', typo.sz[0] >= 12, typo.sz);
+  // 맑은 고딕은 400·700 뿐 — 5종을 선언해도 2종으로 렌더되어 위계가 안 생긴다
+  ok('렌더 굵기 2종 이하', typo.wt.length <= 2, typo.wt);
 
   /* ── 23. v10.4 — 조용히 틀리는 값 · 막다른 길 · 거짓 표시 ── */
   console.log('\n-- 23. 조용한 오류 · 막다른 길 --');

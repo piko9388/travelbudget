@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """docs/index.html 조립 — Flask 템플릿 + 정적 백엔드 + app.js(호출부만 치환)."""
-import sys, pathlib
+import re, sys, pathlib
 REPO = pathlib.Path('/home/user/travelbudget')
 BACKEND = REPO / 'tools/tb_local.js'
 tpl = (REPO/'servera/travelbudget/templates/index.html').read_text(encoding='utf-8')
@@ -42,6 +42,9 @@ app = app.replace('<a class="btn" href="${API}/bulk_template.xls" style="margin-
 assert 'export_budget.csv' not in app and 'export.csv' not in app, "정적판에 남은 서버 CSV 링크가 있습니다"
 
 # 정적판에는 Flask 라우트가 없다 — 같은 폴더의 파일로 연결
+# 정적 사본에는 글꼴 파일을 넣지 않으므로 Jinja 조건부 블록을 통째로 걷어낸다
+tpl = re.sub(r'\{% if ui_font %\}.*?\{% endif %\}', '', tpl, flags=re.S)
+tpl = tpl.replace('{% if ui_font %}"TB UI",{% endif %}', '')
 tpl = tpl.replace('href="/travelbudget/guide"', 'href="traveler_guide.html"')
 app = app.replace('href="/travelbudget/guide"', 'href="traveler_guide.html"')
 assert '/travelbudget/guide' not in tpl and '/travelbudget/guide' not in app, "정적판에 남은 서버 경로"
