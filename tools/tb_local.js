@@ -767,7 +767,9 @@
     if (path === '/settings' && method === 'POST') {
       if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
       var e = [], cur = data.settings;
-      var mails = (Array.isArray(body.mail_recipients) ? body.mail_recipients : [])
+      // 안 보낸 항목은 '지우라'가 아니라 '그대로 두라' — routes.py 와 동일
+      var srcM = ('mail_recipients' in body) ? body.mail_recipients : cur.mail_recipients;
+      var mails = (Array.isArray(srcM) ? srcM : [])
         .map(function (x) { return String(x == null ? '' : x).trim(); }).filter(Boolean);
       if (!mails.length) e.push('인폼 수신인을 1명 이상 입력하세요.');
       if (mails.length > 10) e.push('인폼 수신인은 10명까지입니다.');
@@ -775,7 +777,8 @@
         if (!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(m)) e.push('메일 주소 형식이 올바르지 않습니다 — ' + m);
       });
       var clean = [], codes = {}, names = {};
-      (Array.isArray(body.ccg_teams) ? body.ccg_teams : []).forEach(function (t, i) {
+      var srcT = ('ccg_teams' in body) ? body.ccg_teams : ccgTeams(data);
+      (Array.isArray(srcT) ? srcT : []).forEach(function (t, i) {
         if (!t || typeof t !== 'object') { e.push((i + 1) + '번 CCG 형식이 올바르지 않습니다.'); return; }
         var nm = txt(t.team), cd = txt(t.ccg);
         if (!nm || !cd) { e.push((i + 1) + '번 CCG — 팀명과 코드를 모두 입력하세요.'); return; }

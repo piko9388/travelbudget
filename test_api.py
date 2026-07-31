@@ -830,6 +830,27 @@ _before_url = c.get('/travelbudget/api/settings', headers=ADM).get_json()['setti
 _cfgpost(ccg_teams=_new, mail_recipients=['x@y.com'])
 ok('안 보낸 항목은 그대로 유지',
    c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings']['reference_url'] == _before_url)
+# CCG 만 보내는 부분 저장이 메일 수신자를 지우면 안 된다 (반대도 마찬가지)
+_before_mail = c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings']['mail_recipients']
+_r = c.post('/travelbudget/api/settings', json=dict(ccg_teams=_new), headers=ADM)
+_after = c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings']
+ok('CCG 만 보내도 저장됨', _r.status_code == 200, _r.get_json())
+ok('CCG 만 보내면 메일 수신자는 유지', _after['mail_recipients'] == _before_mail)
+_r = c.post('/travelbudget/api/settings',
+            json=dict(mail_recipients=['solo@sk.com']), headers=ADM)
+_after = c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings']
+ok('메일만 보내도 저장됨', _r.status_code == 200, _r.get_json())
+ok('메일만 보내면 CCG 는 유지', any(t['ccg'] == 'CZZ9' for t in _after['ccg_teams']))
+ok('메일만 보내면 메일은 바뀜', _after['mail_recipients'] == ['solo@sk.com'])
+# 빈 배열을 '명시적으로' 보내는 것은 여전히 거부 (생략과 구분)
+ok('빈 수신자를 명시하면 거부',
+   c.post('/travelbudget/api/settings', json=dict(mail_recipients=[]),
+          headers=ADM).status_code == 400)
+ok('빈 CCG 를 명시하면 거부',
+   c.post('/travelbudget/api/settings', json=dict(ccg_teams=[]),
+          headers=ADM).status_code == 400)
+c.post('/travelbudget/api/settings',
+       json=dict(mail_recipients=['x@y.com'], ccg_teams=_new), headers=ADM)
 # 비밀번호를 바꾸면 로그인 힌트가 숫자를 노출하면 안 된다
 ok('기본 비밀번호면 힌트 노출', c.get('/travelbudget/api/state').get_json()['settings']['pw_default'] is True)
 _cfgpost(ccg_teams=_new, mail_recipients=['x@y.com'], admin_pw='newpw1234')

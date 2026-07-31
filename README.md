@@ -51,8 +51,11 @@
 |---|---|
 | 인폼 기본 수신자 (최대 10명) | `settings.mail_recipients` |
 | CCG 팀 ↔ 코드 (최대 40행) | `settings.ccg_teams` — **없으면 `core.CCG_TEAMS` 기본값** |
-| 시스템 이름 · 공지 · 부연 | `settings.system_name` · `notice` · `notice_sub` |
+| 시스템 이름 · 참조 주소 | `settings.system_name` · `reference_url` |
 | 예산 담당자 비밀번호 | `settings.admin_pw` |
+
+공지 문구(`notice`·`notice_sub`)는 **대시보드 상단의 `안내 문구 수정`** 에서 그대로 고칩니다 —
+보이는 자리에서 바로 고치는 편이 나아 설정 화면으로 옮기지 않았습니다.
 
 - **과거 데이터는 바뀌지 않습니다** — 원장에는 출장 등록 시점의 CCG 코드가 그대로 남습니다
 - **이미 원장에서 쓰고 있는 CCG 코드는 삭제할 수 없습니다** (`사용 중 N건` 표시 · 삭제 버튼 비활성)
@@ -139,7 +142,7 @@ python3 tools/build_docs.py      # 정적(GitHub Pages) 재조립
 
 | 명령 | 필요 조건 | 결과 | 운영 데이터 |
 |---|---|---|---|
-| `python3 test_api.py` | Flask만 | **416 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
+| `python3 test_api.py` | Flask만 | **423 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
 | `python3 smoke_test.py [URL]` | 기동 중인 서버 | **19 passed / 0 failed** | 읽기 전용 (변경 없음) |
 | `python3 tools/e2e/fuzz.py` | Flask만 | 퍼징 1,302회 → 500 오류 **0건** | 임시 폴더 |
 | `node tools/e2e/e2e.mjs` | Node 18+ · Playwright | **211 passed / 0 failed** | 임시 폴더 |

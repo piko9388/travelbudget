@@ -60,7 +60,9 @@ def _clean_settings(body, cur, data):
     """설정 저장값 검증 — 잘못된 값이 원장에 들어가면 화면 전체가 못 쓰게 된다."""
     e, out = [], {}
 
-    raw_m = body.get("mail_recipients")
+    # 안 보낸 항목은 '지우라'가 아니라 '그대로 두라'. 화면은 전부 보내지만,
+    # 한 항목만 고치는 호출(스크립트·부분 저장)이 나머지를 날리면 안 된다.
+    raw_m = body.get("mail_recipients") if "mail_recipients" in body else cur.get("mail_recipients")
     raw_m = raw_m if isinstance(raw_m, list) else []
     mails = [str(m).strip() for m in raw_m if isinstance(m, (str, int)) and str(m).strip()]
     if not mails:
@@ -74,7 +76,7 @@ def _clean_settings(body, cur, data):
         e.append("같은 메일 주소가 중복입니다.")
     out["mail_recipients"] = mails[:10]
 
-    raw_t = body.get("ccg_teams")
+    raw_t = body.get("ccg_teams") if "ccg_teams" in body else C.ccg_teams(data)
     teams = raw_t if isinstance(raw_t, list) else []
     clean, codes, names = [], set(), set()
     for i, t in enumerate(teams, 1):
