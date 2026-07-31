@@ -46,6 +46,12 @@
   function ccgByNm(data) {
     var m = {}; ccgTeams(data).forEach(function (t) { m[t.team] = t.ccg; }); return m;
   }
+  function ccgByCd(data) {
+    var m = {}; ccgTeams(data).forEach(function (t) { m[t.ccg] = t.team; }); return m;
+  }
+  // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
+  var CUR_BY_CD = {};
+  CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
   var APP_VERSION = 'v10.8', APP_BUILD = '2026-07-31';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
@@ -150,6 +156,7 @@
       if (p.rank == null) p.rank = 'TL';
       ['name','emp_no','rank','ccg_nm','ccg'].forEach(function (k) { p[k] = txt(p[k]); });
       if (!p.ccg && CCG_BY_NM[p.ccg_nm]) p.ccg = CCG_BY_NM[p.ccg_nm];
+      if (p.ccg && CUR_BY_CD[p.ccg]) p.ccg_nm = CUR_BY_CD[p.ccg];   // core.normalize_group 과 동일
       p.status = PSTATES.indexOf(p.status) >= 0 ? p.status : '';   // 개인 처리 상태(없으면 그룹 상속)
       ['p', 'a'].forEach(function (x) { KEYS.forEach(function (k) { p[x + '_' + k] = num(p[x + '_' + k]); }); });
     });
@@ -586,6 +593,7 @@
     var qs = ''; var qi = path.indexOf('?'); if (qi >= 0) { qs = path.slice(qi + 1); path = path.slice(0, qi); }
     function qp(k) { var m = qs.match(new RegExp('(?:^|&)' + k + '=([^&]*)')); return m ? decodeURIComponent(m[1]) : null; }
     var data = Store.load();
+    CUR_BY_CD = ccgByCd(data);
     var _pw = String(data.settings.admin_pw == null ? '' : data.settings.admin_pw);
     var isAdmin = !!_pw && String(headers['X-Admin-PW'] || '') === _pw;
     var m;

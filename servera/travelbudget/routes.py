@@ -56,6 +56,11 @@ def _public_settings(s):
 _MAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 
 
+def _norm(g, data):
+    """표시·메일·CSV 용 정규화 — 팀 이름을 설정 기준으로 통일해서 내보낸다."""
+    return C.normalize_group(g, by_nm=C.ccg_by_nm(data), by_cd=C.ccg_by_cd(data))
+
+
 def _clean_settings(body, cur, data):
     """설정 저장값 검증 — 잘못된 값이 원장에 들어가면 화면 전체가 못 쓰게 된다."""
     e, out = [], {}
@@ -210,7 +215,8 @@ def favicon():
 def api_state():
     data = load_data()
     yq = request.args.get("yq") or C.year_quarter()
-    groups = [C.normalize_group(g) for g in data["groups"]]
+    _bc = C.ccg_by_cd(data)                  # 표시용 팀 이름은 설정 기준으로 통일
+    groups = [C.normalize_group(g, by_cd=_bc) for g in data["groups"]]
     groups.sort(key=lambda g: g.get("dep_dt") or "", reverse=True)
     return jsonify({
         "yq": yq,
@@ -278,7 +284,7 @@ def update_group(gid):
         if errors:
             return _err(errors)
         g["updated_at"] = datetime.now().isoformat(timespec="seconds")
-        changed = _diff_fields(C.normalize_group(cur), g)
+        changed = _diff_fields(_norm(cur, data), g)
         data["groups"][data["groups"].index(cur)] = g
         append_audit(data, "출장 수정",
                      f"{gid} {g.get('org','')} — {changed or '변경 없음'}",
@@ -301,7 +307,7 @@ def input_actual(gid):
         if C.locked(cur) and not _is_admin(data):
             return _err("이관·처리가 시작된 건의 실적은 관리자만 수정할 수 있습니다.", 401)
         body = _body()
-        g = C.normalize_group(cur)
+        g = _norm(cur, data)
         by_emp = {str(p.get("emp_no")): p for p in _tlist(body.get("travelers"))}
         for p in g["travelers"]:
             src = by_emp.get(str(p.get("emp_no")))
@@ -315,7 +321,7 @@ def input_actual(gid):
         errors = C.validate_group(g, require_actual=True, by_nm=C.ccg_by_nm(data))
         if errors:
             return _err(errors)
-        g = C.normalize_group(g)
+        g = _norm(g, data)
         g["inform_at"] = datetime.now().isoformat(timespec="seconds")
         g["updated_at"] = g["inform_at"]
         data["groups"][data["groups"].index(cur)] = g
@@ -348,7 +354,7 @@ def change_status(gid):
                 return _err("실적 입력 후 개인별 처리가 가능합니다.")
             if not admin:                # 이관·완료·보류·되돌림 모두 관리자
                 return _err("관리자 인증이 필요합니다.", 401)
-            g = C.normalize_group(cur)
+            g = _norm(cur, data)
             tgt = next((p for p in g["travelers"] if str(p.get("emp_no")) == str(emp)), None)
             if tgt is None:
                 return _err("출장자를 찾을 수 없습니다.", 404)
@@ -364,7 +370,7 @@ def change_status(gid):
             data["groups"][data["groups"].index(cur)] = g
             append_audit(data, "개인 처리 변경", f"{gid} {emp} → {want}", actor="admin")
             save_data(data)
-            g = C.normalize_group(g)
+            g = _norm(g, data)
             dash = C.dash(data, g["yq"])
             resp = {"ok": True, "group": g, "dash": dash}
             if want == C.ST_TRANSFER:     # 이관 → 비용 처리 요청 인폼
@@ -378,7 +384,7 @@ def change_status(gid):
         if want == C.ST_CONFIRM:
             if cur.get("status") not in C.PRE:
                 return _err("계획 단계에서만 출장 확정을 할 수 있습니다.")
-            if cur.get("plan_type") != "긴급" and C.g_sum(C.normalize_group(cur), "p") <= 0:
+            if cur.get("plan_type") != "긴급" and C.g_sum(_norm(cur, data), "p") <= 0:
                 return _err("계획 비용이 있어야 예산을 확보(확정)할 수 있습니다.")
         if want == C.ST_PLAN and cur.get("status") not in C.PRE:
             return _err("확정 예정 건만 잠정 계획으로 되돌릴 수 있습니다.")
@@ -392,7 +398,7 @@ def change_status(gid):
                 or (want == C.ST_CANCEL and cur.get("status") not in C.PRE)) and not admin:
             return _err("관리자 인증이 필요합니다.", 401)
         # 이관·완료·인폼(되돌림 포함) 상태는 실적이 있어야만.
-        if want in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE) and C.g_sum(C.normalize_group(cur), "a") <= 0:
+        if want in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE) and C.g_sum(_norm(cur, data), "a") <= 0:
             return _err("실적이 입력된 건만 이관·처리할 수 있습니다.")
         held = 0
         if want in (C.ST_INFORM, C.ST_TRANSFER, C.ST_DONE):
@@ -416,7 +422,7 @@ def change_status(gid):
             cur["settle_at"] = cur["updated_at"]
         append_audit(data, "상태 변경", f"{gid} → {want}", actor="admin" if admin else "user")
         save_data(data)
-        g = C.normalize_group(cur)
+        g = _norm(cur, data)
         dash = C.dash(data, g["yq"])
         mail = C.make_transfer_mail(g, data["settings"]) if want == C.ST_TRANSFER else None
     return jsonify({"ok": True, "group": g, "dash": dash, "mail": mail, "held": held})
@@ -429,7 +435,7 @@ def group_mail(gid):
     cur = _find(data, gid)
     if cur is None:
         return _err("출장건을 찾을 수 없습니다.", 404)
-    g = C.normalize_group(cur)
+    g = _norm(cur, data)
     if C.g_sum(g, "a") <= 0:
         return _err("실적이 입력되지 않아 인폼을 만들 수 없습니다.", 400)
     return jsonify({"ok": True, "mail": C.make_mail(g, data["settings"])})
@@ -442,7 +448,7 @@ def transfer_mail(gid):
     cur = _find(data, gid)
     if cur is None:
         return _err("출장건을 찾을 수 없습니다.", 404)
-    g = C.normalize_group(cur)
+    g = _norm(cur, data)
     emps = [p.get("emp_no") for p in g["travelers"] if C.eff_status(p, g) == C.ST_TRANSFER]
     if not emps:
         return _err("이관 상태의 출장자가 없습니다.", 404)
@@ -459,13 +465,13 @@ def delete_group(gid):
             return _err("출장건을 찾을 수 없습니다.", 404)
         if cur.get("status") != C.ST_PLAN:
             return _err("잠정 계획(계획 등록) 건만 삭제할 수 있습니다. 확정·진행 건은 취소를 쓰세요.")
-        yq = C.normalize_group(cur)["yq"]
+        yq = _norm(cur, data)["yq"]
         data["groups"] = [x for x in data["groups"] if x.get("group_id") != gid]
         # 삭제 내용을 감사로그에 남겨 사후 추적·복원 근거를 남긴다
         who = ", ".join(str(p.get("name", "")) for p in cur.get("travelers", []))
         append_audit(data, "잠정 계획 삭제",
                      f"{gid} {cur.get('city','')} {cur.get('org','')} · {who} · "
-                     f"계획 {C.g_sum(C.normalize_group(cur), 'p'):,}원",
+                     f"계획 {C.g_sum(_norm(cur, data), 'p'):,}원",
                      actor="admin" if _is_admin(data) else "user")
         save_data(data)
         dash = C.dash(data, yq)
@@ -486,7 +492,7 @@ def set_sap(gid):
         cur["updated_at"] = datetime.now().isoformat(timespec="seconds")
         append_audit(data, "SAP 전표번호", f"{gid} → {doc or '(삭제)'}", actor="admin")
         save_data(data)
-        g = C.normalize_group(cur)
+        g = _norm(cur, data)
     return jsonify({"ok": True, "group": g})
 
 

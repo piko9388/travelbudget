@@ -838,6 +838,51 @@ ok('CCG 코드 자동 채움(설정 기반)',
    _r.status_code == 201 and _r.get_json()['group']['travelers'][0]['ccg'] == 'CZZ9')
 ok('화면에 내려가는 CCG 도 설정 기반',
    any(t['ccg'] == 'CZZ9' for t in c.get('/travelbudget/api/state').get_json()['ccg']))
+
+# ── 팀 이름을 바꿨을 때 — 화면마다 다른 이름이 보이면 안 된다 ──
+_gid_nm = _r.get_json()['group']['group_id']
+ok('정상 저장 200 (팀 이름 변경)',
+   _cfgpost(ccg_teams=[t if t['ccg'] != 'CZZ9' else {'team': 'ZZ 신규팀(개편)', 'ccg': 'CZZ9'}
+                       for t in _new], mail_recipients=['x@y.com']).status_code == 200)
+_gg = next(g for g in c.get('/travelbudget/api/state').get_json()['groups']
+           if g['group_id'] == _gid_nm)
+ok('출장 내역의 팀 이름이 설정을 따라감', _gg['travelers'][0]['ccg_nm'] == 'ZZ 신규팀(개편)',
+   _gg['travelers'][0]['ccg_nm'])
+ok('센터 제출 CSV 의 CCG명도 같은 이름',
+   'ZZ 신규팀(개편)' in c.get('/travelbudget/api/export.csv').get_data(as_text=True))
+# 대시보드 표와 인폼은 실집행 단계부터 나오므로 확정·실적까지 진행시킨 뒤 확인한다
+c.post(f'/travelbudget/api/groups/{_gid_nm}/status', json=dict(status='확정 예정'))
+c.post(f'/travelbudget/api/groups/{_gid_nm}/actual',
+       json={'travelers': [dict(emp_no='ZZ1', a_trans=10000)]})
+ok('대시보드 표의 팀 이름도 같은 이름',
+   any(x['team'] == 'ZZ 신규팀(개편)' for x in
+       c.get('/travelbudget/api/state').get_json()['dash']['byCcg']),
+   [x['team'] for x in c.get('/travelbudget/api/state').get_json()['dash']['byCcg']])
+_ml = c.get(f'/travelbudget/api/groups/{_gid_nm}/mail')
+ok('인폼 메일의 팀 이름도 같은 이름',
+   _ml.status_code == 200 and 'ZZ 신규팀(개편)' in str(_ml.get_json()),
+   _ml.status_code)
+ok('저장된 CCG 코드는 그대로 (집계 불변)', _gg['travelers'][0]['ccg'] == 'CZZ9')
+# 옛 이름 그대로 수정 저장해도 이름이 빈 값으로 덮이면 안 된다 (화면 드롭다운이 못 맞추던 경로)
+_r2 = c.put(f'/travelbudget/api/groups/{_gid_nm}', json=dict(
+    plan_type='계획', city='시', org='설정테스트', purpose='이름 변경 후 수정', kind='정기 Audit',
+    dep_dt=f'{yy}-{mm}-10', ret_dt=f'{yy}-{mm}-11', car='미사용',
+    travelers=[dict(name='신', emp_no='ZZ1', rank='TL', ccg_nm='ZZ 신규팀', ccg='CZZ9',
+                    p_trans=10000)]), headers=ADM)   # 실적 입력 후라 담당자 모드
+ok('옛 이름으로 수정해도 400 아님', _r2.status_code == 200, _r2.get_json().get('errors'))
+_gg2 = next(g for g in c.get('/travelbudget/api/state').get_json()['groups']
+            if g['group_id'] == _gid_nm)
+ok('수정 후에도 팀 이름이 비지 않음', _gg2['travelers'][0]['ccg_nm'] == 'ZZ 신규팀(개편)',
+   repr(_gg2['travelers'][0]['ccg_nm']))
+# 목록에 없는 코드는 저장된 이름을 유지한다 (폐지된 팀의 과거 건)
+_orphan = _C.normalize_group({'travelers': [{'name': 'x', 'emp_no': '1', 'rank': 'TL',
+                                             'ccg': 'C0000', 'ccg_nm': '폐지된 팀'}]},
+                             by_cd={'CZZ9': 'ZZ 신규팀(개편)'})
+ok('목록에 없는 코드는 저장된 이름 유지',
+   _orphan['travelers'][0]['ccg_nm'] == '폐지된 팀')
+# 화면 드롭다운은 이름이 아니라 코드로 맞춰야 한다
+ok('CCG 드롭다운이 코드로 선택', 't.ccg === p.ccg' in _appjs)
+ok('목록에 없는 팀도 선택지로 남김', '(목록에 없음)' in _appjs)
 # 안 보낸 필드가 지워지면 안 된다
 _before_url = c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings']['reference_url']
 _cfgpost(ccg_teams=_new, mail_recipients=['x@y.com'])

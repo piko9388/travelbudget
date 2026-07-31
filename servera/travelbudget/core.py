@@ -40,6 +40,7 @@ CCG_TEAMS = [
     {"team": "Target 소재팀",    "ccg": "C1707"},
 ]
 CCG_BY_NM = {t["team"]: t["ccg"] for t in CCG_TEAMS}
+CCG_BY_CD = {t["ccg"]: t["team"] for t in CCG_TEAMS}
 CCG_MAX = 40                             # 화면·표에서 다룰 수 있는 상한 (오입력 방어선)
 
 
@@ -65,6 +66,11 @@ def ccg_teams(data=None):
 
 def ccg_by_nm(data=None):
     return {t["team"]: t["ccg"] for t in ccg_teams(data)}
+
+
+def ccg_by_cd(data=None):
+    """CCG 코드 → 팀 이름. 표시용 이름은 항상 코드에서 파생한다."""
+    return {t["ccg"]: t["team"] for t in ccg_teams(data)}
 
 APP_VERSION = "v10.8"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-07-31"
@@ -213,8 +219,9 @@ def proc_counts(g):
 
 
 # ── 정규화·검증 ───────────────────────────────────────────
-def normalize_group(g, by_nm=None):
+def normalize_group(g, by_nm=None, by_cd=None):
     by_nm = by_nm if by_nm is not None else CCG_BY_NM
+    by_cd = by_cd if by_cd is not None else CCG_BY_CD
     g = deepcopy(g)
     g.setdefault("plan_type", "계획")
     g.setdefault("status", ST_PLAN)
@@ -239,6 +246,11 @@ def normalize_group(g, by_nm=None):
             p[k] = _txt(p.get(k))
         if not p.get("ccg") and p.get("ccg_nm") in by_nm:
             p["ccg"] = by_nm[p["ccg_nm"]]
+        # 팀 이름은 코드에서 파생한다 — 등록된 코드면 현재 팀 이름으로 통일.
+        # (설정에서 팀 이름을 바꾸면 대시보드는 새 이름, 내역·CSV·인폼은 옛 이름이라
+        #  같은 팀이 화면마다 다른 이름으로 보이던 문제. 코드는 그대로 두므로 집계는 불변)
+        if p.get("ccg") in by_cd:
+            p["ccg_nm"] = by_cd[p["ccg"]]
         # 개인 처리 상태: 유효값만 유지, 그 외/없음은 ""(그룹 상속)
         p["status"] = p.get("status") if p.get("status") in PSTATES else ""
         for x in ("p", "a"):
@@ -689,8 +701,9 @@ def make_budget_csv(data, yq=None):
 def ledger_rows(data, yq=None, internal=False):
     """센터 관리 양식(정산 대장) 행 — 출장자 개인별 1행."""
     out = []
+    by_cd = ccg_by_cd(data)                  # 제출본 CCG명도 설정 기준으로 통일
     for raw in sorted(data.get("groups", []), key=lambda g: _txt(g.get("dep_dt"))):
-        g = normalize_group(raw)
+        g = normalize_group(raw, by_cd=by_cd)
         if yq and g["yq"] != yq:
             continue
         for p in g["travelers"]:

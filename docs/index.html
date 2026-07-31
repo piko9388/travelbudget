@@ -455,6 +455,12 @@ padding:12px 16px;margin-bottom:16px}
   function ccgByNm(data) {
     var m = {}; ccgTeams(data).forEach(function (t) { m[t.team] = t.ccg; }); return m;
   }
+  function ccgByCd(data) {
+    var m = {}; ccgTeams(data).forEach(function (t) { m[t.ccg] = t.team; }); return m;
+  }
+  // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
+  var CUR_BY_CD = {};
+  CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
   var APP_VERSION = 'v10.8', APP_BUILD = '2026-07-31';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
@@ -559,6 +565,7 @@ padding:12px 16px;margin-bottom:16px}
       if (p.rank == null) p.rank = 'TL';
       ['name','emp_no','rank','ccg_nm','ccg'].forEach(function (k) { p[k] = txt(p[k]); });
       if (!p.ccg && CCG_BY_NM[p.ccg_nm]) p.ccg = CCG_BY_NM[p.ccg_nm];
+      if (p.ccg && CUR_BY_CD[p.ccg]) p.ccg_nm = CUR_BY_CD[p.ccg];   // core.normalize_group 과 동일
       p.status = PSTATES.indexOf(p.status) >= 0 ? p.status : '';   // 개인 처리 상태(없으면 그룹 상속)
       ['p', 'a'].forEach(function (x) { KEYS.forEach(function (k) { p[x + '_' + k] = num(p[x + '_' + k]); }); });
     });
@@ -995,6 +1002,7 @@ padding:12px 16px;margin-bottom:16px}
     var qs = ''; var qi = path.indexOf('?'); if (qi >= 0) { qs = path.slice(qi + 1); path = path.slice(0, qi); }
     function qp(k) { var m = qs.match(new RegExp('(?:^|&)' + k + '=([^&]*)')); return m ? decodeURIComponent(m[1]) : null; }
     var data = Store.load();
+    CUR_BY_CD = ccgByCd(data);
     var _pw = String(data.settings.admin_pw == null ? '' : data.settings.admin_pw);
     var isAdmin = !!_pw && String(headers['X-Admin-PW'] || '') === _pw;
     var m;
@@ -1925,7 +1933,17 @@ function openProcess(gid){
 let TRAV_N = 0;
 function travRow(p = {}){
   TRAV_N++;
-  const teams = ST.ccg.map(t => `<option${t.team === p.ccg_nm ? ' selected' : ''}>${esc(t.team)}</option>`).join('');
+  /* 팀 이름이 아니라 CCG 코드로 맞춘다.
+     이름으로 맞추면, 설정에서 팀 이름을 바꾼 뒤 예전 건을 열었을 때 아무것도 선택되지 않고
+     저장 시 팀 이름이 빈 값으로 덮여 쓰였다 (코드는 남아 검증은 통과 → 조용히 이름만 소실). */
+  const known = !!p.ccg && ST.ccg.some(t => t.ccg === p.ccg);
+  const teams = ST.ccg.map(t => {
+    const sel = p.ccg ? t.ccg === p.ccg : t.team === p.ccg_nm;
+    return `<option data-ccg="${esc(t.ccg)}"${sel ? ' selected' : ''}>${esc(t.team)}</option>`;
+  }).join('')
+  // 목록에 없는 코드(폐지된 팀 등)는 저장된 값을 그대로 남긴다 — 열었다고 지워지면 안 된다
+  + (p.ccg && !known
+     ? `<option data-ccg="${esc(p.ccg)}" selected>${esc(p.ccg_nm || p.ccg)} (목록에 없음)</option>` : '');
   const ranks = ST.meta.ranks.map(r => `<option${r === (p.rank || 'TL') ? ' selected' : ''}>${r}</option>`).join('');
   return `<tr data-tid="${TRAV_N}">
     <td><input class="w-nm t-nm" value="${esc(p.name || '')}" placeholder="성명"></td>
@@ -1940,11 +1958,13 @@ function travRow(p = {}){
   </tr>`;
 }
 function syncCcg(sel){
-  const t = ST.ccg.find(x => x.team === sel.value);
+  // 선택지에 실린 코드를 그대로 쓴다 — 목록에 없는 팀(폐지 등)도 코드를 잃지 않게
+  const opt = sel.selectedOptions[0];
+  const code = (opt && opt.dataset.ccg) || (ST.ccg.find(x => x.team === sel.value) || {}).ccg || '';
   const tr = sel.closest('tr');
-  tr.querySelector('.t-cc').value = t ? t.ccg : '';
+  tr.querySelector('.t-cc').value = code;
   const v = tr.querySelector('.t-cc-v');
-  if (v) v.textContent = t ? t.ccg : '–';
+  if (v) v.textContent = code || '–';
 }
 function planSum(){
   let tot = 0;

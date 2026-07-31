@@ -642,7 +642,17 @@ function openProcess(gid){
 let TRAV_N = 0;
 function travRow(p = {}){
   TRAV_N++;
-  const teams = ST.ccg.map(t => `<option${t.team === p.ccg_nm ? ' selected' : ''}>${esc(t.team)}</option>`).join('');
+  /* 팀 이름이 아니라 CCG 코드로 맞춘다.
+     이름으로 맞추면, 설정에서 팀 이름을 바꾼 뒤 예전 건을 열었을 때 아무것도 선택되지 않고
+     저장 시 팀 이름이 빈 값으로 덮여 쓰였다 (코드는 남아 검증은 통과 → 조용히 이름만 소실). */
+  const known = !!p.ccg && ST.ccg.some(t => t.ccg === p.ccg);
+  const teams = ST.ccg.map(t => {
+    const sel = p.ccg ? t.ccg === p.ccg : t.team === p.ccg_nm;
+    return `<option data-ccg="${esc(t.ccg)}"${sel ? ' selected' : ''}>${esc(t.team)}</option>`;
+  }).join('')
+  // 목록에 없는 코드(폐지된 팀 등)는 저장된 값을 그대로 남긴다 — 열었다고 지워지면 안 된다
+  + (p.ccg && !known
+     ? `<option data-ccg="${esc(p.ccg)}" selected>${esc(p.ccg_nm || p.ccg)} (목록에 없음)</option>` : '');
   const ranks = ST.meta.ranks.map(r => `<option${r === (p.rank || 'TL') ? ' selected' : ''}>${r}</option>`).join('');
   return `<tr data-tid="${TRAV_N}">
     <td><input class="w-nm t-nm" value="${esc(p.name || '')}" placeholder="성명"></td>
@@ -657,11 +667,13 @@ function travRow(p = {}){
   </tr>`;
 }
 function syncCcg(sel){
-  const t = ST.ccg.find(x => x.team === sel.value);
+  // 선택지에 실린 코드를 그대로 쓴다 — 목록에 없는 팀(폐지 등)도 코드를 잃지 않게
+  const opt = sel.selectedOptions[0];
+  const code = (opt && opt.dataset.ccg) || (ST.ccg.find(x => x.team === sel.value) || {}).ccg || '';
   const tr = sel.closest('tr');
-  tr.querySelector('.t-cc').value = t ? t.ccg : '';
+  tr.querySelector('.t-cc').value = code;
   const v = tr.querySelector('.t-cc-v');
-  if (v) v.textContent = t ? t.ccg : '–';
+  if (v) v.textContent = code || '–';
 }
 function planSum(){
   let tot = 0;
