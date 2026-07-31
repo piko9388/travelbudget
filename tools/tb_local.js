@@ -29,7 +29,24 @@
     { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
     { team: 'Target 소재팀', ccg: 'C1707' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
-  var APP_VERSION = 'v10.7', APP_BUILD = '2026-07-30';
+  var CCG_MAX = 40;
+  // CCG 는 설정(data.settings.ccg_teams)에 있으면 그것을, 없으면 위 기본값을 쓴다 — core.py 와 동일
+  function ccgTeams(data) {
+    var raw = ((data || {}).settings || {}).ccg_teams;
+    if (!Array.isArray(raw)) return CCG_TEAMS;
+    var out = [], seen = {};
+    raw.forEach(function (t) {
+      if (!t || typeof t !== 'object') return;
+      var nm = txt(t.team), cd = txt(t.ccg);
+      if (!nm || !cd || seen[cd]) return;
+      seen[cd] = 1; out.push({ team: nm, ccg: cd });
+    });
+    return out.slice(0, CCG_MAX).length ? out.slice(0, CCG_MAX) : CCG_TEAMS;
+  }
+  function ccgByNm(data) {
+    var m = {}; ccgTeams(data).forEach(function (t) { m[t.team] = t.ccg; }); return m;
+  }
+  var APP_VERSION = 'v10.8', APP_BUILD = '2026-07-31';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
@@ -552,7 +569,11 @@
   };
 
   // ── 라우트 (routes.py와 동일한 게이트) ──
-  function publicSettings(s) { var o = {}; Object.keys(s).forEach(function (k) { if (k !== 'admin_pw') o[k] = s[k]; }); return o; }
+  function publicSettings(s) {
+    var o = {}; Object.keys(s).forEach(function (k) { if (k !== 'admin_pw') o[k] = s[k]; });
+    o.pw_default = String(s.admin_pw == null ? '' : s.admin_pw) === '2071478';
+    return o;
+  }
   function err(msgs, code) { return { ok: false, status: code || 400, data: { ok: false, errors: Array.isArray(msgs) ? msgs : [msgs] } }; }
   function okr(obj, code) { obj.ok = true; return { ok: true, status: code || 200, data: obj }; }
   function find(data, gid) { return (data.groups || []).filter(function (g) { return g.group_id === gid; })[0] || null; }
@@ -573,7 +594,7 @@
       var yq = qp('yq') || yearQuarter();
       var groups = (data.groups || []).map(normalizeGroup).sort(function (a, b) { return (b.dep_dt || '') < (a.dep_dt || '') ? -1 : (b.dep_dt || '') > (a.dep_dt || '') ? 1 : 0; });
       return okr({
-        yq: yq, yqList: yqList(), settings: publicSettings(data.settings), ccg: CCG_TEAMS,
+        yq: yq, yqList: yqList(), settings: publicSettings(data.settings), ccg: ccgTeams(data),
         version: { v: APP_VERSION, build: APP_BUILD },
         dash: dash(data, yq), groups: groups,
         budget: (data.budget || []).filter(function (b) { return b.yq === yq; }).sort(function (a, b) { return (a.rev_dt || '') < (b.rev_dt || '') ? -1 : 1; }),
@@ -729,6 +750,60 @@
       appendAudit(data, 'SAP 전표번호', m[1] + ' → ' + (curS.sap_doc || '(삭제)'), 'admin');
       Store.save(data);
       return okr({ group: normalizeGroup(curS) });
+    }
+    if (path === '/settings' && method === 'GET') {
+      if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
+      var used = {};
+      (data.groups || []).forEach(function (g) {
+        (g.travelers || []).forEach(function (p) { var k = txt(p.ccg); if (k) used[k] = (used[k] || 0) + 1; });
+      });
+      var st = data.settings;
+      return okr({ settings: {
+        system_name: st.system_name || '', reference_url: st.reference_url || '',
+        admin_pw: st.admin_pw || '', mail_recipients: (st.mail_recipients || []).slice(),
+        ccg_teams: ccgTeams(data), ccg_from_settings: Array.isArray(st.ccg_teams)
+      }, ccgUsed: used });
+    }
+    if (path === '/settings' && method === 'POST') {
+      if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
+      var e = [], cur = data.settings;
+      var mails = (Array.isArray(body.mail_recipients) ? body.mail_recipients : [])
+        .map(function (x) { return String(x == null ? '' : x).trim(); }).filter(Boolean);
+      if (!mails.length) e.push('인폼 수신인을 1명 이상 입력하세요.');
+      if (mails.length > 10) e.push('인폼 수신인은 10명까지입니다.');
+      mails.forEach(function (m) {
+        if (!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(m)) e.push('메일 주소 형식이 올바르지 않습니다 — ' + m);
+      });
+      var clean = [], codes = {}, names = {};
+      (Array.isArray(body.ccg_teams) ? body.ccg_teams : []).forEach(function (t, i) {
+        if (!t || typeof t !== 'object') { e.push((i + 1) + '번 CCG 형식이 올바르지 않습니다.'); return; }
+        var nm = txt(t.team), cd = txt(t.ccg);
+        if (!nm || !cd) { e.push((i + 1) + '번 CCG — 팀명과 코드를 모두 입력하세요.'); return; }
+        if (codes[cd]) { e.push('CCG 코드가 중복입니다 — ' + cd); return; }
+        if (names[nm]) { e.push('CCG 팀명이 중복입니다 — ' + nm); return; }
+        codes[cd] = 1; names[nm] = 1; clean.push({ team: nm, ccg: cd });
+      });
+      if (!clean.length) e.push('CCG 팀을 1개 이상 남겨야 합니다.');
+      var used2 = {};
+      (data.groups || []).forEach(function (g) {
+        (g.travelers || []).forEach(function (p) { var k = txt(p.ccg); if (k) used2[k] = (used2[k] || 0) + 1; });
+      });
+      Object.keys(used2).forEach(function (cd) {
+        if (!codes[cd]) e.push('‘' + cd + '’ 은 이미 ' + used2[cd] + '건에 쓰이고 있어 지울 수 없습니다.');
+      });
+      var pw = txt(body.admin_pw) || String(cur.admin_pw || '');
+      if (pw.length < 4 || pw.indexOf(' ') >= 0) e.push('비밀번호는 공백 없이 4자 이상이어야 합니다.');
+      if (e.length) return err(e);
+      var before = JSON.stringify([cur.mail_recipients, cur.ccg_teams, cur.admin_pw, cur.system_name, cur.reference_url]);
+      cur.mail_recipients = mails.slice(0, 10);
+      cur.ccg_teams = clean;
+      cur.admin_pw = pw;
+      cur.system_name = (txt(body.system_name) || cur.system_name || '').slice(0, 60);
+      if ('reference_url' in body) cur.reference_url = txt(body.reference_url).slice(0, 200);
+      var chg = before === JSON.stringify([cur.mail_recipients, cur.ccg_teams, cur.admin_pw, cur.system_name, cur.reference_url]) ? [] : ['settings'];
+      appendAudit(data, '시스템 설정 변경', chg.length ? '변경됨' : '변경 없음', 'admin');
+      Store.save(data);
+      return okr({ settings: publicSettings(cur), changed: chg, ccg: ccgTeams(data) });
     }
     if (path === '/notice' && method === 'POST') {
       if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);

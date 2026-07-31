@@ -1,4 +1,4 @@
-# 소재 국내 출장비 관리 v10.7
+# 소재 국내 출장비 관리 v10.8
 
 소재전략 국내 출장비 계획·실적·인폼·정산 관리 (Flask + data.json 단일 파일 저장)
 
@@ -20,8 +20,8 @@
 |---|---|
 | `core.py` | 계산 엔진 SSOT — 잔여 공식·검증·인폼 생성·CSV |
 | `store.py` | data.json 원자적 저장 + 자동백업 30개 + 감사로그 |
-| `routes.py` | API 24개 (예산 담당자 행위는 X-Admin-PW 서버 검증, `core.locked` 경계) |
-| `templates/index.html` | 화이트+네이비 테마, Pretendard |
+| `routes.py` | API 23개 + 화면 3개 (예산 담당자 행위는 X-Admin-PW 서버 검증, `core.locked` 경계) |
+| `templates/index.html` | 화이트+네이비 테마, 맑은 고딕(사내 윈도우 기본 글꼴) |
 | `static/app.js` | 전 화면 (대시보드/계획/실적/내역/이관·처리/예산/데이터) |
 | `data_json/data.json` | 정본 (백업: `data_json/backup/`) — 운영은 **`TB_DATA_DIR`** 로 앱 밖 지정 권장 |
 
@@ -42,6 +42,22 @@
 
 파싱·묶기는 모두 화면(app.js)에서 하고 기존 `POST /api/groups` 를 그대로 씁니다 —
 **data.json 스키마는 변하지 않습니다.**
+
+## 시스템 설정 (v10.8)
+
+좌측 메뉴 **시스템 설정**(예산 담당자 인증 필요) — 조직이 바뀔 때 **코드를 고치지 않고** 화면에서 바꿉니다.
+
+| 항목 | 저장 위치 |
+|---|---|
+| 인폼 기본 수신자 (최대 10명) | `settings.mail_recipients` |
+| CCG 팀 ↔ 코드 (최대 40행) | `settings.ccg_teams` — **없으면 `core.CCG_TEAMS` 기본값** |
+| 시스템 이름 · 공지 · 부연 | `settings.system_name` · `notice` · `notice_sub` |
+| 예산 담당자 비밀번호 | `settings.admin_pw` |
+
+- **과거 데이터는 바뀌지 않습니다** — 원장에는 출장 등록 시점의 CCG 코드가 그대로 남습니다
+- **이미 원장에서 쓰고 있는 CCG 코드는 삭제할 수 없습니다** (`사용 중 N건` 표시 · 삭제 버튼 비활성)
+- 팀명·코드 중복, 메일 형식·중복, 4자 미만 비밀번호는 서버가 거부합니다
+- 저장은 감사 로그에 남습니다. 읽기·쓰기 **둘 다 서버에서 인증을 요구**합니다
 
 ## 출장자용 안내
 
@@ -123,11 +139,11 @@ python3 tools/build_docs.py      # 정적(GitHub Pages) 재조립
 
 | 명령 | 필요 조건 | 결과 | 운영 데이터 |
 |---|---|---|---|
-| `python3 test_api.py` | Flask만 | **301 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
+| `python3 test_api.py` | Flask만 | **416 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
 | `python3 smoke_test.py [URL]` | 기동 중인 서버 | **19 passed / 0 failed** | 읽기 전용 (변경 없음) |
 | `python3 tools/e2e/fuzz.py` | Flask만 | 퍼징 1,302회 → 500 오류 **0건** | 임시 폴더 |
-| `node tools/e2e/e2e.mjs` | Node 18+ · Playwright | **100 passed / 0 failed** | 임시 폴더 |
-| `node tools/e2e/e2e_pages.mjs` | Node 18+ · Playwright | **19 passed / 0 failed** | 해당 없음(정적판) |
+| `node tools/e2e/e2e.mjs` | Node 18+ · Playwright | **211 passed / 0 failed** | 임시 폴더 |
+| `node tools/e2e/e2e_pages.mjs` | Node 18+ · Playwright | **25 passed / 0 failed** | 해당 없음(정적판) |
 | `node tools/e2e/bulk_debug.mjs` | Node 18+ · Playwright | **49 passed / 0 failed** | 임시 폴더 |
 
 Playwright 가 기본 경로에 없으면 `PLAYWRIGHT_PATH=/경로/playwright/index.js` 로 지정합니다.

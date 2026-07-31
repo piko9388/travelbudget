@@ -56,6 +56,12 @@ try {
   const page = await ctx.newPage();
   page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   page.on('pageerror', e => errs.push(String(e)));
+  // 외부 호스트로 나가는 요청이 있으면 사내망에서 깨진다 — URL 로 직접 잡는다
+  const extReq = [];
+  page.on('request', r => {
+    const u = r.url();
+    if (!/^https?:\/\/127\.0\.0\.1|^https?:\/\/localhost|^data:|^blob:|^about:/.test(u)) extReq.push(u);
+  });
 
   await page.goto(base, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => document.querySelector('#v-dash .hero'), { timeout: 8000 });
@@ -1183,11 +1189,85 @@ try {
     ok('이관·처리에도 표 복사', pdtl.copy);
   }
 
+  /* ── 25. v10.8 — 시스템 설정 화면 ── */
+  console.log('\n-- 25. 시스템 설정 --');
+  await page.evaluate(() => sessionStorage.removeItem('tb_pw'));
+  await page.click('.nav a[data-view="config"]');
+  await sleep(400);
+  ok('설정은 인증 없이 못 봄 (담당자 모달)', await page.isVisible('#adminModal'));
+  ok('인증 전에는 설정 내용이 안 남음',
+     await page.evaluate(() => !document.querySelector('#cfgTeams')));
+  await page.fill('#admPw', '2071478');
+  await page.click('#admOk');
+  await page.waitForSelector('#cfgTeams tr', { timeout: 5000 });
+  ok('인증하면 그 화면이 다시 그려짐', await page.isVisible('#cfgTeams'));
+  await page.evaluate(async () => { sessionStorage.setItem('tb_pw', '2071478'); await rConfig(); nav('config'); });
+  await page.waitForSelector('#cfgTeams tr', { timeout: 5000 });
+  const cfg = await page.evaluate(() => ({
+    mails: document.querySelectorAll('#cfgMails .cfg-mail').length,
+    teams: document.querySelectorAll('#cfgTeams tr').length,
+    used: [...document.querySelectorAll('#cfgTeams .cfg-used')].filter(x => /사용 중/.test(x.textContent)).length,
+    guarded: [...document.querySelectorAll('#cfgTeams tr')].filter(r => /삭제 불가/.test(r.textContent)).length,
+    warn: !!document.querySelector('.cfg-warn'),
+  }));
+  ok('수신인·CCG 목록 렌더', cfg.mails > 0 && cfg.teams > 0, cfg);
+  ok('원장에서 쓰이는 팀 수 표시', cfg.used > 0, cfg);
+  ok('사용 중인 팀은 삭제 버튼 없음', cfg.guarded === cfg.used, cfg);
+  ok('과거 데이터가 안 바뀐다는 경고 표시', cfg.warn);
+
+  // 실제 저장 — 새 팀을 넣으면 계획 등록 드롭다운에 바로 나와야 한다
+  await page.evaluate(() => { cfgAddTeam(); });
+  await sleep(200);
+  await page.evaluate(() => {
+    const rows = document.querySelectorAll('#cfgTeams tr');
+    const last = rows[rows.length - 1];
+    last.querySelector('.cfg-team').value = 'E2E 신규팀';
+    last.querySelector('.cfg-code').value = 'CE2E';
+  });
+  await page.click('#cfgSave');
+  await sleep(900);
+  const applied = await page.evaluate(() => ({
+    inState: (ST.ccg || []).some(t => t.ccg === 'CE2E'),
+    inPlan: [...document.querySelectorAll('#travBody tr:nth-child(1) .t-tm option')].some(o => o.value === 'E2E 신규팀'),
+  }));
+  ok('저장한 팀이 /state 에 반영', applied.inState, applied);
+  ok('저장한 팀이 계획 등록 드롭다운에 반영', applied.inPlan, applied);
+  // 그 팀으로 실제 등록까지 되어야 한다 (검증이 기본 목록만 보면 400 이 난다)
+  await page.evaluate(() => nav('plan'));
+  await page.waitForSelector('#pl_city');
+  await page.fill('#pl_city', '설정시');
+  await page.fill('#pl_org', '설정업체');
+  await page.fill('#pl_purpose', '설정 반영 확인');
+  const s25yq = await page.evaluate(() => YQ);
+  const [s25yy, s25q] = s25yq.split('-');
+  const s25mm = String(parseInt(s25q) * 3).padStart(2, '0');
+  await page.fill('#pl_dep', `${s25yy}-${s25mm}-12`);
+  await page.fill('#pl_ret', `${s25yy}-${s25mm}-13`);
+  await page.fill('#travBody tr:nth-child(1) .t-nm', '설정자');
+  await page.fill('#travBody tr:nth-child(1) .t-no', 'CFG1');
+  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'E2E 신규팀');
+  const autoCode = await page.evaluate(() => document.querySelector('#travBody tr:nth-child(1) .t-cc').value);
+  ok('새 팀의 CCG 코드 자동 채움', autoCode === 'CE2E', autoCode);
+  await page.fill('#travBody tr:nth-child(1) .t-p-trans', '30000');
+  await page.click('#v-plan button:has-text("출장 계획 등록")');
+  await sleep(700);
+  ok('설정으로 추가한 팀으로 등록 성공',
+     await page.evaluate(() => ST.groups.some(g => g.org === '설정업체')));
+
+  // 잘못된 값은 서버가 막아야 한다
+  await page.evaluate(async () => { await rConfig(); nav('config'); });
+  await page.waitForSelector('#cfgTeams tr');
+  await page.evaluate(() => { document.querySelector('#cfgMails .cfg-mail').value = '주소아님'; });
+  await page.click('#cfgSave');
+  await sleep(700);
+  ok('잘못된 메일 주소는 저장 거부', await page.isVisible('#cfgErr .err'));
+
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));
   ok('콘솔 JS 에러 없음 (외부 CDN 제외)', codeErrs.length === 0, codeErrs.slice(0, 3));
-  const cdnBlocked = errs.some(e => /Failed to load resource|ERR_TUNNEL/.test(e));
-  ok('외부 폰트 CDN 미의존 (사내망 안전)', !cdnBlocked, '외부 CDN 로드 실패 감지 — self-host 필요');
+  // 권한 테스트가 일부러 만든 401 은 CDN 실패가 아니다 — 실제 외부 요청 URL 로 판정한다
+  const cdnBlocked = extReq.length > 0;
+  ok('외부 요청 0건 (사내망 안전)', !cdnBlocked, extReq.slice(0, 3));
 } catch (e) {
   console.log('  FAIL  E2E 예외 -> ' + (e && e.stack || e));
   F++;

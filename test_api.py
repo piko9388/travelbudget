@@ -651,11 +651,14 @@ ok('저장값은 확정 예정 그대로(데이터 호환)', _C.ST_CONFIRM == '�
 print('\n=== 22. 문서 정합성 ===')
 import re as _re2
 _routes = open('servera/travelbudget/routes.py', encoding='utf-8').read()
-_n = len(_re2.findall(r'@travelbudget\.(get|post|put|delete)\(', _routes))
+_paths = _re2.findall(r'@travelbudget\.(?:get|post|put|delete)\("([^"]*)"', _routes)
+_n = len([p for p in _paths if p.startswith('/api/')])        # 실제 API 엔드포인트
+_nv = len(_paths) - _n                                        # 화면(HTML·favicon) 라우트
 _rd = open('README.md', encoding='utf-8').read()
 _dp = open('DEPLOY.md', encoding='utf-8').read()
 ok(f'README API 개수 = 실제 {_n}개', f'API {_n}개' in _rd, [x for x in _re2.findall(r'API \d+개', _rd)])
 ok(f'DEPLOY API 개수 = 실제 {_n}개', f'API {_n}개' in _dp, [x for x in _re2.findall(r'API \d+개', _dp)])
+ok(f'README 화면 라우트 = 실제 {_nv}개', f'화면 {_nv}개' in _rd, [x for x in _re2.findall(r'화면 \d+개', _rd)])
 for _f in ('tools/e2e/e2e.mjs', 'tools/e2e/e2e_pages.mjs', 'tools/e2e/fuzz.py', 'smoke_test.py'):
     ok(f'{_f} 저장소에 존재', os.path.exists(_f))
 ok('DEPLOY 는 서버에서 smoke_test 안내', 'smoke_test.py' in _dp)
@@ -778,6 +781,76 @@ for _hf in ('servera/travelbudget/templates/index.html',
     ok(f'{_hf.split("/")[-1]} Pretendard 를 스택에 직접 넣지 않음(주석 제외)',
        not any('Pretendard' in l for l in _decl), [l for l in _decl if 'Pretendard' in l])
 
+# ── 시스템 설정 (관리자) ──────────────────────────────
+# CCG·수신인은 조직이 바뀌면 같이 바뀐다. 코드에 두면 매번 배포해야 하므로 원장으로 옮겼다.
+ok('설정 조회는 관리자만', c.get('/travelbudget/api/settings').status_code == 401)
+_cfg = c.get('/travelbudget/api/settings', headers=ADM).get_json()
+ok('설정 조회 200', _cfg['ok'])
+ok('CCG 목록 제공', len(_cfg['settings']['ccg_teams']) >= 1)
+ok('팀별 사용 건수 제공', isinstance(_cfg['ccgUsed'], dict))
+ok('설정 저장은 관리자만',
+   c.post('/travelbudget/api/settings', json={'mail_recipients': ['a@b.com']}).status_code == 401)
+
+_teams = _cfg['settings']['ccg_teams']
+def _cfgpost(**kw):
+    body = dict(mail_recipients=['a@b.com'], ccg_teams=_teams)
+    body.update(kw)
+    return c.post('/travelbudget/api/settings', json=body, headers=ADM)
+
+ok('메일 형식 오류 거부', _cfgpost(mail_recipients=['없는주소']).status_code == 400)
+ok('수신인 0명 거부', _cfgpost(mail_recipients=[]).status_code == 400)
+ok('수신인 11명 거부', _cfgpost(mail_recipients=[f'a{i}@b.com' for i in range(11)]).status_code == 400)
+ok('CCG 코드 중복 거부',
+   _cfgpost(ccg_teams=[{'team': 'A', 'ccg': 'C1'}, {'team': 'B', 'ccg': 'C1'}]).status_code == 400)
+ok('CCG 팀명 중복 거부',
+   _cfgpost(ccg_teams=[{'team': 'A', 'ccg': 'C1'}, {'team': 'A', 'ccg': 'C2'}]).status_code == 400)
+ok('CCG 0개 거부', _cfgpost(ccg_teams=[]).status_code == 400)
+ok('비밀번호 3자 거부', _cfgpost(admin_pw='123').status_code == 400)
+ok('비밀번호 공백 거부', _cfgpost(admin_pw='12 34').status_code == 400)
+# 원장에 쓰이는 팀은 지울 수 없어야 한다 (과거 건의 소속이 미아가 된다)
+_usedcode = next(iter(_cfg['ccgUsed']), None)
+if _usedcode:
+    _r = _cfgpost(ccg_teams=[t for t in _teams if t['ccg'] != _usedcode])
+    ok('사용 중인 CCG 삭제 거부', _r.status_code == 400 and '쓰이고 있어' in str(_r.get_json()['errors']),
+       _r.get_json().get('errors'))
+# 정상 저장 — 새 팀을 넣으면 그 팀으로 등록이 되어야 한다 (검증이 기본 목록만 보면 400 이 난다)
+_new = _teams + [{'team': 'ZZ 신규팀', 'ccg': 'CZZ9'}]
+ok('정상 저장 200', _cfgpost(ccg_teams=_new, mail_recipients=['x@y.com']).status_code == 200)
+_r = c.post('/travelbudget/api/groups', json=dict(
+    plan_type='계획', city='시', org='설정테스트', purpose='새 팀 등록', kind='정기 Audit',
+    dep_dt=f'{yy}-{mm}-10', ret_dt=f'{yy}-{mm}-11', car='미사용',
+    travelers=[dict(name='신', emp_no='ZZ1', rank='TL', ccg_nm='ZZ 신규팀', p_trans=10000)]))
+ok('설정에 추가한 팀으로 등록 가능', _r.status_code == 201, _r.get_json().get('errors'))
+ok('CCG 코드 자동 채움(설정 기반)',
+   _r.status_code == 201 and _r.get_json()['group']['travelers'][0]['ccg'] == 'CZZ9')
+ok('화면에 내려가는 CCG 도 설정 기반',
+   any(t['ccg'] == 'CZZ9' for t in c.get('/travelbudget/api/state').get_json()['ccg']))
+# 안 보낸 필드가 지워지면 안 된다
+_before_url = c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings']['reference_url']
+_cfgpost(ccg_teams=_new, mail_recipients=['x@y.com'])
+ok('안 보낸 항목은 그대로 유지',
+   c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings']['reference_url'] == _before_url)
+# 비밀번호를 바꾸면 로그인 힌트가 숫자를 노출하면 안 된다
+ok('기본 비밀번호면 힌트 노출', c.get('/travelbudget/api/state').get_json()['settings']['pw_default'] is True)
+_cfgpost(ccg_teams=_new, mail_recipients=['x@y.com'], admin_pw='newpw1234')
+ok('비밀번호 변경 후 힌트 숨김',
+   c.get('/travelbudget/api/state').get_json()['settings']['pw_default'] is False)
+ok('옛 비밀번호로는 거부',
+   c.get('/travelbudget/api/settings', headers={'X-Admin-PW': '2071478'}).status_code == 401)
+ok('새 비밀번호로는 통과',
+   c.get('/travelbudget/api/settings', headers={'X-Admin-PW': 'newpw1234'}).status_code == 200)
+# 설정은 원장에 저장되므로 백업 복원으로 되돌아간다 = 스키마 파괴 없음
+ok('설정이 data.json 안에 있음', 'ccg_teams' in _store.load_data()['settings'])
+ok('감사 로그에 남음',
+   any('설정' in a.get('action', '') for a in _store.load_data().get('audit_log', [])))
+# 되돌려 놓기 (뒤 테스트가 기본 비밀번호를 쓴다)
+c.post('/travelbudget/api/settings', json=dict(mail_recipients=['x@y.com'],
+       ccg_teams=_new, admin_pw='2071478'), headers={'X-Admin-PW': 'newpw1234'})
+ok('비밀번호 원복', c.get('/travelbudget/api/settings', headers=ADM).status_code == 200)
+# 설정이 깨져 있어도 화면이 죽지 않아야 한다 (기본 목록으로 폴백)
+ok('CCG 설정이 쓰레기면 기본값 폴백', len(_C.ccg_teams({'settings': {'ccg_teams': 'x'}})) == 7)
+ok('CCG 설정이 빈 배열이면 기본값 폴백', len(_C.ccg_teams({'settings': {'ccg_teams': []}})) == 7)
+
 # 배포 안전성 — 데이터가 날아가는 경로를 테스트로 막는다
 _st = open('servera/travelbudget/store.py', encoding='utf-8').read()
 ok('저장 위치를 TB_DATA_DIR 로 옮길 수 있음', 'TB_DATA_DIR' in _st)
@@ -785,7 +858,7 @@ ok('기본 저장 위치가 앱 폴더 안임을 경고로 명시', '덮어쓰�
 # data.json 에 저장되는 필드가 늘면 이전 버전으로 되돌릴 때 읽지 못할 수 있다
 _PERSIST = {'act_tot', 'days', 'lead_days', 'lv2', 'plan_tot', 'plan_type', 'proc', 'quarter',
             'remark', 'roll', 'sap_doc', 'stage', 'status', 'travelers', 'yq'}
-_ng = _re0.search(r'def normalize_group\(g\):(.*?)\ndef ',
+_ng = _re0.search(r'def normalize_group\([^)]*\):(.*?)\ndef ',
                   open('servera/travelbudget/core.py', encoding='utf-8').read(), _re0.S).group(1)
 _got = set(_re0.findall(r'g\["(\w+)"\]\s*=', _ng)) | set(_re0.findall(r'g\.setdefault\("(\w+)"', _ng))
 ok('data.json 저장 필드 무변경 (되돌리기 안전)', _got == _PERSIST, sorted(_got ^ _PERSIST))

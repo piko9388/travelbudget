@@ -30,12 +30,14 @@ const mfield = (cls, val, ph, fn) =>
 
 const TITLES = {guide:'이용 안내', dash:'대시보드', plan:'출장 계획 등록', actual:'출장 실적 입력',
   list:'출장 내역', process:'이관·처리 관리', budget:'예산 관리', data:'데이터 관리',
+  config:'시스템 설정',
   bulk:'엑셀 일괄 등록'};
 const SUBS = {guide:'계획 작성부터 처리 완료까지 — 한눈에 보는 처리 흐름',
   dash:'가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정', plan:'동행 출장은 출장자 행을 추가해 한 번에 등록',
   actual:'실적 저장 시 실비 이관 인폼이 자동 생성됩니다', list:'분기 전체 출장 이력',
   process:'실적 입력·인폼 → 소재 이관 → 처리 완료', budget:'예산 리비전 등록·이력 (감액은 자동 음수 처리)',
   data:'CSV 내보내기 · 자동 백업(30개) · 복원',
+  config:'CCG팀 · 인폼 수신인 등 — 코드 수정 없이 여기서 고칩니다',
   bulk:'센터 관리 시트에서 복사해 붙여넣으면 한 번에 등록됩니다'};
 
 let ST = null, YQ = null, VIEW = 'dash';
@@ -116,6 +118,9 @@ async function load(){
   renderAll();
   nav(VIEW);          // 제목·부제·aria-current 를 첫 화면부터 맞춘다 (안 그러면 첫 클릭에 헤더가 밀린다)
 }
+const ADMIN_VIEW = {                       // 인증 통과 후 다시 그릴 화면
+  get process(){ return rProcess; }, get budget(){ return rBudget; }, get config(){ return rConfig; },
+};
 function nav(v){
   VIEW = v;
   $$('.nav a[data-view]').forEach(a => {
@@ -132,7 +137,13 @@ $$('.nav a[data-view]').forEach(a => {          // href 를 가진 외부 링크
   a.tabIndex = 0; a.setAttribute('role', 'link');   // 키보드 탭 이동·엔터 선택
   const go = () => {
     const v = a.dataset.view;
-    if ((v === 'process' || v === 'budget') && !adminPw()) { askAdmin(() => nav(v)); return; }
+    if (['process', 'budget', 'config'].includes(v) && !adminPw()) {
+      // 인증이 풀린 뒤에도 이전에 그려둔 관리자 화면이 모달 뒤에 남아 있으면 안 된다.
+      // 비웠으니 인증에 성공하면 그 화면만 다시 그린다 (안 그리면 빈 화면이 남는다)
+      const el = $('#v-' + v); if (el) el.innerHTML = '';
+      askAdmin(async () => { const f = ADMIN_VIEW[v]; if (f) await f(); nav(v); });
+      return;
+    }
     nav(v);
   };
   a.onclick = go;
@@ -149,7 +160,7 @@ document.addEventListener('keydown', e => {
   const fn = el.closest('#v-plan') ? submitPlan : el.closest('#v-actual') && ACT_GID ? submitActual : null;
   if (fn) { e.preventDefault(); fn(); }
 });
-function renderAll(){ rGuide(); rDash(); rPlan(); rBulk(); rActual(); rList(); rProcess(); rBudget(); rData(); }
+function renderAll(){ rGuide(); rDash(); rPlan(); rBulk(); rActual(); rList(); rProcess(); rBudget(); rData(); rConfig(); }
 
 /* QWEN_PROMPT_START — QWEN_PROMPT.md 에서 자동 주입. 직접 고치지 말 것 */
 const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
@@ -1668,6 +1679,123 @@ async function delBudget(rid){
 }
 
 /* ═══ 데이터 관리 ═══ */
+/* ═══ 시스템 설정 (관리자) ═══
+   CCG·인폼 수신인처럼 조직이 바뀌면 같이 바뀌는 값들. 전에는 코드에 있어서
+   바뀔 때마다 배포해야 했다. 이제 원장(data.json)에 있고 여기서 고친다. */
+let CFG = null, CFG_USED = {};
+async function rConfig(){
+  const box = $('#v-config');
+  if (!box) return;
+  if (!adminPw()) {
+    box.innerHTML = `<div class="card"><h2>시스템 설정</h2>
+      <p class="cap">예산 담당자만 열 수 있습니다.</p>
+      <div class="btns" style="margin-top:0"><button class="btn pri" onclick="askAdmin(()=>{rConfig();nav('config')})">담당자 인증</button></div></div>`;
+    return;
+  }
+  const {ok, data} = await api('/settings');
+  if (!ok || !data.settings) {
+    box.innerHTML = `<div class="card"><h2>시스템 설정</h2>
+      <div class="err">${esc((data.errors || ['설정을 불러오지 못했습니다'])[0])}</div>
+      <div class="btns"><button class="btn" onclick="askAdmin(()=>{rConfig();nav('config')})">담당자 인증</button></div></div>`;
+    return;
+  }
+  CFG = data.settings; CFG_USED = data.ccgUsed || {};
+  drawConfig();
+}
+function drawConfig(){
+  const c = CFG;
+  const mails = (c.mail_recipients || []).map((m, i) => `
+    <div class="cfg-row"><input class="cfg-mail" value="${esc(m)}" placeholder="이름@sk.com">
+      <button class="btn sm" onclick="cfgDelMail(${i})">삭제</button></div>`).join('');
+  const rows = (c.ccg_teams || []).map((t, i) => {
+    const n = CFG_USED[t.ccg] || 0;
+    return `<tr>
+      <td><input class="cfg-team" value="${esc(t.team)}" placeholder="팀 이름"></td>
+      <td><input class="cfg-code" value="${esc(t.ccg)}" placeholder="C0000" style="max-width:120px"></td>
+      <td class="cfg-used">${n ? `사용 중 <b>${n}건</b>` : '미사용'}</td>
+      <td>${n ? '<span class="sub">삭제 불가</span>'
+             : `<button class="btn sm" onclick="cfgDelTeam(${i})">삭제</button>`}</td>
+    </tr>`;
+  }).join('');
+  $('#v-config').innerHTML = `
+    <div class="note">여기서 고친 값은 <b>원장(data.json)</b>에 저장됩니다 — 코드를 바꾸거나 다시 배포하지 않아도 됩니다.
+      되돌리려면 <b>데이터 관리 → 백업 복원</b>을 쓰세요.</div>
+    <div id="cfgErr"></div>
+
+    <div class="card">
+      <h2>인폼 수신인</h2>
+      <p class="cap">실적을 저장할 때 만들어지는 인폼의 <b>수신</b> 칸에 들어갈 주소입니다.</p>
+      <div id="cfgMails">${mails}</div>
+      <div class="btns" style="margin-top:8px"><button class="btn sm" onclick="cfgAddMail()">+ 수신인 추가</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>CCG팀</h2>
+        <span class="sub">${c.ccg_from_settings ? '원장에 저장된 목록을 쓰는 중' : '아직 기본 목록을 쓰는 중 — 저장하면 원장으로 옮겨집니다'}</span></div>
+      <p class="cap">계획 등록 화면의 <b>CCG팀 드롭다운</b>과 <b>CCG 코드 자동 채움</b>에 쓰입니다.</p>
+      <div class="scroll"><table class="cfg-tbl">
+        <thead><tr><th>팀 이름</th><th>CCG 코드</th><th>원장 사용</th><th></th></tr></thead>
+        <tbody id="cfgTeams">${rows}</tbody></table></div>
+      <div class="btns" style="margin-top:8px"><button class="btn sm" onclick="cfgAddTeam()">+ 팀 추가</button></div>
+      <div class="cfg-warn"><b>이미 등록된 출장은 바뀌지 않습니다.</b>
+        팀 이름을 고쳐도 과거 건에는 그때 저장된 이름·코드가 그대로 남습니다 (센터 제출본과 대조가 되도록).
+        새 이름은 <b>앞으로 등록하는 건</b>부터 적용됩니다.<br>
+        원장에서 쓰이는 중인 팀은 지울 수 없습니다 — 지우면 과거 건의 소속이 미아가 됩니다.</div>
+    </div>
+
+    <div class="card">
+      <h2>그 외</h2>
+      <div class="form-grid c2">
+        <div><label for="cfgName">시스템 이름</label>
+          <input id="cfgName" value="${esc(c.system_name || '')}" maxlength="60"></div>
+        <div><label for="cfgUrl">참조 주소 <span class="au">인폼 하단에 표기</span></label>
+          <input id="cfgUrl" value="${esc(c.reference_url || '')}" maxlength="200"></div>
+        <div><label for="cfgPw">담당자 비밀번호 <span class="au">공백 없이 4자 이상</span></label>
+          <input id="cfgPw" value="${esc(c.admin_pw || '')}"></div>
+      </div>
+      <div class="cfg-warn">비밀번호를 바꾸면 <b>로그인 화면의 안내 문구에서 번호가 사라집니다</b>
+        (기본값일 때만 화면에 그대로 안내합니다). 바꾼 값은 담당자끼리 따로 공유하세요.</div>
+    </div>
+
+    <div class="btns">
+      <button class="btn pri" id="cfgSave" onclick="cfgSave()">설정 저장</button>
+      <button class="btn" onclick="rConfig()">되돌리기(다시 불러오기)</button>
+    </div>`;
+}
+function cfgRead(){
+  return {
+    mail_recipients: $$('#cfgMails .cfg-mail').map(i => i.value.trim()).filter(Boolean),
+    ccg_teams: $$('#cfgTeams tr').map(tr => ({
+      team: tr.querySelector('.cfg-team').value.trim(),
+      ccg: tr.querySelector('.cfg-code').value.trim(),
+    })).filter(t => t.team || t.ccg),
+    system_name: $('#cfgName').value.trim(),
+    reference_url: $('#cfgUrl').value.trim(),
+    admin_pw: $('#cfgPw').value.trim(),
+  };
+}
+function cfgKeep(){ Object.assign(CFG, cfgRead()); }        // 다시 그릴 때 입력 중이던 값 유지
+function cfgAddMail(){ cfgKeep(); CFG.mail_recipients.push(''); drawConfig(); }
+function cfgDelMail(i){ cfgKeep(); CFG.mail_recipients.splice(i, 1); drawConfig(); }
+function cfgAddTeam(){ cfgKeep(); CFG.ccg_teams.push({team: '', ccg: ''}); drawConfig(); }
+function cfgDelTeam(i){ cfgKeep(); CFG.ccg_teams.splice(i, 1); drawConfig(); }
+async function cfgSave(){
+  const body = cfgRead();
+  const btn = $('#cfgSave');
+  if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
+  const {ok, data} = await api('/settings', {method: 'POST', body: JSON.stringify(body)});
+  if (!ok) {
+    showErr('#cfgErr', data.errors || ['저장하지 못했습니다']);
+    if (btn) { btn.disabled = false; btn.textContent = '설정 저장'; }
+    $('#cfgErr').scrollIntoView({block: 'center'});
+    return;
+  }
+  // 비밀번호를 바꿨다면 지금 세션도 새 값으로 — 안 그러면 다음 요청부터 401 로 잠긴다
+  if (body.admin_pw && body.admin_pw !== adminPw()) sessionStorage.setItem('tb_pw', body.admin_pw);
+  toast((data.changed || []).length ? `설정을 저장했습니다` : '바뀐 내용이 없습니다');
+  await load(); await rConfig(); nav('config');
+}
+
 async function rData(){
   const {data} = await api('/backups');
   const rows = (data.backups || []).slice(0, 10).map(b => `<tr>
@@ -1799,7 +1927,9 @@ function askAdmin(then){
     <div class="mb">
       <div class="merr" id="admErr">비밀번호가 올바르지 않습니다.</div>
       <label for="admPw">비밀번호</label><input id="admPw" type="password" autocomplete="off">
-      <div class="hint">소재 출장 예산 담당자용 공개 비밀번호 — <b>2071478</b><br>
+      <div class="hint">${(ST.settings && ST.settings.pw_default === false)
+        ? '담당자가 비밀번호를 변경했습니다 — 소재 출장 예산 담당자에게 문의하세요.'
+        : '소재 출장 예산 담당자용 공개 비밀번호 — <b>2071478</b>'}<br>
         이관·처리 완료·예산 리비전·백업 복원에 필요합니다.</div>
       <div class="btns" style="margin-top:0">
         <button class="btn pri" id="admOk">확인</button>

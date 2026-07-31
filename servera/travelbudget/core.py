@@ -40,9 +40,34 @@ CCG_TEAMS = [
     {"team": "Target 소재팀",    "ccg": "C1707"},
 ]
 CCG_BY_NM = {t["team"]: t["ccg"] for t in CCG_TEAMS}
+CCG_MAX = 40                             # 화면·표에서 다룰 수 있는 상한 (오입력 방어선)
 
-APP_VERSION = "v10.7"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
-APP_BUILD = "2026-07-30"
+
+def ccg_teams(data=None):
+    """CCG 목록 — data.json 의 settings.ccg_teams 가 있으면 그것, 없으면 위 기본값.
+
+    조직 코드는 바뀐다. 코드에만 두면 바뀔 때마다 배포해야 하므로 설정으로 옮겼다.
+    설정 키가 없는 기존 원장도 그대로 돈다 — 스키마를 깨지 않는다."""
+    raw = ((data or {}).get("settings") or {}).get("ccg_teams")
+    if not isinstance(raw, list):
+        return CCG_TEAMS
+    out, seen = [], set()
+    for t in raw:
+        if not isinstance(t, dict):
+            continue
+        nm, cd = _txt(t.get("team")), _txt(t.get("ccg"))
+        if not nm or not cd or cd in seen:
+            continue
+        seen.add(cd)
+        out.append({"team": nm, "ccg": cd})
+    return out[:CCG_MAX] or CCG_TEAMS     # 전부 걸러졌으면 기본값으로 (빈 목록은 등록 불가 상태)
+
+
+def ccg_by_nm(data=None):
+    return {t["team"]: t["ccg"] for t in ccg_teams(data)}
+
+APP_VERSION = "v10.8"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_BUILD = "2026-07-31"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
 CSV_HEADERS = ["구분", "LV2", "CCG", "CCG명", "사번", "성명", "직책",
@@ -188,7 +213,8 @@ def proc_counts(g):
 
 
 # ── 정규화·검증 ───────────────────────────────────────────
-def normalize_group(g):
+def normalize_group(g, by_nm=None):
+    by_nm = by_nm if by_nm is not None else CCG_BY_NM
     g = deepcopy(g)
     g.setdefault("plan_type", "계획")
     g.setdefault("status", ST_PLAN)
@@ -211,8 +237,8 @@ def normalize_group(g):
         p.setdefault("rank", "TL")
         for k in ("name", "emp_no", "rank", "ccg_nm", "ccg"):
             p[k] = _txt(p.get(k))
-        if not p.get("ccg") and p.get("ccg_nm") in CCG_BY_NM:
-            p["ccg"] = CCG_BY_NM[p["ccg_nm"]]
+        if not p.get("ccg") and p.get("ccg_nm") in by_nm:
+            p["ccg"] = by_nm[p["ccg_nm"]]
         # 개인 처리 상태: 유효값만 유지, 그 외/없음은 ""(그룹 상속)
         p["status"] = p.get("status") if p.get("status") in PSTATES else ""
         for x in ("p", "a"):
@@ -238,7 +264,7 @@ def josa(w, pair="을를"):
     return pair[0] if has_final else pair[1]
 
 
-def validate_group(g, require_actual=False):
+def validate_group(g, require_actual=False, by_nm=None):
     e = []
     for k, label in (("city", "출장도시"), ("org", "출장기관&업체"),
                      ("purpose", "출장목적&사유"), ("dep_dt", "출발일자"),
@@ -261,7 +287,7 @@ def validate_group(g, require_actual=False):
     if not T:
         e.append("출장자를 1명 이상 입력하세요.")
     seen = set()
-    valid_ccg = set(CCG_BY_NM.values())
+    valid_ccg = set((by_nm if by_nm is not None else CCG_BY_NM).values())
     for i, p in enumerate(T, 1):
         if not str(p.get("name", "")).strip():
             e.append(f"{i}번 출장자 성명을 입력하세요.")
@@ -332,7 +358,7 @@ def dash(data, yq):
     cost_map = {k: 0 for k, _ in COST}
     nUsedPeople = [0]                    # 실집행 인원 (계획·확정 단계 제외)
     ccg_map = {}
-    for t in CCG_TEAMS:
+    for t in ccg_teams(data):
         ccg_map[t["ccg"]] = dict(team=t["team"], ccg=t["ccg"], done=0, wip=0,
                                  commit=0, plan=0, groups=set(), people=0, cpeople=0)
     # 미등록 CCG 코드도 버리지 않고 모아 합계가 어긋나지 않게 한다

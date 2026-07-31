@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 from functools import wraps
 from urllib.parse import quote
+import re
 from pathlib import Path
 
 from flask import Response, jsonify, render_template, request
@@ -41,8 +42,91 @@ def admin_required(fn):
     return wrap
 
 
+DEFAULT_PW = "2071478"                   # 배포 기본값. 바꾸면 로그인 힌트도 자동으로 감춘다
+
+
 def _public_settings(s):
-    return {k: v for k, v in s.items() if k not in ("admin_pw",)}
+    out = {k: v for k, v in s.items() if k not in ("admin_pw",)}
+    # 비밀번호는 사내 공개 설계다. 기본값 그대로면 로그인 화면에 그대로 안내하고,
+    # 바꿨으면 숫자를 노출하지 않는다(바뀐 뒤에도 옛 번호를 안내하면 거짓말이 된다).
+    out["pw_default"] = str(s.get("admin_pw", "")) == DEFAULT_PW
+    return out
+
+
+_MAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
+
+
+def _clean_settings(body, cur, data):
+    """설정 저장값 검증 — 잘못된 값이 원장에 들어가면 화면 전체가 못 쓰게 된다."""
+    e, out = [], {}
+
+    raw_m = body.get("mail_recipients")
+    raw_m = raw_m if isinstance(raw_m, list) else []
+    mails = [str(m).strip() for m in raw_m if isinstance(m, (str, int)) and str(m).strip()]
+    if not mails:
+        e.append("인폼 수신인을 1명 이상 입력하세요.")
+    if len(mails) > 10:
+        e.append("인폼 수신인은 10명까지입니다.")
+    for m in mails:
+        if not _MAIL_RE.match(m):
+            e.append(f"메일 주소 형식이 올바르지 않습니다 — {m}")
+    if len(set(mails)) != len(mails):
+        e.append("같은 메일 주소가 중복입니다.")
+    out["mail_recipients"] = mails[:10]
+
+    raw_t = body.get("ccg_teams")
+    teams = raw_t if isinstance(raw_t, list) else []
+    clean, codes, names = [], set(), set()
+    for i, t in enumerate(teams, 1):
+        if not isinstance(t, dict):
+            e.append(f"{i}번 CCG 형식이 올바르지 않습니다.")
+            continue
+        nm, cd = C._txt(t.get("team")), C._txt(t.get("ccg"))
+        if not nm or not cd:
+            e.append(f"{i}번 CCG — 팀명과 코드를 모두 입력하세요.")
+            continue
+        if len(nm) > 40 or len(cd) > 20:
+            e.append(f"{i}번 CCG — 팀명 40자·코드 20자를 넘습니다.")
+            continue
+        if cd in codes:
+            e.append(f"CCG 코드가 중복입니다 — {cd}")
+            continue
+        if nm in names:
+            e.append(f"CCG 팀명이 중복입니다 — {nm}")
+            continue
+        codes.add(cd); names.add(nm)
+        clean.append({"team": nm, "ccg": cd})
+    if not clean:
+        e.append("CCG 팀을 1개 이상 남겨야 합니다.")
+    if len(clean) > C.CCG_MAX:
+        e.append(f"CCG 팀은 {C.CCG_MAX}개까지입니다.")
+    # 이미 원장에 쓰인 팀을 지우면 과거 건의 소속이 미아가 된다 — 막는다
+    used = {}
+    for g in data.get("groups", []):
+        for p in (g.get("travelers") or []):
+            k = C._txt(p.get("ccg"))
+            if k:
+                used[k] = used.get(k, 0) + 1
+    for cd, n in used.items():
+        if cd not in codes:
+            nm = next((C._txt(p.get("ccg_nm")) for g in data.get("groups", [])
+                       for p in (g.get("travelers") or []) if C._txt(p.get("ccg")) == cd), cd)
+            e.append(f"‘{nm}({cd})’ 은 이미 {n}건에 쓰이고 있어 지울 수 없습니다. "
+                     f"이름만 바꾸거나 그대로 두세요.")
+    out["ccg_teams"] = clean
+
+    pw = C._txt(body.get("admin_pw")) or str(cur.get("admin_pw", ""))
+    if len(pw) < 4 or " " in pw:
+        e.append("비밀번호는 공백 없이 4자 이상이어야 합니다.")
+    out["admin_pw"] = pw
+
+    nm = C._txt(body.get("system_name")) or cur.get("system_name", "")
+    if len(nm) > 60:
+        e.append("시스템 이름은 60자까지입니다.")
+    out["system_name"] = nm[:60]
+    out["reference_url"] = (C._txt(body.get("reference_url"))
+                            if "reference_url" in body else cur.get("reference_url", ""))[:200]
+    return e, out
 
 
 _DIFF_LABELS = (("plan_type", "구분"), ("city", "출장도시"), ("org", "기관&업체"),
@@ -130,7 +214,7 @@ def api_state():
         "yq": yq,
         "yqList": C.yq_list(),
         "settings": _public_settings(data["settings"]),
-        "ccg": C.CCG_TEAMS,
+        "ccg": C.ccg_teams(data),
         "dash": C.dash(data, yq),
         "groups": groups,
         "budget": sorted([b for b in data["budget"] if b.get("yq") == yq],
@@ -153,8 +237,8 @@ def create_group():
         payload["created_at"] = datetime.now().isoformat(timespec="seconds")
         for p in _tlist(payload.get("travelers")):   # 개인 처리 상태 주입 금지 (신규는 항상 빈 값)
             p.pop("status", None)
-        g = C.normalize_group(payload)
-        errors = C.validate_group(g)
+        g = C.normalize_group(payload, by_nm=C.ccg_by_nm(data))
+        errors = C.validate_group(g, by_nm=C.ccg_by_nm(data))
         if errors:
             return _err(errors)
         data["groups"].append(g)
@@ -187,8 +271,8 @@ def update_group(gid):
             p["status"] = src.get("status", "")
             for k in C.KEYS:
                 p[f"a_{k}"] = C.num(src.get(f"a_{k}"))
-        g = C.normalize_group(merged)
-        errors = C.validate_group(g, require_actual=g["status"] in C.WIP)
+        g = C.normalize_group(merged, by_nm=C.ccg_by_nm(data))
+        errors = C.validate_group(g, require_actual=g["status"] in C.WIP, by_nm=C.ccg_by_nm(data))
         if errors:
             return _err(errors)
         g["updated_at"] = datetime.now().isoformat(timespec="seconds")
@@ -226,7 +310,7 @@ def input_actual(gid):
         if "remark" in body:
             g["remark"] = str(body.get("remark") or "").strip()
         g["status"] = C.ST_INFORM
-        errors = C.validate_group(g, require_actual=True)
+        errors = C.validate_group(g, require_actual=True, by_nm=C.ccg_by_nm(data))
         if errors:
             return _err(errors)
         g = C.normalize_group(g)
@@ -405,6 +489,48 @@ def set_sap(gid):
 
 
 # ── 대시보드 안내 문구 (관리자) ───────────────────────────
+# ── 시스템 설정 (관리자) ────────────────────────────────
+@travelbudget.get("/api/settings")
+@admin_required
+def get_settings():
+    data = load_data()
+    # 어느 팀이 몇 건에 쓰이는지 함께 준다 — 지우기 전에 화면에서 보여야 한다
+    used = {}
+    for g in data.get("groups", []):
+        for p in (g.get("travelers") or []):
+            k = C._txt(p.get("ccg"))
+            if k:
+                used[k] = used.get(k, 0) + 1
+    s = data["settings"]
+    return jsonify({"ok": True, "settings": {
+        "system_name": s.get("system_name", ""),
+        "reference_url": s.get("reference_url", ""),
+        "admin_pw": s.get("admin_pw", ""),
+        "mail_recipients": list(s.get("mail_recipients") or []),
+        "ccg_teams": C.ccg_teams(data),
+        "ccg_from_settings": isinstance(s.get("ccg_teams"), list),
+    }, "ccgUsed": used})
+
+
+@travelbudget.post("/api/settings")
+@admin_required
+def set_settings():
+    b = _body()
+    with LOCK:
+        data = load_data()
+        errs, clean = _clean_settings(b, data["settings"], data)
+        if errs:
+            return _err(errs)
+        before = dict(data["settings"])
+        data["settings"].update(clean)
+        chg = [k for k in clean if before.get(k) != clean[k]]
+        append_audit(data, "시스템 설정 변경",
+                     ", ".join(chg) or "변경 없음", actor="admin")
+        save_data(data)
+        return jsonify({"ok": True, "settings": _public_settings(data["settings"]),
+                        "changed": chg, "ccg": C.ccg_teams(data)})
+
+
 @travelbudget.post("/api/notice")
 @admin_required
 def set_notice():
