@@ -30,7 +30,7 @@ const parse = t => p.evaluate(txt => { try { const r = bParse(txt);
   catch (e) { return {throw: e.message}; } }, t);
 
 const H = '구분\tCCG명\t사번\t성명\t직책\t출장도시\t출장기관&업체\t출장목적&사유\t출발일자\t복귀일자\t자차사용여부\t출장구분\t계획_교통비\t계획_숙박비\t계획_식대&잡비\t계획_기타';
-const row = (o) => ['계획', o.cc??'Gas 소재팀', o.no??'1001', o.nm??'홍길동', o.rk??'TL',
+const row = (o) => ['계획', o.cc??'EDTW소재기술', o.no??'1001', o.nm??'홍길동', o.rk??'TL',
   o.city??'청주', o.org??'원익', o.pp??'정기 실사', o.dep??'2026-08-04', o.ret??'2026-08-05',
   o.car??'미사용', o.kind??'정기 Audit', o.t1??'70000', o.t2??'0', o.t3??'0', o.t4??''].join('\t');
 
@@ -63,11 +63,18 @@ r = await parse(H + '\n' + row({dep:'날짜아님'}));
 ok('깨진 날짜는 행 번호로 오류', r.n === 0 && r.errs[0].includes('2행') && r.errs[0].includes('출발일자'), r.errs);
 
 console.log('\n== C. CCG 팀명 인식 (표기가 제각각) ==');
-for (const [inp, want] of [['Gas 소재팀','Gas 소재팀'], ['Gas소재팀','Gas 소재팀'],
-     ['gas 소재팀','Gas 소재팀'], ['C1202','Gas 소재팀'], ['Chemical소재팀','Chemical 소재팀'],
-     ['  Photo 소재팀  ','Photo 소재팀']]) {
+for (const [inp, want] of [['EDTW소재기술','EDTW소재기술'], ['edtw소재기술','EDTW소재기술'],
+     ['EDTW 소재기술','EDTW소재기술'], ['50119134','EDTW소재기술'], ['C&C소재기술','C&C소재기술'],
+     ['  Patterning소재기술  ','Patterning소재기술'], ['소재전략','소재전략']]) {
   const rr = await parse(H + '\n' + row({cc: inp}));
   ok(`CCG "${inp.trim()}" → ${want}`, rr.n === 1 && rr.g[0].t[0].cc === want, rr.n ? rr.g[0].t[0].cc : rr.errs);
+}
+/* 앞이 같은 팀이 둘 이상이면 추측하면 안 된다.
+   'Patterning소재' 는 기술/개발 둘 다에 걸린다 — 먼저 찾은 것을 쓰면 개발 건이 기술로 새어 들어간다. */
+for (const amb of ['Patterning소재', 'C&C소재', 'EDTW소재']) {
+  const rr = await parse(H + '\n' + row({cc: amb}));
+  ok(`앞이 겹치는 "${amb}" 는 추측 안 함`, rr.n === 0 && String(rr.errs).includes(amb),
+     rr.n ? rr.g[0].t[0].cc : rr.errs);
 }
 r = await parse(H + '\n' + row({cc:'없는팀'}));
 ok('모르는 팀은 오류로 알림(추측 안 함)', r.n === 0 && r.errs[0].includes('없는팀'), r.errs);
@@ -80,7 +87,7 @@ for (const [inp, want] of [['70000',70000], ['70,000',70000], ['70,000원',70000
 }
 
 console.log('\n== E. 동행자 묶기 ==');
-r = await parse(H + '\n' + row({no:'1', nm:'A'}) + '\n' + row({no:'2', nm:'B', cc:'Photo 소재팀'}));
+r = await parse(H + '\n' + row({no:'1', nm:'A'}) + '\n' + row({no:'2', nm:'B', cc:'Patterning소재기술'}));
 ok('같은 출장 2명 → 1건 2인', r.n === 1 && r.g[0].t.length === 2, {n:r.n, t:r.n&&r.g[0].t.length});
 r = await parse(H + '\n' + row({no:'1', nm:'A'}) + '\n' + row({no:'1', nm:'A'}));
 ok('같은 출장 사번 중복 → 오류', r.n === 1 && r.g[0].t.length === 1 && r.errs.some(e=>e.includes('중복')), r.errs);
@@ -90,11 +97,11 @@ r = await parse(H + '\n' + row({no:'1', pp:'목적A'}) + '\n' + row({no:'2', pp:
 ok('목적 다르면 별건', r.n === 2, r.n);
 
 console.log('\n== F. 머리글 없이 센터 27필드 순서 ==');
-const c27 = ['계획','소재','C1202','Gas 소재팀','20140508','박영희','팀장','청주','원익머트리얼즈',
+const c27 = ['계획','소재','50119134','EDTW소재기술','20140508','박영희','팀장','청주','원익머트리얼즈',
   'NF3 정기 Audit','2026-08-04','2026-08-05','','','자차사용','정기 Audit','','70000','95000','65000','10000',
   '','','','','',''].join('\t');
 r = await parse(c27);
-ok('머리글 없이 27필드 순서 인식', r.n === 1 && r.g[0].t[0].cc === 'Gas 소재팀'
+ok('머리글 없이 27필드 순서 인식', r.n === 1 && r.g[0].t[0].cc === 'EDTW소재기술'
    && r.g[0].t[0].p[0] === 70000 && r.g[0].car === '자차사용', r.n ? r.g[0] : r.errs);
 r = await parse(c27 + '\n' + c27.replace('20140508','2071478').replace('박영희','이정훈'));
 ok('27필드 동행 2명 묶기', r.n === 1 && r.g[0].t.length === 2, {n:r.n});

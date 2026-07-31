@@ -12,7 +12,7 @@ app.config['TESTING'] = True
 c = app.test_client(); ADM = {'X-Admin-PW': '2071478'}; B = '/travelbudget'
 base = dict(plan_type='계획', city='시', org='업', purpose='목', kind='정기 Audit',
             dep_dt='2026-09-10', ret_dt='2026-09-11',
-            travelers=[dict(name='홍', emp_no='F1', rank='TL', ccg_nm='Gas 소재팀', p_trans=100000)])
+            travelers=[dict(name='홍', emp_no='F1', rank='TL', ccg_nm='EDTW소재기술', p_trans=100000)])
 gid = c.post(B + '/api/groups', json=base).get_json()['group']['group_id']
 
 VALS = [None, 0, -1, '', ' ', 'x' * 300, [], {}, [[]], [None], True, 3.7, '<script>',

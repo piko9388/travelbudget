@@ -137,16 +137,16 @@ try {
   // traveler 1
   await page.fill('#travBody tr:nth-child(1) .t-nm', '홍길동');
   await page.fill('#travBody tr:nth-child(1) .t-no', 'E9001');
-  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'Gas 소재팀');
+  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'EDTW소재기술');
   const ccgAuto = await page.inputValue('#travBody tr:nth-child(1) .t-cc');
-  ok('CCG No. 자동채움', ccgAuto === 'C1202', ccgAuto);
+  ok('CCG No. 자동채움', ccgAuto === '50119134', ccgAuto);
   await page.fill('#travBody tr:nth-child(1) .t-p-trans', '70000');
   await page.fill('#travBody tr:nth-child(1) .t-p-lodg', '90000');
   // add companion
   await page.click('button:has-text("+ 동행자 추가")');
   await page.fill('#travBody tr:nth-child(2) .t-nm', '김동행');
   await page.fill('#travBody tr:nth-child(2) .t-no', 'E9002');
-  await page.selectOption('#travBody tr:nth-child(2) .t-tm', 'Photo 소재팀');
+  await page.selectOption('#travBody tr:nth-child(2) .t-tm', 'Patterning소재기술');
   await page.fill('#travBody tr:nth-child(2) .t-p-trans', '70000');
   const planTot = await page.textContent('#planTot');
   ok('계획 총합계 집계', planTot.replace(/[^0-9]/g, '') === '230000', planTot);
@@ -242,7 +242,7 @@ try {
   await page.fill('#pl_ret', `${yy}-${mm}-18`);
   await page.fill('#travBody tr:nth-child(1) .t-nm', '해커');
   await page.fill('#travBody tr:nth-child(1) .t-no', 'X1');
-  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'Gas 소재팀');
+  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'EDTW소재기술');
   await page.fill('#travBody tr:nth-child(1) .t-p-trans', '10000');
   await page.click('#v-plan button:has-text("출장 계획 등록")');
   await sleep(400);
@@ -270,7 +270,7 @@ try {
   await page.fill('#pl_city', '대전'); await page.fill('#pl_org', '확정테스트'); await page.fill('#pl_purpose', '확정 E2E');
   await page.fill('#pl_dep', `${yy}-${mm}-20`); await page.fill('#pl_ret', `${yy}-${mm}-21`);
   await page.fill('#travBody tr:nth-child(1) .t-nm', '확정자'); await page.fill('#travBody tr:nth-child(1) .t-no', 'CF1');
-  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'Gas 소재팀'); await page.fill('#travBody tr:nth-child(1) .t-p-trans', '100000');
+  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'EDTW소재기술'); await page.fill('#travBody tr:nth-child(1) .t-p-trans', '100000');
   await page.click('#v-plan button:has-text("출장 계획 등록")'); await sleep(400);
   const cfid = await page.evaluate(() => ST.groups.find(g => g.org === '확정테스트')?.group_id);
   ok('잠정으로 생성(계획 등록)', (await page.evaluate(g => ST.groups.find(x => x.group_id === g).status, cfid)) === '계획 등록');
@@ -296,7 +296,7 @@ try {
     const yq = YQ, yy = yq.split('-')[0], mm = String(parseInt(yq.split('-')[1]) * 3).padStart(2, '0');
     const g = {plan_type:'계획',city:'x',org:'XSS클릭',purpose:'p',kind:'정기 Audit',
       dep_dt:`${yy}-${mm}-19`,ret_dt:`${yy}-${mm}-19`,car:'미사용',
-      travelers:[{name:'공격자',emp_no:emp,rank:'TL',ccg_nm:'Gas 소재팀',p_trans:50000}]};
+      travelers:[{name:'공격자',emp_no:emp,rank:'TL',ccg_nm:'EDTW소재기술',p_trans:50000}]};
     const r = await fetch('/travelbudget/api/groups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(g)});
     const id = (await r.json()).group.group_id;
     await fetch(`/travelbudget/api/groups/${id}/actual`,{method:'POST',headers:{'Content-Type':'application/json'},
@@ -493,7 +493,7 @@ try {
   await page.fill('#pl_purpose', '엔터키 제출 확인');
   await page.fill('#travBody tr:nth-child(1) .t-nm', '엔터');
   await page.fill('#travBody tr:nth-child(1) .t-no', 'EN1');
-  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'Gas 소재팀');
+  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'EDTW소재기술');
   await page.press('#pl_city', 'Enter');
   await sleep(600);
   const eg = await page.evaluate(() => ST.groups.find(g => g.org === '엔터제출테스트'));
@@ -567,7 +567,7 @@ try {
   await sleep(400);
   const clip = await page.evaluate(() => navigator.clipboard.readText());
   ok('복사된 내용이 프롬프트 전문', clip.includes('당신은 사내 출장비 데이터 변환기입니다')
-     && clip.includes('Gas 소재팀') && clip.includes('실적 입력·인폼')
+     && clip.includes('EDTW소재기술') && clip.includes('실적 입력·인폼')
      && clip.includes('[원본 데이터]') && clip.length > 3000, clip.length);
   ok('복사본에 자동계산 필드 금지 규칙 포함', clip.includes('출력하지 마세요'));
   await page.click('button:has-text("투입 전 검증 명령 복사")');
@@ -837,13 +837,13 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(() => nav('plan'));
   await page.waitForSelector('#travBody tr');
-  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'Gas 소재팀');
+  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'EDTW소재기술');
   const ccg = await page.evaluate(() => {
     const tr = document.querySelector('#travBody tr');
     return { hidden: tr.querySelector('.t-cc').value, shown: tr.querySelector('.t-cc-v').textContent.trim(),
              cols: document.querySelectorAll('#v-plan thead tr:first-child th').length };
   });
-  ok('CCG 코드 자동 채움 유지', ccg.hidden === 'C1202' && ccg.shown === 'C1202', ccg);
+  ok('CCG 코드 자동 채움 유지', ccg.hidden === '50119134' && ccg.shown === '50119134', ccg);
   ok('CCG No. 전용 열 없음(팀 칸 안 표기)',
      !(await page.textContent('#v-plan thead')).includes('CCG No.'), ccg.cols);
 
@@ -997,7 +997,7 @@ try {
   const bulkChk = await page.evaluate(() => {
     // (1) '목적' 머리글 별칭이 자기 자신으로 매핑돼 그 열이 통째로 무시되던 문제
     const head = '출장도시\t출장기관&업체\tCCG명\t성명\t사번\t목적\t출발일자';
-    const row = '청주\t원익머트리얼즈\tGas 소재팀\t김테스트\tT001\tNF3 정기 점검\t2026-08-10';
+    const row = '청주\t원익머트리얼즈\tEDTW소재기술\t김테스트\tT001\tNF3 정기 점검\t2026-08-10';
     const r1 = bParse(head + '\n' + row);
     // (2) 빈 출장구분이 '정기 Audit' 으로 채워져 센터 CSV 에 그럴듯한 거짓이 나가던 문제
     const kind = bKind('');

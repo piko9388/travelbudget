@@ -1,4 +1,4 @@
-# 소재 국내 출장비 관리 v10.8
+# 소재 국내 출장비 관리 v10.9
 
 소재전략 국내 출장비 계획·실적·인폼·정산 관리 (Flask + data.json 단일 파일 저장)
 
@@ -16,7 +16,7 @@
 
 > **이미 데이터가 쌓인 서버를 올릴 때는 [UPGRADE.md](UPGRADE.md).**
 > 백업 → 파일 5개 교체 → 숫자 대조 → 되돌리기까지 클릭 순서로 적었습니다.
-> 실제로 v9.4에 데이터를 쌓아 v10.8로 올리고 다시 되돌리는 리허설을 돌려 확인한 절차입니다.
+> 실제로 v9.4에 데이터를 쌓아 v10.9로 올리고 다시 되돌리는 리허설을 돌려 확인한 절차입니다.
 
 ## 구성 (6개 파일)
 
@@ -24,7 +24,7 @@
 |---|---|
 | `core.py` | 계산 엔진 SSOT — 잔여 공식·검증·인폼 생성·CSV |
 | `store.py` | data.json 원자적 저장 + 자동백업 30개 + 감사로그 |
-| `routes.py` | API 23개 + 화면 3개 (예산 담당자 행위는 X-Admin-PW 서버 검증, `core.locked` 경계) |
+| `routes.py` | API 24개 + 화면 3개 (예산 담당자 행위는 X-Admin-PW 서버 검증, `core.locked` 경계) |
 | `templates/index.html` | 화이트+네이비 테마, 맑은 고딕(사내 윈도우 기본 글꼴) |
 | `static/app.js` | 전 화면 (대시보드/계획/실적/내역/이관·처리/예산/데이터) |
 | `data_json/data.json` | 정본 (백업: `data_json/backup/`) — 운영은 **`TB_DATA_DIR`** 로 앱 밖 지정 권장 |
@@ -38,7 +38,7 @@
 - 머리글이 있으면 **열 이름으로** 매칭, 없으면 **센터 27필드 순서**로 읽습니다
 - 필수 열: 출장도시 · 출장기관&업체 · 출장목적&사유 · 출발일자 · 성명 · 사번 · CCG명
 - 같은 도시·업체·일자·목적 행은 **동행자**로 보고 한 건으로 묶습니다
-- `Gas소재팀`·`C1202` 같은 표기도 정확한 팀명으로 인식, 금액은 콤마·"원" 허용,
+- `EDTW소재기술`·`50119134` 같은 표기도 정확한 팀명으로 인식, 금액은 콤마·"원" 허용,
   날짜는 `2026.8.4`·`26/08/04`·엑셀 일련번호 모두 변환
 - 오류는 **원본 행 번호**로 알려주고, 등록 전 미리보기로 확인합니다
 - 기본은 **잠정 계획**(예산 미반영). 체크하면 바로 확정
@@ -47,7 +47,7 @@
 파싱·묶기는 모두 화면(app.js)에서 하고 기존 `POST /api/groups` 를 그대로 씁니다 —
 **data.json 스키마는 변하지 않습니다.**
 
-## 시스템 설정 (v10.8)
+## 시스템 설정 (v10.9)
 
 좌측 메뉴 **시스템 설정**(예산 담당자 인증 필요) — 조직이 바뀔 때 **코드를 고치지 않고** 화면에서 바꿉니다.
 
@@ -146,12 +146,12 @@ python3 tools/build_docs.py      # 정적(GitHub Pages) 재조립
 
 | 명령 | 필요 조건 | 결과 | 운영 데이터 |
 |---|---|---|---|
-| `python3 test_api.py` | Flask만 | **444 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
+| `python3 test_api.py` | Flask만 | **468 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
 | `python3 smoke_test.py [URL]` | 기동 중인 서버 | **19 passed / 0 failed** | 읽기 전용 (변경 없음) |
 | `python3 tools/e2e/fuzz.py` | Flask만 | 퍼징 1,302회 → 500 오류 **0건** | 임시 폴더 |
 | `node tools/e2e/e2e.mjs` | Node 18+ · Playwright | **211 passed / 0 failed** | 임시 폴더 |
 | `node tools/e2e/e2e_pages.mjs` | Node 18+ · Playwright | **25 passed / 0 failed** | 해당 없음(정적판) |
-| `node tools/e2e/bulk_debug.mjs` | Node 18+ · Playwright | **49 passed / 0 failed** | 임시 폴더 |
+| `node tools/e2e/bulk_debug.mjs` | Node 18+ · Playwright | **53 passed / 0 failed** | 임시 폴더 |
 
 Playwright 가 기본 경로에 없으면 `PLAYWRIGHT_PATH=/경로/playwright/index.js` 로 지정합니다.
 브라우저 스크립트는 개발용이며 **사내 서버 배포에는 필요 없습니다** — 서버에서는 `smoke_test.py` 만 쓰세요.

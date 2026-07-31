@@ -44,7 +44,7 @@
   "system_name": "소재 국내 출장비 관리",
   "admin_id": "2071478",
   "admin_pw": "2071478",
-  "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong.kim@sk.com"],
+  "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong5.kim@sk.com"],
   "reference_url": "material.skhynix.com/travelbudget"
 }
 ```
@@ -96,10 +96,10 @@
   "car": "자차사용",
   "remark": "",
   "travelers": [
-    { "name": "박영희", "emp_no": "20140508", "rank": "팀장", "ccg_nm": "Gas 소재팀",
+    { "name": "박영희", "emp_no": "20140508", "rank": "팀장", "ccg_nm": "EDTW소재기술",
       "p_trans": 70000, "p_lodg": 95000, "p_meal": 65000, "p_etc": 10000,
       "a_trans": 65000, "a_lodg": 90000, "a_meal": 60000, "a_etc": 10000 },
-    { "name": "이정훈", "emp_no": "2071478", "rank": "TL", "ccg_nm": "Chemical 소재팀",
+    { "name": "이정훈", "emp_no": "2071478", "rank": "TL", "ccg_nm": "C&C소재기술",
       "p_trans": 70000, "p_lodg": 95000, "p_meal": 65000, "p_etc": 10000,
       "a_trans": 68000, "a_lodg": 90000, "a_meal": 62000, "a_etc": 8000 }
   ]
@@ -178,13 +178,13 @@
 
 | 팀명 (`ccg_nm`) | 코드 (`ccg`, 자동) |
 |---|---|
-| `Photo 소재팀` | C1303 |
-| `Chemical 소재팀` | C1101 |
-| `CMP 소재팀` | C1404 |
-| `Gas 소재팀` | C1202 |
-| `Precursor 소재팀` | C1505 |
-| `Wafer 소재팀` | C1606 |
-| `Target 소재팀` | C1707 |
+| `Patterning소재기술` | 50119135 |
+| `C&C소재기술` | 50139632 |
+| `C&C소재개발` | 50134405 |
+| `EDTW소재기술` | 50119134 |
+| `EDTW소재개발` | 50103536 |
+| `P&C소재` | 50128121 |
+| `소재전략` | 50110502 |
 
 ---
 

@@ -24,10 +24,10 @@
   var PSTATES = [ST_INFORM, ST_TRANSFER, ST_HOLD, ST_DONE]; // 출장자 개인 처리 상태
   var ADMIN_ZONE = [ST_TRANSFER, ST_HOLD, ST_DONE];         // 예산 담당자가 결정한 영역
   var CCG_TEAMS = [
-    { team: 'Photo 소재팀', ccg: 'C1303' }, { team: 'Chemical 소재팀', ccg: 'C1101' },
-    { team: 'CMP 소재팀', ccg: 'C1404' }, { team: 'Gas 소재팀', ccg: 'C1202' },
-    { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
-    { team: 'Target 소재팀', ccg: 'C1707' }];
+    { team: 'Patterning소재기술', ccg: '50119135' }, { team: 'C&C소재기술', ccg: '50139632' },
+    { team: 'C&C소재개발', ccg: '50134405' }, { team: 'EDTW소재기술', ccg: '50119134' },
+    { team: 'EDTW소재개발', ccg: '50103536' }, { team: 'P&C소재', ccg: '50128121' },
+    { team: '소재전략', ccg: '50110502' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
   var CCG_MAX = 40;
   // CCG 는 설정(data.settings.ccg_teams)에 있으면 그것을, 없으면 위 기본값을 쓴다 — core.py 와 동일
@@ -49,10 +49,25 @@
   function ccgByCd(data) {
     var m = {}; ccgTeams(data).forEach(function (t) { m[t.ccg] = t.team; }); return m;
   }
+  function ccgUsage(data) {
+    var used = {}, names = {};
+    (data.groups || []).forEach(function (g) {
+      (g.travelers || []).forEach(function (p) {
+        var k = txt(p.ccg); if (!k) return;
+        used[k] = (used[k] || 0) + 1;
+        if (names[k] === undefined) names[k] = txt(p.ccg_nm);
+      });
+    });
+    var known = ccgByCd(data);
+    var stale = Object.keys(used).filter(function (k) { return !known[k]; })
+      .sort(function (a, b) { return used[b] - used[a]; })
+      .map(function (k) { return { ccg: k, name: names[k] || k, n: used[k] }; });
+    return { used: used, stale: stale };
+  }
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.8', APP_BUILD = '2026-07-31';
+  var APP_VERSION = 'v10.9', APP_BUILD = '2026-07-31';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
@@ -483,32 +498,32 @@
     var groups = [
       grp('TB-0001', '계획', ST_DONE, '이천', '동우화인켐',
         'ArF Photo Resist 정기 품질 실사 및 CoA 항목 협의', K[2], dd(2), dd(3), '자차사용',
-        [trav('김철수', '20150322', '팀장', 'Chemical 소재팀', [80000, 0, 90000, 20000], [60000, 0, 85000, 15000])]),
+        [trav('김철수', '20150322', '팀장', 'C&C소재기술', [80000, 0, 90000, 20000], [60000, 0, 85000, 15000])]),
       grp('TB-0002', '계획', ST_DONE, '청주', '원익머트리얼즈',
         'NF3 순도 관리 정기 Audit', K[2], dd(4), dd(5), '자차사용',
-        [trav('박영희', '20140508', '팀장', 'Gas 소재팀', [70000, 95000, 65000, 10000], [65000, 90000, 60000, 10000]),
-        trav('이정훈', '2071478', 'TL', 'Chemical 소재팀', [70000, 95000, 65000, 10000], [68000, 90000, 62000, 8000])]),
+        [trav('박영희', '20140508', '팀장', 'EDTW소재기술', [70000, 95000, 65000, 10000], [65000, 90000, 60000, 10000]),
+        trav('이정훈', '2071478', 'TL', 'C&C소재기술', [70000, 95000, 65000, 10000], [68000, 90000, 62000, 8000])]),
       grp('TB-0003', '계획', ST_TRANSFER, '화성', '동진쎄미켐',
         'KrF PR Outgassing 개선 사양 협의', K[1], dd(6), dd(7), '자차사용',
-        [trav('이민호', '20120233', '팀장', 'Photo 소재팀', [60000, 0, 70000, 10000], [72000, 0, 78000, 12000])],
+        [trav('이민호', '20120233', '팀장', 'Patterning소재기술', [60000, 0, 70000, 10000], [72000, 0, 78000, 12000])],
         '현지 미팅 연장으로 식대 증가'),
       grp('TB-0004', '긴급', ST_INFORM, '성남', '케이씨텍',
         'CMP Slurry 이물 유입 긴급 대응 (Particle 급증)', K[3], dd(7), dd(8), '자차사용',
-        [trav('정다은', '20200711', '팀장', 'CMP 소재팀', Z, [90000, 105000, 60000, 30000])],
+        [trav('정다은', '20200711', '팀장', 'C&C소재개발', Z, [90000, 105000, 60000, 30000])],
         '소재하자 발생에 따른 긴급 출장 (사전 계획 없음)'),
       grp('TB-0005', '계획', ST_INFORM, '공주', '솔브레인',
         'Wet Chemical 신규 Lot 품질 실사', K[1], dd(9), dd(10), '자차사용',
-        [trav('이수진', '20180915', '팀장', 'Chemical 소재팀', [90000, 95000, 80000, 20000], [88000, 90000, 75000, 18000])]),
+        [trav('이수진', '20180915', '팀장', 'C&C소재기술', [90000, 95000, 80000, 20000], [88000, 90000, 75000, 18000])]),
       grp('TB-0006', '계획', ST_PLAN, '세종', 'SK트리켐',
         'Precursor PCN 대응 및 Lot 이력 협의', K[1], dd(20), dd(21), '자차사용',
-        [trav('최준영', '20170419', '팀장', 'Precursor 소재팀', [80000, 90000, 70000, 15000], Z)]),
+        [trav('최준영', '20170419', '팀장', 'EDTW소재개발', [80000, 90000, 70000, 15000], Z)]),
       grp('TB-0007', '계획', ST_CONFIRM, '구미', 'SK실트론',
         'Wafer 표면 결함 정기 Audit', K[2], dd(25), dd(26), '미사용',
-        [trav('한지우', '20210302', '팀장', 'Wafer 소재팀', [120000, 100000, 70000, 20000], Z),
-        trav('오세훈', '20160828', '팀장', 'Target 소재팀', [120000, 100000, 70000, 20000], Z)]),
+        [trav('한지우', '20210302', '팀장', 'P&C소재', [120000, 100000, 70000, 20000], Z),
+        trav('오세훈', '20160828', '팀장', '소재전략', [120000, 100000, 70000, 20000], Z)]),
       grp('TB-0008', '계획', ST_CANCEL, '서울', '이엔에프테크놀로지',
         'i-line PR 정기 실사', K[2], dd(5), dd(5), '자차사용',
-        [trav('이민호', '20120233', '팀장', 'Photo 소재팀', [50000, 0, 40000, 10000], Z)],
+        [trav('이민호', '20120233', '팀장', 'Patterning소재기술', [50000, 0, 40000, 10000], Z)],
         'BP 측 일정 연기 요청으로 취소')
     ];
     var budget = [
@@ -522,7 +537,7 @@
         notice: '현재 소재 배정 예산 소진 후 센터 예산 사용 중으로, 식비 15,000원, 회사 공용 차량 이용 통한 교통비 절감 요청 드립니다',
         notice_sub: '(사용 전/후 센터 검토 시 반려될 수 있음)',
         admin_pw: '2071478',
-        mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong.kim@sk.com'],
+        mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong5.kim@sk.com'],
         reference_url: 'material.skhynix.com/travelbudget'
       },
       budget: budget, groups: groups.map(normalizeGroup), audit_log: []
@@ -761,16 +776,35 @@
     }
     if (path === '/settings' && method === 'GET') {
       if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
-      var used = {};
-      (data.groups || []).forEach(function (g) {
-        (g.travelers || []).forEach(function (p) { var k = txt(p.ccg); if (k) used[k] = (used[k] || 0) + 1; });
-      });
-      var st = data.settings;
+      var u = ccgUsage(data), st = data.settings;
       return okr({ settings: {
         system_name: st.system_name || '', reference_url: st.reference_url || '',
         admin_pw: st.admin_pw || '', mail_recipients: (st.mail_recipients || []).slice(),
         ccg_teams: ccgTeams(data), ccg_from_settings: Array.isArray(st.ccg_teams)
-      }, ccgUsed: used });
+      }, ccgUsed: u.used, ccgStale: u.stale });
+    }
+    // 원장의 옛 CCG 코드를 새 팀으로 옮기기 — routes.ccg_migrate 와 같은 규칙
+    if (path === '/ccg_migrate' && method === 'POST') {
+      if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
+      var src = txt(body.from), dst = txt(body.to), codes = ccgByCd(data);
+      if (!src || !dst) return err('옮길 CCG 코드와 대상 팀을 모두 고르세요.');
+      if (!codes[dst]) return err('대상 팀(' + dst + ')이 CCG 목록에 없습니다. 먼저 목록에 추가하세요.');
+      if (src === dst) return err('같은 코드로는 옮길 수 없습니다.');
+      var moved = 0, gCnt = 0;
+      (data.groups || []).forEach(function (g) {
+        var hit = false;
+        (g.travelers || []).forEach(function (p) {
+          if (txt(p.ccg) === src) { p.ccg = dst; p.ccg_nm = codes[dst]; moved++; hit = true; }
+        });
+        if (hit) gCnt++;
+      });
+      if (!moved) return err('원장에서 ' + src + ' 를 쓰는 출장자를 찾지 못했습니다.');
+      appendAudit(data, 'CCG 코드 이동',
+        src + ' → ' + dst + '(' + codes[dst] + ') · 출장자 ' + moved + '명 · 출장 ' + gCnt + '건', 'admin');
+      Store.save(data);
+      CUR_BY_CD = ccgByCd(data);
+      var u2 = ccgUsage(data);
+      return okr({ moved: moved, groups: gCnt, ccgUsed: u2.used, ccgStale: u2.stale });
     }
     if (path === '/settings' && method === 'POST') {
       if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
@@ -799,8 +833,11 @@
       (data.groups || []).forEach(function (g) {
         (g.travelers || []).forEach(function (p) { var k = txt(p.ccg); if (k) used2[k] = (used2[k] || 0) + 1; });
       });
+      // '지금 목록에 있던 것을 빼는' 경우만 막는다 — routes._clean_settings 와 동일.
+      // (개편 직후 원장에만 남은 옛 코드까지 걸면 메일 한 줄 바꾸는 저장도 거부된다)
+      var prevCodes = ccgByCd(data);
       Object.keys(used2).forEach(function (cd) {
-        if (!codes[cd]) e.push('‘' + cd + '’ 은 이미 ' + used2[cd] + '건에 쓰이고 있어 지울 수 없습니다.');
+        if (!codes[cd] && prevCodes[cd]) e.push('‘' + cd + '’ 은 이미 ' + used2[cd] + '건에 쓰이고 있어 지울 수 없습니다.');
       });
       var pw = txt(body.admin_pw) || String(cur.admin_pw || '');
       if (pw.length < 4 || pw.indexOf(' ') >= 0) e.push('비밀번호는 공백 없이 4자 이상이어야 합니다.');

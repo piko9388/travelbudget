@@ -34,7 +34,7 @@
 {
   "system_name": "소재 국내 출장비 관리",
   "admin_pw": "2071478",
-  "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong.kim@sk.com"],
+  "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong5.kim@sk.com"],
   "reference_url": "material.skhynix.com/travelbudget"
 }
 
@@ -60,7 +60,7 @@
   "car": "자차사용",
   "remark": "",
   "travelers": [
-    { "name": "박영희", "emp_no": "20140508", "rank": "팀장", "ccg_nm": "Gas 소재팀",
+    { "name": "박영희", "emp_no": "20140508", "rank": "팀장", "ccg_nm": "EDTW소재기술",
       "p_trans": 70000, "p_lodg": 95000, "p_meal": 65000, "p_etc": 10000,
       "a_trans": 65000, "a_lodg": 90000, "a_meal": 60000, "a_etc": 10000 }
   ]
@@ -99,8 +99,12 @@
   car       : 미사용 / 자차사용
   kind      : 기술교류(Live Demo, Data 분석) / 실사&사양 개선,협의 / 정기 Audit /
               비정기 Audit(Issue/Theme) / 기타
-  ccg_nm    : Photo 소재팀 / Chemical 소재팀 / CMP 소재팀 / Gas 소재팀 /
-              Precursor 소재팀 / Wafer 소재팀 / Target 소재팀
+  ccg_nm    : 소재전략 / P&C소재 / Patterning소재기술 / Patterning소재개발 /
+              C&C소재기술 / C&C소재개발 / EDTW소재기술 / EDTW소재개발
+              (CCG 번호로 적혀 있으면 그대로 두지 말고 위 팀 이름으로 바꾸세요.
+               50110502=소재전략 50128121=P&C소재 50119135=Patterning소재기술
+               50077468=Patterning소재개발 50139632=C&C소재기술 50134405=C&C소재개발
+               50119134=EDTW소재기술 50103536=EDTW소재개발)
 
   주의 1) "실적 입력·인폼" 의 가운뎃점은 U+00B7 (·) 입니다. 마침표(.)나 중점(・) 금지.
   주의 2) "식대&잡비", "실사&사양 개선,협의" 의 & 와 쉼표는 그대로 씁니다.
@@ -219,7 +223,7 @@ print('검증 실패', bad, '건 /', len(d['groups']), '건')"
 
 | 증상 | 원인 | 조치 |
 |---|---|---|
-| `CCG팀이 올바르지 않습니다` | 팀명이 목록과 다름 (`Gas소재팀`, `가스 소재팀`) | 정확히 `Gas 소재팀` 등으로 |
+| `CCG팀이 올바르지 않습니다` | 팀명이 목록과 다름 (`EDTW소재기술`, `가스 소재팀`) | 정확히 `EDTW소재기술` 등으로 |
 | `상태 값이 올바르지 않습니다` | `실적입력·인폼`(공백 누락) 또는 가운뎃점이 `・` | `실적 입력·인폼` (U+00B7) |
 | 같은 출장이 사람 수만큼 목록에 뜸 | 그룹 묶기(규칙 1) 누락 | 동행자를 travelers 로 합치기 |
 | 예산 잔액이 0 | `budget[]` 이 비었거나 `yq` 오타 | `yq` 를 `2026-3Q` 형식으로 |

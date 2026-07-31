@@ -54,13 +54,13 @@ try {
   await page.fill('#pl_purpose', 'Pages E2E'); await page.fill('#pl_dep', `${yy}-${mm}-10`); await page.fill('#pl_ret', `${yy}-${mm}-11`);
   await page.fill('#travBody tr:nth-child(1) .t-nm', '홍길동');
   await page.fill('#travBody tr:nth-child(1) .t-no', 'P1');
-  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'Gas 소재팀');
-  ok('CCG 자동채움', (await page.inputValue('#travBody tr:nth-child(1) .t-cc')) === 'C1202');
+  await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'EDTW소재기술');
+  ok('CCG 자동채움', (await page.inputValue('#travBody tr:nth-child(1) .t-cc')) === '50119134');
   await page.fill('#travBody tr:nth-child(1) .t-p-trans', '70000');
   await page.click('button:has-text("+ 동행자 추가")');
   await page.fill('#travBody tr:nth-child(2) .t-nm', '김동행');
   await page.fill('#travBody tr:nth-child(2) .t-no', 'P2');
-  await page.selectOption('#travBody tr:nth-child(2) .t-tm', 'Photo 소재팀');
+  await page.selectOption('#travBody tr:nth-child(2) .t-tm', 'Patterning소재기술');
   await page.fill('#travBody tr:nth-child(2) .t-p-trans', '70000');
   await page.click('#v-plan button:has-text("출장 계획 등록")');
   await sleep(400);

@@ -39,7 +39,7 @@ def ok(n, cond, got=None):
 print('\n=== 1. state / 픽스처 ===')
 st = c.get('/travelbudget/api/state').get_json()
 yq = st['yq']; d = st['dash']
-ok('CCG 7팀', len(st['ccg'])==7, len(st['ccg']))
+ok('CCG 8팀', len(st['ccg'])==8, len(st['ccg']))
 ok('시드 그룹 8건', len(st['groups'])==8, len(st['groups']))
 ok('[보안] admin_pw 응답 미포함', 'admin_pw' not in st['settings'], list(st['settings'].keys()))
 ok('[보안] PUT /api/data 없음', c.put('/travelbudget/api/data', json={}).status_code in (404,405))
@@ -58,24 +58,24 @@ yy, qn = yq.split('-'); mm = str(int(qn[0])*3).zfill(2)
 g3 = dict(plan_type='계획', city='청주', org='원익머트리얼즈', purpose='NF3 실사',
     kind='정기 Audit', dep_dt=f'{yy}-{mm}-15', ret_dt=f'{yy}-{mm}-16', car='자차사용',
     travelers=[
-        dict(name='홍길동', emp_no='9001', rank='팀장', ccg_nm='Gas 소재팀', p_trans=70000, p_lodg=90000),
-        dict(name='김철수', emp_no='9002', rank='TL', ccg_nm='Gas 소재팀', p_trans=70000, p_lodg=90000),
-        dict(name='이영희', emp_no='9003', rank='팀장', ccg_nm='Photo 소재팀', p_trans=70000, p_lodg=90000)])
+        dict(name='홍길동', emp_no='9001', rank='팀장', ccg_nm='EDTW소재기술', p_trans=70000, p_lodg=90000),
+        dict(name='김철수', emp_no='9002', rank='TL', ccg_nm='EDTW소재기술', p_trans=70000, p_lodg=90000),
+        dict(name='이영희', emp_no='9003', rank='팀장', ccg_nm='Patterning소재기술', p_trans=70000, p_lodg=90000)])
 r = c.post('/travelbudget/api/groups', json=g3); res = r.get_json()
 ok('3인 그룹 생성', r.status_code==201, res)
 gid = res['group']['group_id']
-ok('CCG 자동 (팀명→No)', res['group']['travelers'][0]['ccg']=='C1202', res['group']['travelers'][0])
+ok('CCG 자동 (팀명→No)', res['group']['travelers'][0]['ccg']=='50119134', res['group']['travelers'][0])
 ok('일수 자동', res['group']['days']==2, res['group']['days'])
 
-r = c.post('/travelbudget/api/groups', json=dict(g3, travelers=[dict(name='x', emp_no='1', rank='책임', ccg_nm='Gas 소재팀')]))
+r = c.post('/travelbudget/api/groups', json=dict(g3, travelers=[dict(name='x', emp_no='1', rank='책임', ccg_nm='EDTW소재기술')]))
 ok('직책 TL/팀장 외 차단', r.status_code==400)
 r = c.post('/travelbudget/api/groups', json=dict(g3, plan_type='긴급',
-    travelers=[dict(name='y', emp_no='9004', rank='TL', ccg_nm='CMP 소재팀')]))
+    travelers=[dict(name='y', emp_no='9004', rank='TL', ccg_nm='C&C소재개발')]))
 ok('긴급 계획비 0 허용', r.status_code==201, r.get_json())
 urgent_gid = r.get_json()['group']['group_id']
 r = c.post('/travelbudget/api/groups', json=dict(g3, travelers=[
-    dict(name='a', emp_no='7777', rank='TL', ccg_nm='Gas 소재팀', p_trans=1000),
-    dict(name='b', emp_no='7777', rank='TL', ccg_nm='Gas 소재팀', p_trans=1000)]))
+    dict(name='a', emp_no='7777', rank='TL', ccg_nm='EDTW소재기술', p_trans=1000),
+    dict(name='b', emp_no='7777', rank='TL', ccg_nm='EDTW소재기술', p_trans=1000)]))
 ok('사번 중복 차단', r.status_code==400)
 
 print('\n=== 4. 실적 입력 → 인폼 (그룹당 1통) ===')
@@ -87,8 +87,9 @@ res = r.get_json()
 ok('실적 저장', r.status_code==200, res)
 ok('상태 자동 → 실적 입력·인폼', res['group']['status']=='실적 입력·인폼', res['group']['status'])
 m = res['mail']
-ok('실적 인폼 기본 수신자 = 운영 담당자 2명', m['to'].count('@')==2
-   and 'junghoon12.lee@sk.com' in m['to'] and 'eunjeong.kim@sk.com' in m['to'], m['to'])
+ok('실적 인폼 기본 수신자 = 소재 2 + 센터 2', m['to'].count('@')==4
+   and all(x in m['to'] for x in ('junghoon12.lee@sk.com', 'eunjeong5.kim@sk.com',
+                                  'Jeewoung.Chun@sk.com', 'geonyoung.kim@sk.com')), m['to'])
 ok('제목 형식', m['subject']=='청주 원익머트리얼즈 국내 출장 정산 위한 출장비 실비 이관 요청 건', m['subject'])
 ok('HTML 표 포함', '<table' in m['body_html'])
 ok('3인 전원 표 기재', all(n in m['body_html'] for n in ('홍길동','김철수','이영희')))
@@ -153,11 +154,11 @@ print('\n=== 9. 리뷰 반영 — 게이트 우회·인젝션·분기 ===')
 # 9-1. update_group(PUT)로 상태를 밀어 승인 게이트를 우회할 수 없어야 (status 고정)
 base = dict(plan_type='계획', city='이천', org='테스트BP', purpose='게이트 테스트',
     kind='정기 Audit', dep_dt=f'{yy}-{mm}-12', ret_dt=f'{yy}-{mm}-13', car='자차사용',
-    travelers=[dict(name='우회자', emp_no='PW01', rank='TL', ccg_nm='Gas 소재팀', p_trans=50000)])
+    travelers=[dict(name='우회자', emp_no='PW01', rank='TL', ccg_nm='EDTW소재기술', p_trans=50000)])
 pg = c.post('/travelbudget/api/groups', json=base).get_json()['group']['group_id']
 before_done = c.get('/travelbudget/api/state').get_json()['dash']['done']
 r = c.put(f'/travelbudget/api/groups/{pg}', json=dict(base, status='처리 완료',
-    travelers=[dict(name='우회자', emp_no='PW01', rank='TL', ccg_nm='Gas 소재팀',
+    travelers=[dict(name='우회자', emp_no='PW01', rank='TL', ccg_nm='EDTW소재기술',
                     a_trans=900000, a_lodg=900000)]))
 after = c.get('/travelbudget/api/state').get_json()
 put_g = next(g for g in after['groups'] if g['group_id']==pg)
@@ -176,7 +177,7 @@ else:
 
 # 9-3. 저장형 XSS 차단 — 인폼 HTML에 원시 <script> 미포함
 xss = dict(base, org='<script>alert(1)</script>BP', city='<img src=x onerror=alert(2)>',
-    travelers=[dict(name='<b>홍</b>', emp_no='XS01', rank='TL', ccg_nm='Gas 소재팀', p_trans=10000)])
+    travelers=[dict(name='<b>홍</b>', emp_no='XS01', rank='TL', ccg_nm='EDTW소재기술', p_trans=10000)])
 xg = c.post('/travelbudget/api/groups', json=xss).get_json()['group']['group_id']
 r = c.post(f'/travelbudget/api/groups/{xg}/actual',
     json=dict(travelers=[dict(emp_no='XS01', a_trans=10000)]))
@@ -186,7 +187,7 @@ ok('인폼 XSS escape (<img 태그 원시 미포함)', '<img' not in html and '&
 
 # 9-4. CSV 수식 인젝션 방어 — 위험 셀 선두 따옴표
 inj = dict(base, org='=HYPERLINK("http://evil")', purpose='@SUM(A1)',
-    travelers=[dict(name='+CMD', emp_no='CS01', rank='TL', ccg_nm='Gas 소재팀', p_trans=1000)])
+    travelers=[dict(name='+CMD', emp_no='CS01', rank='TL', ccg_nm='EDTW소재기술', p_trans=1000)])
 c.post('/travelbudget/api/groups', json=inj)
 csv_txt = c.get('/travelbudget/api/export.csv').get_data(as_text=True)
 ok('CSV 수식 인젝션 방어', ("'=HYPERLINK" in csv_txt) and ("'@SUM" in csv_txt) and ("'+CMD" in csv_txt),
@@ -213,16 +214,16 @@ imported = {
     'groups': [dict(group_id='IM-1', plan_type='계획', status='처리 완료', city='이천',
         org='임포트BP', purpose='임포트 검증', kind='정기 Audit',
         dep_dt=f'{yy}-{mm}-05', ret_dt=f'{yy}-{mm}-06', car='미사용',
-        travelers=[dict(name='임포트', emp_no='IMP1', rank='TL', ccg_nm='Gas 소재팀', a_trans=50000)])]}
+        travelers=[dict(name='임포트', emp_no='IMP1', rank='TL', ccg_nm='EDTW소재기술', a_trans=50000)])]}
     # yq·ccg·days·plan_tot 등 파생필드 의도적 생략
 dd = _C.dash(imported, yq)
 ok('yq 없는 임포트 그룹도 집계', dd['done']==50000 and dd['nDone']==1, dd)
-ok('ccg_nm만으로 CCG 롤업', any(r['ccg']=='C1202' and r['done']==50000 for r in dd['byCcg']), dd['byCcg'])
+ok('ccg_nm만으로 CCG 롤업', any(r['ccg']=='50119134' and r['done']==50000 for r in dd['byCcg']), dd['byCcg'])
 
 print('\n=== 10. 개인별 처리 (5명 중 일부만 완료/보류) ===')
 # 5인 그룹 생성 → 실적 입력 → 3명 완료, 1명 보류, 1명 이관
 five = dict(base, city='대전', org='5인BP', purpose='5인 동행 실사', dep_dt=f'{yy}-{mm}-14', ret_dt=f'{yy}-{mm}-15',
-    travelers=[dict(name=f'출장자{i}', emp_no=f'F{i}', rank='TL', ccg_nm='Gas 소재팀', p_trans=50000) for i in range(1,6)])
+    travelers=[dict(name=f'출장자{i}', emp_no=f'F{i}', rank='TL', ccg_nm='EDTW소재기술', p_trans=50000) for i in range(1,6)])
 fg = c.post('/travelbudget/api/groups', json=five).get_json()['group']['group_id']
 c.post(f'/travelbudget/api/groups/{fg}/actual',
     json=dict(travelers=[dict(emp_no=f'F{i}', a_trans=100000) for i in range(1,6)]))
@@ -296,7 +297,7 @@ print('\n=== 13. P0 권한 경계 — 무인증 공격 차단 ===')
 def _mk(org, n=3, amt=1000000):
     gg = dict(plan_type='계획', city='c', org=org, purpose='p', kind='정기 Audit',
         dep_dt=f'{yy}-{mm}-14', ret_dt=f'{yy}-{mm}-15', car='미사용',
-        travelers=[dict(name=f'p{i}', emp_no=f'{org}{i}', rank='TL', ccg_nm='Gas 소재팀', p_trans=50000) for i in range(n)])
+        travelers=[dict(name=f'p{i}', emp_no=f'{org}{i}', rank='TL', ccg_nm='EDTW소재기술', p_trans=50000) for i in range(n)])
     _id = c.post('/travelbudget/api/groups', json=gg).get_json()['group']['group_id']
     c.post(f'/travelbudget/api/groups/{_id}/actual',
            json=dict(travelers=[dict(emp_no=f'{org}{i}', a_trans=amt) for i in range(n)]))
@@ -307,7 +308,7 @@ def _grp(i): return next(g for g in c.get('/travelbudget/api/state').get_json()[
 # 13-1. PUT으로 개인 처리상태 주입 불가 (관리자 결정 위조 차단)
 i1,g1 = _mk('ZA',1)
 c.put(f'/travelbudget/api/groups/{i1}', json=dict(g1,
-    travelers=[dict(name='p0',emp_no='ZA0',rank='TL',ccg_nm='Gas 소재팀',status='처리 완료',a_trans=1000000)]))
+    travelers=[dict(name='p0',emp_no='ZA0',rank='TL',ccg_nm='EDTW소재기술',status='처리 완료',a_trans=1000000)]))
 ok('PUT traveler.status 주입 불가', all(not p.get('status') for p in _grp(i1)['travelers']), [p.get('status') for p in _grp(i1)['travelers']])
 
 # 13-2. 부분완료 건을 무인증 취소로 정산금 제거 불가
@@ -334,12 +335,12 @@ ok('관리자는 취소 가능', r.status_code == 200, r.status_code)
 # 계획 단계(잠정·확정 예정)의 취소는 출장자 본인이 하는 정상 동작 — 계속 공개여야 한다
 _pg = c.post('/travelbudget/api/groups', json=dict(plan_type='계획', city='c', org='ZPRE', purpose='p',
     kind='정기 Audit', dep_dt=f'{yy}-{mm}-14', ret_dt=f'{yy}-{mm}-15', car='미사용',
-    travelers=[dict(name='p', emp_no='ZP0', rank='TL', ccg_nm='Gas 소재팀', p_trans=50000)])).get_json()['group']['group_id']
+    travelers=[dict(name='p', emp_no='ZP0', rank='TL', ccg_nm='EDTW소재기술', p_trans=50000)])).get_json()['group']['group_id']
 ok('잠정 계획 무인증 취소 허용',
    c.post(f'/travelbudget/api/groups/{_pg}/status', json={'status': '취소'}).status_code == 200)
 _cg = c.post('/travelbudget/api/groups', json=dict(plan_type='계획', city='c', org='ZCF', purpose='p',
     kind='정기 Audit', dep_dt=f'{yy}-{mm}-14', ret_dt=f'{yy}-{mm}-15', car='미사용',
-    travelers=[dict(name='p', emp_no='ZC0', rank='TL', ccg_nm='Gas 소재팀', p_trans=50000)])).get_json()['group']['group_id']
+    travelers=[dict(name='p', emp_no='ZC0', rank='TL', ccg_nm='EDTW소재기술', p_trans=50000)])).get_json()['group']['group_id']
 c.post(f'/travelbudget/api/groups/{_cg}/status', json={'status': '확정 예정'})
 ok('확정 예정 무인증 취소 허용',
    c.post(f'/travelbudget/api/groups/{_cg}/status', json={'status': '취소'}).status_code == 200)
@@ -353,7 +354,7 @@ i3,g3 = _mk('ZC',1)
 c.post(f'/travelbudget/api/groups/{i3}/status', json={'status':'소재 이관'}, headers=ADM)
 w_before = _dash()['wip']
 r = c.put(f'/travelbudget/api/groups/{i3}', json=dict(g3,
-    travelers=[dict(name='p0',emp_no='ZC0',rank='TL',ccg_nm='Gas 소재팀',a_trans=50000000)]))
+    travelers=[dict(name='p0',emp_no='ZC0',rank='TL',ccg_nm='EDTW소재기술',a_trans=50000000)]))
 ok('이관건 PUT 금액변조 401', r.status_code==401, r.status_code)
 r = c.post(f'/travelbudget/api/groups/{i3}/actual', json=dict(travelers=[dict(emp_no='ZC0',a_trans=1)]))
 ok('이관건 실적 재입력 401', r.status_code==401, r.status_code)
@@ -427,7 +428,7 @@ ok('core.josa 받침 판정', (_C.josa('출장구분'), _C.josa('출장도시'),
 # 인폼 재발행 — 실적 있는 건은 카드를 닫아도 다시 받을 수 있어야
 r = c.post('/travelbudget/api/groups', json={'plan_type':'계획','city':'이천','org':'재발행테스트',
     'purpose':'인폼 재발행','dep_dt':f'{yy}-{mm}-14','ret_dt':f'{yy}-{mm}-15','kind':'정기 Audit','car':'미사용',
-    'travelers':[{'name':'재발','emp_no':'RM1','rank':'TL','ccg_nm':'Gas 소재팀','ccg':'C1202','p_trans':80000}]})
+    'travelers':[{'name':'재발','emp_no':'RM1','rank':'TL','ccg_nm':'EDTW소재기술','ccg':'50119134','p_trans':80000}]})
 gidm = r.get_json()['group']['group_id']
 r = c.get(f'/travelbudget/api/groups/{gidm}/mail')
 ok('실적 전 인폼 재발행 400', r.status_code==400, r.status_code)
@@ -442,21 +443,21 @@ print('\n=== 17. 백엔드 경계값 (500 방어 · 금액 상한) ===')
 def _mk(**kw):
     g = dict(plan_type='계획', city='시', org='업체', purpose='목적', kind='정기 Audit',
              dep_dt=f'{yy}-{mm}-10', ret_dt=f'{yy}-{mm}-11', car='미사용',
-             travelers=[dict(name='홍', emp_no='Z1', rank='TL', ccg_nm='Gas 소재팀', p_trans=100000)])
+             travelers=[dict(name='홍', emp_no='Z1', rank='TL', ccg_nm='EDTW소재기술', p_trans=100000)])
     g.update(kw); return c.post('/travelbudget/api/groups', json=g)
 # travelers 형식 오류가 500으로 터지던 문제 (normalize가 validate보다 먼저 돌아서)
 for bad in ('문자열', 123, {'a': 1}, [None], ['x'], [[]]):
     r = _mk(travelers=bad)
     ok(f'travelers={type(bad).__name__} → 500 아님', r.status_code == 400, r.status_code)
 # 금액 상한 — 0을 더 찍은 값이 원장에 들어가지 않아야
-r = _mk(travelers=[dict(name='홍', emp_no='Z2', rank='TL', ccg_nm='Gas 소재팀', p_trans=10**15)])
+r = _mk(travelers=[dict(name='홍', emp_no='Z2', rank='TL', ccg_nm='EDTW소재기술', p_trans=10**15)])
 ok('천조 단위 계획비 거부', r.status_code == 400 and '자릿수' in str(r.get_json()['errors']), r.status_code)
-r = _mk(travelers=[dict(name='홍', emp_no='Z3', rank='TL', ccg_nm='Gas 소재팀', p_trans=_C.AMT_MAX)])
+r = _mk(travelers=[dict(name='홍', emp_no='Z3', rank='TL', ccg_nm='EDTW소재기술', p_trans=_C.AMT_MAX)])
 ok('상한 경계값(1억)은 통과', r.status_code == 201, r.status_code)
-r = _mk(travelers=[dict(name='홍', emp_no='Z4', rank='TL', ccg_nm='Gas 소재팀', p_trans=-5000)])
+r = _mk(travelers=[dict(name='홍', emp_no='Z4', rank='TL', ccg_nm='EDTW소재기술', p_trans=-5000)])
 ok('음수 계획비 거부', r.status_code == 400 and '음수' in str(r.get_json()['errors']), r.status_code)
 # 실적에도 동일 적용
-gz = _mk(travelers=[dict(name='홍', emp_no='Z5', rank='TL', ccg_nm='Gas 소재팀', p_trans=100000)]).get_json()['group']['group_id']
+gz = _mk(travelers=[dict(name='홍', emp_no='Z5', rank='TL', ccg_nm='EDTW소재기술', p_trans=100000)]).get_json()['group']['group_id']
 r = c.post(f'/travelbudget/api/groups/{gz}/actual', json={'travelers':[{'emp_no':'Z5','a_trans':10**12}]})
 ok('실적 금액 상한 적용', r.status_code == 400, r.status_code)
 # 날짜 경계
@@ -525,7 +526,7 @@ ok('신규 설치 빈 원장 — 출장 0건', _dd['groups'] == [], len(_dd['gro
 ok('신규 설치 빈 원장 — 예산 0건', _dd['budget'] == [], len(_dd['budget']))
 ok('예시 데이터는 example_data() 에만', len(_store.example_data()['groups']) > 0)
 ok('검증 안 하는 admin_id 설정 제거', 'admin_id' not in _dd['settings'], list(_dd['settings']))
-ok('실적 인폼 기본 수신자 2명', len(_dd['settings']['mail_recipients']) == 2, _dd['settings']['mail_recipients'])
+ok('실적 인폼 기본 수신자 4명', len(_dd['settings']['mail_recipients']) == 4, _dd['settings']['mail_recipients'])
 # 테스트 격리 — 운영 디렉터리를 쓰지 않는다
 ok('테스트가 임시 디렉터리에서만 동작', str(_store.DATA_DIR).startswith(tempfile.gettempdir()), str(_store.DATA_DIR))
 ok('운영 TB_DATA_DIR 미사용', _PROD is None or str(_store.DATA_DIR) != _PROD)
@@ -536,8 +537,8 @@ ok('단일 프로세스 고정(processes=1)', 'processes=1' in _wm)
 
 # 지표 — CCG 합계 중복 집계 없음
 r = _mk(city='교차', org='2CCG교차', purpose='교차', confirmed=True,
-        travelers=[dict(name='A', emp_no='CC1', rank='TL', ccg_nm='Gas 소재팀', p_trans=100000),
-                   dict(name='B', emp_no='CC2', rank='TL', ccg_nm='Photo 소재팀', p_trans=100000)])
+        travelers=[dict(name='A', emp_no='CC1', rank='TL', ccg_nm='EDTW소재기술', p_trans=100000),
+                   dict(name='B', emp_no='CC2', rank='TL', ccg_nm='Patterning소재기술', p_trans=100000)])
 # 부서별 집계는 실집행 기준이라, 확정 예정 상태로는 참여 건수에 잡히지 않는다 → 실적을 넣는다
 _xid = r.get_json()['group']['group_id']
 c.post(f'/travelbudget/api/groups/{_xid}/actual',
@@ -578,11 +579,11 @@ for _q in ('abc-Q', '2026-0Q', '2026-99Q'):
 print('\n=== 21. v9.4 실제 사용 흐름 ===')
 # 계획 수정 — 실적 전은 자유, 실적 후는 예산 담당자만
 _g = _mk(city='수정전', org='수정테스트', purpose='수정 확인',
-         travelers=[dict(name='수정', emp_no='ED1', rank='TL', ccg_nm='Gas 소재팀', p_trans=100000)]).get_json()['group']
+         travelers=[dict(name='수정', emp_no='ED1', rank='TL', ccg_nm='EDTW소재기술', p_trans=100000)]).get_json()['group']
 _eg = _g['group_id']
 _pl = dict(plan_type='계획', city='수정후', org='수정테스트', purpose='수정 확인', kind='정기 Audit',
            dep_dt=_g['dep_dt'], ret_dt=_g['ret_dt'], car='미사용',
-           travelers=[dict(name='수정', emp_no='ED1', rank='TL', ccg_nm='Gas 소재팀', p_trans=150000)])
+           travelers=[dict(name='수정', emp_no='ED1', rank='TL', ccg_nm='EDTW소재기술', p_trans=150000)])
 _r = c.put(f'/travelbudget/api/groups/{_eg}', json=_pl)
 ok('실적 전 계획 수정 — 인증 없이 가능', _r.status_code == 200, _r.status_code)
 ok('수정 내용 반영', _r.get_json()['group']['city'] == '수정후' and _r.get_json()['group']['plan_tot'] == 150000)
@@ -601,7 +602,7 @@ ok('계획 수정이 기존 실적을 지우지 않음',
 
 # 예산 부족이어도 확정·실적·완료가 가능해야 (경고만, 차단 아님)
 _poor = _mk(city='부족', org='예산부족', purpose='부족 확인', confirmed=True,
-            travelers=[dict(name='부족', emp_no='PR1', rank='TL', ccg_nm='Gas 소재팀',
+            travelers=[dict(name='부족', emp_no='PR1', rank='TL', ccg_nm='EDTW소재기술',
                             p_trans=99000000)]).get_json()
 ok('예산 초과여도 확정 등록 성공', 'group' in _poor, _poor.get('errors'))
 _dsh = c.get(f'/travelbudget/api/state?yq={yq}').get_json()['dash']
@@ -617,7 +618,7 @@ ok('예산 부족에도 처리 완료 가능',
 
 # 확정 확보액 ↔ 실적액 이중 차감 없음
 _c1 = _mk(city='이중', org='이중차감', purpose='이중 확인', confirmed=True,
-          travelers=[dict(name='이중', emp_no='DB1', rank='TL', ccg_nm='Gas 소재팀',
+          travelers=[dict(name='이중', emp_no='DB1', rank='TL', ccg_nm='EDTW소재기술',
                           p_trans=500000)]).get_json()['group']['group_id']
 _b1 = c.get(f'/travelbudget/api/state?yq={yq}').get_json()['dash']
 c.post(f'/travelbudget/api/groups/{_c1}/actual', json={'travelers': [{'emp_no': 'DB1', 'a_trans': 480000}]})
@@ -731,8 +732,9 @@ ok('안내: 긴급은 비고 필수 = 실제와 일치', '비고(사유)' in _gd
    '긴급 출장은 비고(사유)가 필수입니다' in open('servera/travelbudget/core.py', encoding='utf-8').read())
 ok('안내: 실적 후 수정은 담당자만 = 실제와 일치',
    '예산 담당자' in _gd and '예산 담당자 모드에서만 수정' in _rt)
-ok('안내: 인폼 수신자 2명 = 실제와 일치',
-   '이정훈 · 김은정' in _gd and len(_store.default_data()['settings']['mail_recipients']) == 2)
+ok('안내: 인폼 수신자 = 실제 기본 설정과 일치',
+   all(a in _gd for a in _store.default_data()['settings']['mail_recipients']),
+   _store.default_data()['settings']['mail_recipients'])
 # 없는 기능을 안내하면 안 된다 (SAP 는 v9.4 에서 화면에서 뺐다)
 # mailto(Outlook 열기)는 사내에서 실패해 제거 — 안내에도 남아 있으면 안 된다
 ok('안내에 Outlook 열기 언급 없음', 'Outlook' not in _gd)
@@ -883,6 +885,98 @@ ok('목록에 없는 코드는 저장된 이름 유지',
 # 화면 드롭다운은 이름이 아니라 코드로 맞춰야 한다
 ok('CCG 드롭다운이 코드로 선택', 't.ccg === p.ccg' in _appjs)
 ok('목록에 없는 팀도 선택지로 남김', '(목록에 없음)' in _appjs)
+
+# ── 조직 개편: 원장의 옛 CCG 코드를 새 팀으로 옮기기 ──
+print('\n=== 26. CCG 코드 이동 (연 단위 개편) ===')
+_r = c.post('/travelbudget/api/groups', json=dict(
+    plan_type='계획', city='시', org='개편테스트', purpose='옛 코드 건', kind='정기 Audit',
+    dep_dt=f'{yy}-{mm}-12', ret_dt=f'{yy}-{mm}-12', car='미사용',
+    travelers=[dict(name='옛', emp_no='OLD1', rank='TL', ccg_nm='옛 소재팀',
+                    ccg='CZZ9', p_trans=30000)]))
+_oldgid = _r.get_json()['group']['group_id']
+ok('옛 코드로 등록해 둠', _r.status_code == 201, _r.get_json().get('errors'))
+# 그 코드를 목록에서 빼면 '사용 중'이라 거부되어야 한다
+_only = [t for t in _new if t['ccg'] != 'CZZ9']
+ok('쓰는 중인 코드는 목록에서 못 뺌', _cfgpost(ccg_teams=_only).status_code == 400)
+# 목록에 없는 코드는 ccgStale 로 보여야 옮길 수 있다
+_C_ = c.get('/travelbudget/api/settings', headers=ADM).get_json()
+ok('현재는 미등록 코드 없음', _C_['ccgStale'] == [], _C_['ccgStale'])
+ok('인증 없이 이동 불가',
+   c.post('/travelbudget/api/ccg_migrate',
+          json=dict(**{'from': 'CZZ9', 'to': _teams[0]['ccg']})).status_code == 401)
+ok('목록에 없는 팀으로는 못 옮김',
+   c.post('/travelbudget/api/ccg_migrate',
+          json={'from': 'CZZ9', 'to': 'NOPE'}, headers=ADM).status_code == 400)
+ok('같은 코드로는 못 옮김',
+   c.post('/travelbudget/api/ccg_migrate',
+          json={'from': 'CZZ9', 'to': 'CZZ9'}, headers=ADM).status_code == 400)
+ok('원장에 없는 코드는 안내',
+   c.post('/travelbudget/api/ccg_migrate',
+          json={'from': 'C0000', 'to': _teams[0]['ccg']}, headers=ADM).status_code == 400)
+# 실제 이동 — 금액은 그대로, 코드·이름만 바뀐다
+_dashB = c.get('/travelbudget/api/state').get_json()['dash']
+_dst = _teams[0]
+_mg = c.post('/travelbudget/api/ccg_migrate',
+             json={'from': 'CZZ9', 'to': _dst['ccg']}, headers=ADM)
+ok('이동 200', _mg.status_code == 200, _mg.get_json())
+ok('옮긴 인원 수 보고', _mg.get_json().get('moved') >= 1, _mg.get_json())
+_gm = next(g for g in c.get('/travelbudget/api/state').get_json()['groups']
+           if g['group_id'] == _oldgid)
+ok('옮긴 뒤 코드가 새 팀', _gm['travelers'][0]['ccg'] == _dst['ccg'])
+ok('옮긴 뒤 이름도 새 팀', _gm['travelers'][0]['ccg_nm'] == _dst['team'])
+_dashA = c.get('/travelbudget/api/state').get_json()['dash']
+ok('이동해도 금액 합계 불변',
+   all(_dashB[k] == _dashA[k] for k in ('done', 'wip', 'commit', 'avail', 'alloc')),
+   {k: (_dashB[k], _dashA[k]) for k in ('done', 'wip', 'commit', 'avail')})
+ok('이동 후에는 그 코드를 목록에서 뺄 수 있음',
+   _cfgpost(ccg_teams=_only).status_code == 200)
+ok('이동이 감사 로그에 남음',
+   any('CCG 코드 이동' in str(a.get('action', ''))
+       for a in c.get('/travelbudget/api/audit?n=50', headers=ADM).get_json()['audit']))
+# 목록에 없는 코드가 원장에 있으면 화면이 알려줘야 한다
+c.post('/travelbudget/api/groups', json=dict(
+    plan_type='계획', city='시', org='개편테스트2', purpose='미등록 코드', kind='정기 Audit',
+    dep_dt=f'{yy}-{mm}-13', ret_dt=f'{yy}-{mm}-13', car='미사용',
+    travelers=[dict(name='옛', emp_no='OLD2', rank='TL', ccg_nm='없는팀',
+                    ccg=_dst['ccg'], p_trans=10000)]))
+_st2 = c.get('/travelbudget/api/settings', headers=ADM).get_json()
+ok('설정 화면이 미등록 코드를 집계', isinstance(_st2['ccgStale'], list))
+ok('화면에 원장 CCG 정리 카드 있음', '원장 CCG 정리' in _appjs)
+ok('이동 전 확인창 있음', 'cfgMigrate' in _appjs and 'confirm(' in _appjs)
+# 기존 원장은 이미 저장된 설정이 우선 — 새 기본값이 조용히 덮어쓰지 않는다
+ok('저장된 설정이 코드 기본값보다 우선',
+   _C.ccg_teams({'settings': {'ccg_teams': [{'team': 'X', 'ccg': 'X1'}]}})
+   == [{'team': 'X', 'ccg': 'X1'}])
+
+# 개편 직후: 원장에만 있고 목록에는 없는 옛 코드가 있어도 다른 설정은 저장돼야 한다.
+# (이걸 막으면 메일 주소 한 줄 바꾸는 저장까지 통째로 거부된다 — 실제로 그랬다)
+_stale_data = _store.load_data()
+_stale_data['groups'].append({
+    'group_id': 'TB-STALE', 'plan_type': '계획', 'status': '계획 등록', 'lv2': '소재',
+    'city': '시', 'org': '개편전', 'purpose': '옛 코드 잔존', 'kind': '정기 Audit',
+    'dep_dt': f'{yy}-{mm}-14', 'ret_dt': f'{yy}-{mm}-14', 'car': '미사용', 'remark': '',
+    'travelers': [dict(name='잔존', emp_no='STL1', rank='TL', ccg_nm='옛팀',
+                       ccg='ZZOLD', p_trans=10000)]})
+_store.save_data(_stale_data)
+_cur_list = c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings']['ccg_teams']
+ok('목록에 없는 옛 코드가 원장에 있음',
+   any(s['ccg'] == 'ZZOLD' for s in
+       c.get('/travelbudget/api/settings', headers=ADM).get_json()['ccgStale']))
+_r3 = c.post('/travelbudget/api/settings',
+             json=dict(mail_recipients=['a@sk.com', 'b@sk.com']), headers=ADM)
+ok('옛 코드가 남아 있어도 메일만 바꾸는 저장은 통과', _r3.status_code == 200,
+   _r3.get_json().get('errors'))
+ok('그래도 목록에 있는 코드를 빼는 것은 여전히 거부',
+   c.post('/travelbudget/api/settings',
+          json=dict(ccg_teams=[t for t in _cur_list if t['ccg'] != _dst['ccg']]),
+          headers=ADM).status_code == 400)
+# 옛 코드를 옮기고 나면 정리 목록에서 사라진다
+ok('옛 코드 이동 200',
+   c.post('/travelbudget/api/ccg_migrate',
+          json={'from': 'ZZOLD', 'to': _dst['ccg']}, headers=ADM).status_code == 200)
+ok('이동 후 정리 목록에서 사라짐',
+   not any(s['ccg'] == 'ZZOLD' for s in
+           c.get('/travelbudget/api/settings', headers=ADM).get_json()['ccgStale']))
 # 안 보낸 필드가 지워지면 안 된다
 _before_url = c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings']['reference_url']
 _cfgpost(ccg_teams=_new, mail_recipients=['x@y.com'])
@@ -927,8 +1021,10 @@ c.post('/travelbudget/api/settings', json=dict(mail_recipients=['x@y.com'],
        ccg_teams=_new, admin_pw='2071478'), headers={'X-Admin-PW': 'newpw1234'})
 ok('비밀번호 원복', c.get('/travelbudget/api/settings', headers=ADM).status_code == 200)
 # 설정이 깨져 있어도 화면이 죽지 않아야 한다 (기본 목록으로 폴백)
-ok('CCG 설정이 쓰레기면 기본값 폴백', len(_C.ccg_teams({'settings': {'ccg_teams': 'x'}})) == 7)
-ok('CCG 설정이 빈 배열이면 기본값 폴백', len(_C.ccg_teams({'settings': {'ccg_teams': []}})) == 7)
+ok('CCG 설정이 쓰레기면 기본값 폴백',
+   _C.ccg_teams({'settings': {'ccg_teams': 'x'}}) == _C.CCG_TEAMS)
+ok('CCG 설정이 빈 배열이면 기본값 폴백',
+   _C.ccg_teams({'settings': {'ccg_teams': []}}) == _C.CCG_TEAMS)
 
 # 배포 안전성 — 데이터가 날아가는 경로를 테스트로 막는다
 _st = open('servera/travelbudget/store.py', encoding='utf-8').read()

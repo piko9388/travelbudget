@@ -433,10 +433,10 @@ padding:12px 16px;margin-bottom:16px}
   var PSTATES = [ST_INFORM, ST_TRANSFER, ST_HOLD, ST_DONE]; // 출장자 개인 처리 상태
   var ADMIN_ZONE = [ST_TRANSFER, ST_HOLD, ST_DONE];         // 예산 담당자가 결정한 영역
   var CCG_TEAMS = [
-    { team: 'Photo 소재팀', ccg: 'C1303' }, { team: 'Chemical 소재팀', ccg: 'C1101' },
-    { team: 'CMP 소재팀', ccg: 'C1404' }, { team: 'Gas 소재팀', ccg: 'C1202' },
-    { team: 'Precursor 소재팀', ccg: 'C1505' }, { team: 'Wafer 소재팀', ccg: 'C1606' },
-    { team: 'Target 소재팀', ccg: 'C1707' }];
+    { team: 'Patterning소재기술', ccg: '50119135' }, { team: 'C&C소재기술', ccg: '50139632' },
+    { team: 'C&C소재개발', ccg: '50134405' }, { team: 'EDTW소재기술', ccg: '50119134' },
+    { team: 'EDTW소재개발', ccg: '50103536' }, { team: 'P&C소재', ccg: '50128121' },
+    { team: '소재전략', ccg: '50110502' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
   var CCG_MAX = 40;
   // CCG 는 설정(data.settings.ccg_teams)에 있으면 그것을, 없으면 위 기본값을 쓴다 — core.py 와 동일
@@ -458,10 +458,25 @@ padding:12px 16px;margin-bottom:16px}
   function ccgByCd(data) {
     var m = {}; ccgTeams(data).forEach(function (t) { m[t.ccg] = t.team; }); return m;
   }
+  function ccgUsage(data) {
+    var used = {}, names = {};
+    (data.groups || []).forEach(function (g) {
+      (g.travelers || []).forEach(function (p) {
+        var k = txt(p.ccg); if (!k) return;
+        used[k] = (used[k] || 0) + 1;
+        if (names[k] === undefined) names[k] = txt(p.ccg_nm);
+      });
+    });
+    var known = ccgByCd(data);
+    var stale = Object.keys(used).filter(function (k) { return !known[k]; })
+      .sort(function (a, b) { return used[b] - used[a]; })
+      .map(function (k) { return { ccg: k, name: names[k] || k, n: used[k] }; });
+    return { used: used, stale: stale };
+  }
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.8', APP_BUILD = '2026-07-31';
+  var APP_VERSION = 'v10.9', APP_BUILD = '2026-07-31';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
@@ -892,32 +907,32 @@ padding:12px 16px;margin-bottom:16px}
     var groups = [
       grp('TB-0001', '계획', ST_DONE, '이천', '동우화인켐',
         'ArF Photo Resist 정기 품질 실사 및 CoA 항목 협의', K[2], dd(2), dd(3), '자차사용',
-        [trav('김철수', '20150322', '팀장', 'Chemical 소재팀', [80000, 0, 90000, 20000], [60000, 0, 85000, 15000])]),
+        [trav('김철수', '20150322', '팀장', 'C&C소재기술', [80000, 0, 90000, 20000], [60000, 0, 85000, 15000])]),
       grp('TB-0002', '계획', ST_DONE, '청주', '원익머트리얼즈',
         'NF3 순도 관리 정기 Audit', K[2], dd(4), dd(5), '자차사용',
-        [trav('박영희', '20140508', '팀장', 'Gas 소재팀', [70000, 95000, 65000, 10000], [65000, 90000, 60000, 10000]),
-        trav('이정훈', '2071478', 'TL', 'Chemical 소재팀', [70000, 95000, 65000, 10000], [68000, 90000, 62000, 8000])]),
+        [trav('박영희', '20140508', '팀장', 'EDTW소재기술', [70000, 95000, 65000, 10000], [65000, 90000, 60000, 10000]),
+        trav('이정훈', '2071478', 'TL', 'C&C소재기술', [70000, 95000, 65000, 10000], [68000, 90000, 62000, 8000])]),
       grp('TB-0003', '계획', ST_TRANSFER, '화성', '동진쎄미켐',
         'KrF PR Outgassing 개선 사양 협의', K[1], dd(6), dd(7), '자차사용',
-        [trav('이민호', '20120233', '팀장', 'Photo 소재팀', [60000, 0, 70000, 10000], [72000, 0, 78000, 12000])],
+        [trav('이민호', '20120233', '팀장', 'Patterning소재기술', [60000, 0, 70000, 10000], [72000, 0, 78000, 12000])],
         '현지 미팅 연장으로 식대 증가'),
       grp('TB-0004', '긴급', ST_INFORM, '성남', '케이씨텍',
         'CMP Slurry 이물 유입 긴급 대응 (Particle 급증)', K[3], dd(7), dd(8), '자차사용',
-        [trav('정다은', '20200711', '팀장', 'CMP 소재팀', Z, [90000, 105000, 60000, 30000])],
+        [trav('정다은', '20200711', '팀장', 'C&C소재개발', Z, [90000, 105000, 60000, 30000])],
         '소재하자 발생에 따른 긴급 출장 (사전 계획 없음)'),
       grp('TB-0005', '계획', ST_INFORM, '공주', '솔브레인',
         'Wet Chemical 신규 Lot 품질 실사', K[1], dd(9), dd(10), '자차사용',
-        [trav('이수진', '20180915', '팀장', 'Chemical 소재팀', [90000, 95000, 80000, 20000], [88000, 90000, 75000, 18000])]),
+        [trav('이수진', '20180915', '팀장', 'C&C소재기술', [90000, 95000, 80000, 20000], [88000, 90000, 75000, 18000])]),
       grp('TB-0006', '계획', ST_PLAN, '세종', 'SK트리켐',
         'Precursor PCN 대응 및 Lot 이력 협의', K[1], dd(20), dd(21), '자차사용',
-        [trav('최준영', '20170419', '팀장', 'Precursor 소재팀', [80000, 90000, 70000, 15000], Z)]),
+        [trav('최준영', '20170419', '팀장', 'EDTW소재개발', [80000, 90000, 70000, 15000], Z)]),
       grp('TB-0007', '계획', ST_CONFIRM, '구미', 'SK실트론',
         'Wafer 표면 결함 정기 Audit', K[2], dd(25), dd(26), '미사용',
-        [trav('한지우', '20210302', '팀장', 'Wafer 소재팀', [120000, 100000, 70000, 20000], Z),
-        trav('오세훈', '20160828', '팀장', 'Target 소재팀', [120000, 100000, 70000, 20000], Z)]),
+        [trav('한지우', '20210302', '팀장', 'P&C소재', [120000, 100000, 70000, 20000], Z),
+        trav('오세훈', '20160828', '팀장', '소재전략', [120000, 100000, 70000, 20000], Z)]),
       grp('TB-0008', '계획', ST_CANCEL, '서울', '이엔에프테크놀로지',
         'i-line PR 정기 실사', K[2], dd(5), dd(5), '자차사용',
-        [trav('이민호', '20120233', '팀장', 'Photo 소재팀', [50000, 0, 40000, 10000], Z)],
+        [trav('이민호', '20120233', '팀장', 'Patterning소재기술', [50000, 0, 40000, 10000], Z)],
         'BP 측 일정 연기 요청으로 취소')
     ];
     var budget = [
@@ -931,7 +946,7 @@ padding:12px 16px;margin-bottom:16px}
         notice: '현재 소재 배정 예산 소진 후 센터 예산 사용 중으로, 식비 15,000원, 회사 공용 차량 이용 통한 교통비 절감 요청 드립니다',
         notice_sub: '(사용 전/후 센터 검토 시 반려될 수 있음)',
         admin_pw: '2071478',
-        mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong.kim@sk.com'],
+        mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong5.kim@sk.com'],
         reference_url: 'material.skhynix.com/travelbudget'
       },
       budget: budget, groups: groups.map(normalizeGroup), audit_log: []
@@ -1170,16 +1185,35 @@ padding:12px 16px;margin-bottom:16px}
     }
     if (path === '/settings' && method === 'GET') {
       if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
-      var used = {};
-      (data.groups || []).forEach(function (g) {
-        (g.travelers || []).forEach(function (p) { var k = txt(p.ccg); if (k) used[k] = (used[k] || 0) + 1; });
-      });
-      var st = data.settings;
+      var u = ccgUsage(data), st = data.settings;
       return okr({ settings: {
         system_name: st.system_name || '', reference_url: st.reference_url || '',
         admin_pw: st.admin_pw || '', mail_recipients: (st.mail_recipients || []).slice(),
         ccg_teams: ccgTeams(data), ccg_from_settings: Array.isArray(st.ccg_teams)
-      }, ccgUsed: used });
+      }, ccgUsed: u.used, ccgStale: u.stale });
+    }
+    // 원장의 옛 CCG 코드를 새 팀으로 옮기기 — routes.ccg_migrate 와 같은 규칙
+    if (path === '/ccg_migrate' && method === 'POST') {
+      if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
+      var src = txt(body.from), dst = txt(body.to), codes = ccgByCd(data);
+      if (!src || !dst) return err('옮길 CCG 코드와 대상 팀을 모두 고르세요.');
+      if (!codes[dst]) return err('대상 팀(' + dst + ')이 CCG 목록에 없습니다. 먼저 목록에 추가하세요.');
+      if (src === dst) return err('같은 코드로는 옮길 수 없습니다.');
+      var moved = 0, gCnt = 0;
+      (data.groups || []).forEach(function (g) {
+        var hit = false;
+        (g.travelers || []).forEach(function (p) {
+          if (txt(p.ccg) === src) { p.ccg = dst; p.ccg_nm = codes[dst]; moved++; hit = true; }
+        });
+        if (hit) gCnt++;
+      });
+      if (!moved) return err('원장에서 ' + src + ' 를 쓰는 출장자를 찾지 못했습니다.');
+      appendAudit(data, 'CCG 코드 이동',
+        src + ' → ' + dst + '(' + codes[dst] + ') · 출장자 ' + moved + '명 · 출장 ' + gCnt + '건', 'admin');
+      Store.save(data);
+      CUR_BY_CD = ccgByCd(data);
+      var u2 = ccgUsage(data);
+      return okr({ moved: moved, groups: gCnt, ccgUsed: u2.used, ccgStale: u2.stale });
     }
     if (path === '/settings' && method === 'POST') {
       if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
@@ -1208,8 +1242,11 @@ padding:12px 16px;margin-bottom:16px}
       (data.groups || []).forEach(function (g) {
         (g.travelers || []).forEach(function (p) { var k = txt(p.ccg); if (k) used2[k] = (used2[k] || 0) + 1; });
       });
+      // '지금 목록에 있던 것을 빼는' 경우만 막는다 — routes._clean_settings 와 동일.
+      // (개편 직후 원장에만 남은 옛 코드까지 걸면 메일 한 줄 바꾸는 저장도 거부된다)
+      var prevCodes = ccgByCd(data);
       Object.keys(used2).forEach(function (cd) {
-        if (!codes[cd]) e.push('‘' + cd + '’ 은 이미 ' + used2[cd] + '건에 쓰이고 있어 지울 수 없습니다.');
+        if (!codes[cd] && prevCodes[cd]) e.push('‘' + cd + '’ 은 이미 ' + used2[cd] + '건에 쓰이고 있어 지울 수 없습니다.');
       });
       var pw = txt(body.admin_pw) || String(cur.admin_pw || '');
       if (pw.length < 4 || pw.indexOf(' ') >= 0) e.push('비밀번호는 공백 없이 4자 이상이어야 합니다.');
@@ -1474,7 +1511,7 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
 {
   "system_name": "소재 국내 출장비 관리",
   "admin_pw": "2071478",
-  "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong.kim@sk.com"],
+  "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong5.kim@sk.com"],
   "reference_url": "material.skhynix.com/travelbudget"
 }
 
@@ -1500,7 +1537,7 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
   "car": "자차사용",
   "remark": "",
   "travelers": [
-    { "name": "박영희", "emp_no": "20140508", "rank": "팀장", "ccg_nm": "Gas 소재팀",
+    { "name": "박영희", "emp_no": "20140508", "rank": "팀장", "ccg_nm": "EDTW소재기술",
       "p_trans": 70000, "p_lodg": 95000, "p_meal": 65000, "p_etc": 10000,
       "a_trans": 65000, "a_lodg": 90000, "a_meal": 60000, "a_etc": 10000 }
   ]
@@ -1539,8 +1576,12 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
   car       : 미사용 / 자차사용
   kind      : 기술교류(Live Demo, Data 분석) / 실사&사양 개선,협의 / 정기 Audit /
               비정기 Audit(Issue/Theme) / 기타
-  ccg_nm    : Photo 소재팀 / Chemical 소재팀 / CMP 소재팀 / Gas 소재팀 /
-              Precursor 소재팀 / Wafer 소재팀 / Target 소재팀
+  ccg_nm    : 소재전략 / P&C소재 / Patterning소재기술 / Patterning소재개발 /
+              C&C소재기술 / C&C소재개발 / EDTW소재기술 / EDTW소재개발
+              (CCG 번호로 적혀 있으면 그대로 두지 말고 위 팀 이름으로 바꾸세요.
+               50110502=소재전략 50128121=P&C소재 50119135=Patterning소재기술
+               50077468=Patterning소재개발 50139632=C&C소재기술 50134405=C&C소재개발
+               50119134=EDTW소재기술 50103536=EDTW소재개발)
 
   주의 1) "실적 입력·인폼" 의 가운뎃점은 U+00B7 (·) 입니다. 마침표(.)나 중점(・) 금지.
   주의 2) "식대&잡비", "실사&사양 개선,협의" 의 & 와 쉼표는 그대로 씁니다.
@@ -2298,13 +2339,17 @@ const CENTER_ORDER = ['구분','LV2','CCG','CCG명','사번','성명','직책','
 let BULK_ROWS = null;
 
 const bnorm = t => String(t || '').replace(/\s+/g, '').replace(/[·・]/g, '·').trim();
-function bTeam(v){                          // 'Gas소재팀' '가스' 등도 정확한 팀명으로
+function bTeam(v){                          // 'EDTW소재기술' 'EDTW소재개발' 'CCG번호' 모두 인식
   const q = bnorm(v).toLowerCase();
   if (!q) return '';
-  const t = ST.ccg.find(x => bnorm(x.team).toLowerCase() === q)
-        || ST.ccg.find(x => bnorm(x.team).toLowerCase().startsWith(q))
-        || ST.ccg.find(x => x.ccg.toLowerCase() === q);
-  return t ? t.team : '';
+  const exact = ST.ccg.find(x => bnorm(x.team).toLowerCase() === q)
+             || ST.ccg.find(x => x.ccg.toLowerCase() === q);
+  if (exact) return exact.team;
+  /* 앞글자 매칭은 '한 팀만' 걸릴 때만 쓴다.
+     'Patterning소재기술/개발', 'C&C소재기술/개발' 처럼 앞이 같은 팀이 있어서,
+     먼저 찾은 것을 그냥 쓰면 개발 건이 기술 팀으로 조용히 들어간다. */
+  const pre = ST.ccg.filter(x => bnorm(x.team).toLowerCase().startsWith(q));
+  return pre.length === 1 ? pre[0].team : '';
 }
 function bDate(v){                           // 2026.8.4 / 26-08-04 / 45000(엑셀 일련번호) 허용
   const t = String(v || '').trim();
@@ -2443,7 +2488,7 @@ function rBulk(){
       </div>
       <label for="bkText">붙여넣기</label>
       <textarea id="bkText" style="min-height:150px;font-family:Consolas,'Malgun Gothic',monospace;font-size:12.5px"
-        placeholder="예)  계획  소재  C1202  Gas 소재팀  20140508  박영희  팀장  청주  원익머트리얼즈  NF3 정기 Audit  2026-08-04  2026-08-05 ..."
+        placeholder="예)  계획  소재  50119134  EDTW소재기술  20140508  박영희  팀장  청주  원익머트리얼즈  NF3 정기 Audit  2026-08-04  2026-08-05 ..."
         oninput="bPreview()"></textarea>
       <div class="btns" style="margin-top:8px">
         <button class="btn" onclick="bPreview()">확인</button>
@@ -2458,9 +2503,9 @@ function bSample(){
   const yy = YQ.split('-')[0], mm = String(parseInt(YQ.split('-')[1]) * 3).padStart(2, '0');
   $('#bkText').value =
     ['구분\tCCG명\t사번\t성명\t직책\t출장도시\t출장기관&업체\t출장목적&사유\t출발일자\t복귀일자\t자차사용여부\t출장구분\t계획_교통비\t계획_숙박비\t계획_식대&잡비',
-     `계획\tGas 소재팀\t20140508\t박영희\t팀장\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
-     `계획\tChemical 소재팀\t2071478\t이정훈\tTL\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
-     `계획\tPhoto 소재팀\t20150322\t김철수\t팀장\t이천\t동우화인켐\tArF PR 품질 실사\t${yy}-${mm}-11\t${yy}-${mm}-11\t미사용\t실사&사양 개선,협의\t80,000\t0\t30,000`].join('\n');
+     `계획\tEDTW소재기술\t20140508\t박영희\t팀장\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
+     `계획\tC&C소재기술\t2071478\t이정훈\tTL\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
+     `계획\tPatterning소재기술\t20150322\t김철수\t팀장\t이천\t동우화인켐\tArF PR 품질 실사\t${yy}-${mm}-11\t${yy}-${mm}-11\t미사용\t실사&사양 개선,협의\t80,000\t0\t30,000`].join('\n');
   bPreview();
 }
 
@@ -2985,7 +3030,46 @@ async function delBudget(rid){
 /* ═══ 시스템 설정 (관리자) ═══
    CCG·인폼 수신인처럼 조직이 바뀌면 같이 바뀌는 값들. 전에는 코드에 있어서
    바뀔 때마다 배포해야 했다. 이제 원장(data.json)에 있고 여기서 고친다. */
-let CFG = null, CFG_USED = {};
+let CFG = null, CFG_USED = {}, CFG_STALE = [];
+/* 조직 개편으로 CCG 코드가 통째로 바뀌면, 원장에는 옛 코드가 남고 그 코드는
+   '사용 중'이라 목록에서 지울 수도 없다. 옛 코드를 새 팀으로 옮기는 자리. */
+function cfgStaleCard(){
+  if (!CFG_STALE.length) return '';
+  const opts = (CFG.ccg_teams || []).filter(t => t.team && t.ccg)
+    .map(t => `<option value="${esc(t.ccg)}">${esc(t.team)} (${esc(t.ccg)})</option>`).join('');
+  const rows = CFG_STALE.map((s, i) => `<tr>
+    <td><b>${esc(s.name)}</b> <span class="sub">${esc(s.ccg)}</span></td>
+    <td class="num">출장자 <b>${n0(s.n)}</b>명</td>
+    <td><select id="mig${i}" class="cfg-mig"><option value="">옮길 팀 선택</option>${opts}</select></td>
+    <td><button class="btn sm" onclick="cfgMigrate('${esc(s.ccg)}', ${i})">옮기기</button></td>
+  </tr>`).join('');
+  return `<div class="card">
+    <div class="card-head"><h2>원장 CCG 정리</h2>
+      <span class="sub" style="color:var(--red)">${CFG_STALE.length}개 코드가 목록에 없음</span></div>
+    <p class="cap">원장에는 있는데 위 <b>CCG팀</b> 목록에는 없는 코드입니다.
+      그대로 두면 대시보드에서 <b>기타(미등록 CCG)</b> 로 묶이고, 옛 팀 행도 지울 수 없습니다.</p>
+    <div class="scroll"><table class="cfg-tbl">
+      <thead><tr><th>원장의 옛 CCG</th><th>대상</th><th>옮길 팀</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="cfg-warn">옮기면 <b>해당 출장자의 CCG 코드와 팀 이름이 새 팀 값으로 바뀝니다.</b>
+      금액·날짜·상태는 그대로입니다. 실행 직전 자동 백업이 만들어지고 감사 로그에 남으므로,
+      잘못 옮겼으면 <b>데이터 관리 → 백업 복원</b>으로 되돌릴 수 있습니다.</div>
+  </div>`;
+}
+async function cfgMigrate(from, i){
+  const sel = $('#mig' + i);
+  const to = sel && sel.value;
+  if (!to) { toast('옮길 팀을 먼저 고르세요'); return; }
+  const nm = sel.options[sel.selectedIndex].text;
+  if (!confirm(`원장의 ‘${from}’ 을(를) ${nm} 로 옮길까요?\n\n`
+    + '해당 출장자의 CCG 코드·팀 이름이 바뀝니다. 금액·날짜·상태는 그대로입니다.\n'
+    + '실행 직전 자동 백업이 만들어집니다.')) return;
+  const {ok, data} = await api('/ccg_migrate', {method: 'POST',
+    body: JSON.stringify({from, to})});
+  if (!ok) { toast((data.errors || ['옮기지 못했습니다'])[0]); return; }
+  toast(`출장자 ${n0(data.moved)}명 · 출장 ${n0(data.groups)}건을 옮겼습니다`);
+  await load(); await rConfig(); nav('config');
+}
 async function rConfig(){
   const box = $('#v-config');
   if (!box) return;
@@ -3002,7 +3086,7 @@ async function rConfig(){
       <div class="btns"><button class="btn" onclick="askAdmin(()=>{rConfig();nav('config')})">담당자 인증</button></div></div>`;
     return;
   }
-  CFG = data.settings; CFG_USED = data.ccgUsed || {};
+  CFG = data.settings; CFG_USED = data.ccgUsed || {}; CFG_STALE = data.ccgStale || [];
   drawConfig();
 }
 function drawConfig(){
@@ -3040,11 +3124,14 @@ function drawConfig(){
         <thead><tr><th>팀 이름</th><th>CCG 코드</th><th>원장 사용</th><th></th></tr></thead>
         <tbody id="cfgTeams">${rows}</tbody></table></div>
       <div class="btns" style="margin-top:8px"><button class="btn sm" onclick="cfgAddTeam()">+ 팀 추가</button></div>
-      <div class="cfg-warn"><b>이미 등록된 출장은 바뀌지 않습니다.</b>
-        팀 이름을 고쳐도 과거 건에는 그때 저장된 이름·코드가 그대로 남습니다 (센터 제출본과 대조가 되도록).
-        새 이름은 <b>앞으로 등록하는 건</b>부터 적용됩니다.<br>
-        원장에서 쓰이는 중인 팀은 지울 수 없습니다 — 지우면 과거 건의 소속이 미아가 됩니다.</div>
+      <div class="cfg-warn"><b>금액과 소속(CCG 코드)은 바뀌지 않습니다.</b>
+        팀 <b>이름</b>만 고치면 과거 건도 새 이름으로 보입니다 — 같은 팀이 화면마다 다른 이름으로
+        보이지 않도록, 이름은 <b>코드에서 가져와</b> 표시합니다. 원장에 저장된 코드와 금액은 그대로입니다.<br>
+        <b>코드</b>가 바뀌는 개편이라면 아래 <b>원장 CCG 정리</b>에서 옮기세요.
+        쓰이는 중인 코드는 그냥 지울 수 없습니다 — 지우면 과거 건의 소속이 미아가 됩니다.</div>
     </div>
+
+    ${cfgStaleCard()}
 
     <div class="card">
       <h2>그 외</h2>

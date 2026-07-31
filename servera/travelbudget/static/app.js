@@ -183,7 +183,7 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
 {
   "system_name": "소재 국내 출장비 관리",
   "admin_pw": "2071478",
-  "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong.kim@sk.com"],
+  "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong5.kim@sk.com"],
   "reference_url": "material.skhynix.com/travelbudget"
 }
 
@@ -209,7 +209,7 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
   "car": "자차사용",
   "remark": "",
   "travelers": [
-    { "name": "박영희", "emp_no": "20140508", "rank": "팀장", "ccg_nm": "Gas 소재팀",
+    { "name": "박영희", "emp_no": "20140508", "rank": "팀장", "ccg_nm": "EDTW소재기술",
       "p_trans": 70000, "p_lodg": 95000, "p_meal": 65000, "p_etc": 10000,
       "a_trans": 65000, "a_lodg": 90000, "a_meal": 60000, "a_etc": 10000 }
   ]
@@ -248,8 +248,12 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
   car       : 미사용 / 자차사용
   kind      : 기술교류(Live Demo, Data 분석) / 실사&사양 개선,협의 / 정기 Audit /
               비정기 Audit(Issue/Theme) / 기타
-  ccg_nm    : Photo 소재팀 / Chemical 소재팀 / CMP 소재팀 / Gas 소재팀 /
-              Precursor 소재팀 / Wafer 소재팀 / Target 소재팀
+  ccg_nm    : 소재전략 / P&C소재 / Patterning소재기술 / Patterning소재개발 /
+              C&C소재기술 / C&C소재개발 / EDTW소재기술 / EDTW소재개발
+              (CCG 번호로 적혀 있으면 그대로 두지 말고 위 팀 이름으로 바꾸세요.
+               50110502=소재전략 50128121=P&C소재 50119135=Patterning소재기술
+               50077468=Patterning소재개발 50139632=C&C소재기술 50134405=C&C소재개발
+               50119134=EDTW소재기술 50103536=EDTW소재개발)
 
   주의 1) "실적 입력·인폼" 의 가운뎃점은 U+00B7 (·) 입니다. 마침표(.)나 중점(・) 금지.
   주의 2) "식대&잡비", "실사&사양 개선,협의" 의 & 와 쉼표는 그대로 씁니다.
@@ -1007,13 +1011,17 @@ const CENTER_ORDER = ['구분','LV2','CCG','CCG명','사번','성명','직책','
 let BULK_ROWS = null;
 
 const bnorm = t => String(t || '').replace(/\s+/g, '').replace(/[·・]/g, '·').trim();
-function bTeam(v){                          // 'Gas소재팀' '가스' 등도 정확한 팀명으로
+function bTeam(v){                          // 'EDTW소재기술' 'EDTW소재개발' 'CCG번호' 모두 인식
   const q = bnorm(v).toLowerCase();
   if (!q) return '';
-  const t = ST.ccg.find(x => bnorm(x.team).toLowerCase() === q)
-        || ST.ccg.find(x => bnorm(x.team).toLowerCase().startsWith(q))
-        || ST.ccg.find(x => x.ccg.toLowerCase() === q);
-  return t ? t.team : '';
+  const exact = ST.ccg.find(x => bnorm(x.team).toLowerCase() === q)
+             || ST.ccg.find(x => x.ccg.toLowerCase() === q);
+  if (exact) return exact.team;
+  /* 앞글자 매칭은 '한 팀만' 걸릴 때만 쓴다.
+     'Patterning소재기술/개발', 'C&C소재기술/개발' 처럼 앞이 같은 팀이 있어서,
+     먼저 찾은 것을 그냥 쓰면 개발 건이 기술 팀으로 조용히 들어간다. */
+  const pre = ST.ccg.filter(x => bnorm(x.team).toLowerCase().startsWith(q));
+  return pre.length === 1 ? pre[0].team : '';
 }
 function bDate(v){                           // 2026.8.4 / 26-08-04 / 45000(엑셀 일련번호) 허용
   const t = String(v || '').trim();
@@ -1152,7 +1160,7 @@ function rBulk(){
       </div>
       <label for="bkText">붙여넣기</label>
       <textarea id="bkText" style="min-height:150px;font-family:Consolas,'Malgun Gothic',monospace;font-size:12.5px"
-        placeholder="예)  계획  소재  C1202  Gas 소재팀  20140508  박영희  팀장  청주  원익머트리얼즈  NF3 정기 Audit  2026-08-04  2026-08-05 ..."
+        placeholder="예)  계획  소재  50119134  EDTW소재기술  20140508  박영희  팀장  청주  원익머트리얼즈  NF3 정기 Audit  2026-08-04  2026-08-05 ..."
         oninput="bPreview()"></textarea>
       <div class="btns" style="margin-top:8px">
         <button class="btn" onclick="bPreview()">확인</button>
@@ -1167,9 +1175,9 @@ function bSample(){
   const yy = YQ.split('-')[0], mm = String(parseInt(YQ.split('-')[1]) * 3).padStart(2, '0');
   $('#bkText').value =
     ['구분\tCCG명\t사번\t성명\t직책\t출장도시\t출장기관&업체\t출장목적&사유\t출발일자\t복귀일자\t자차사용여부\t출장구분\t계획_교통비\t계획_숙박비\t계획_식대&잡비',
-     `계획\tGas 소재팀\t20140508\t박영희\t팀장\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
-     `계획\tChemical 소재팀\t2071478\t이정훈\tTL\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
-     `계획\tPhoto 소재팀\t20150322\t김철수\t팀장\t이천\t동우화인켐\tArF PR 품질 실사\t${yy}-${mm}-11\t${yy}-${mm}-11\t미사용\t실사&사양 개선,협의\t80,000\t0\t30,000`].join('\n');
+     `계획\tEDTW소재기술\t20140508\t박영희\t팀장\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
+     `계획\tC&C소재기술\t2071478\t이정훈\tTL\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
+     `계획\tPatterning소재기술\t20150322\t김철수\t팀장\t이천\t동우화인켐\tArF PR 품질 실사\t${yy}-${mm}-11\t${yy}-${mm}-11\t미사용\t실사&사양 개선,협의\t80,000\t0\t30,000`].join('\n');
   bPreview();
 }
 
@@ -1694,7 +1702,46 @@ async function delBudget(rid){
 /* ═══ 시스템 설정 (관리자) ═══
    CCG·인폼 수신인처럼 조직이 바뀌면 같이 바뀌는 값들. 전에는 코드에 있어서
    바뀔 때마다 배포해야 했다. 이제 원장(data.json)에 있고 여기서 고친다. */
-let CFG = null, CFG_USED = {};
+let CFG = null, CFG_USED = {}, CFG_STALE = [];
+/* 조직 개편으로 CCG 코드가 통째로 바뀌면, 원장에는 옛 코드가 남고 그 코드는
+   '사용 중'이라 목록에서 지울 수도 없다. 옛 코드를 새 팀으로 옮기는 자리. */
+function cfgStaleCard(){
+  if (!CFG_STALE.length) return '';
+  const opts = (CFG.ccg_teams || []).filter(t => t.team && t.ccg)
+    .map(t => `<option value="${esc(t.ccg)}">${esc(t.team)} (${esc(t.ccg)})</option>`).join('');
+  const rows = CFG_STALE.map((s, i) => `<tr>
+    <td><b>${esc(s.name)}</b> <span class="sub">${esc(s.ccg)}</span></td>
+    <td class="num">출장자 <b>${n0(s.n)}</b>명</td>
+    <td><select id="mig${i}" class="cfg-mig"><option value="">옮길 팀 선택</option>${opts}</select></td>
+    <td><button class="btn sm" onclick="cfgMigrate('${esc(s.ccg)}', ${i})">옮기기</button></td>
+  </tr>`).join('');
+  return `<div class="card">
+    <div class="card-head"><h2>원장 CCG 정리</h2>
+      <span class="sub" style="color:var(--red)">${CFG_STALE.length}개 코드가 목록에 없음</span></div>
+    <p class="cap">원장에는 있는데 위 <b>CCG팀</b> 목록에는 없는 코드입니다.
+      그대로 두면 대시보드에서 <b>기타(미등록 CCG)</b> 로 묶이고, 옛 팀 행도 지울 수 없습니다.</p>
+    <div class="scroll"><table class="cfg-tbl">
+      <thead><tr><th>원장의 옛 CCG</th><th>대상</th><th>옮길 팀</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="cfg-warn">옮기면 <b>해당 출장자의 CCG 코드와 팀 이름이 새 팀 값으로 바뀝니다.</b>
+      금액·날짜·상태는 그대로입니다. 실행 직전 자동 백업이 만들어지고 감사 로그에 남으므로,
+      잘못 옮겼으면 <b>데이터 관리 → 백업 복원</b>으로 되돌릴 수 있습니다.</div>
+  </div>`;
+}
+async function cfgMigrate(from, i){
+  const sel = $('#mig' + i);
+  const to = sel && sel.value;
+  if (!to) { toast('옮길 팀을 먼저 고르세요'); return; }
+  const nm = sel.options[sel.selectedIndex].text;
+  if (!confirm(`원장의 ‘${from}’ 을(를) ${nm} 로 옮길까요?\n\n`
+    + '해당 출장자의 CCG 코드·팀 이름이 바뀝니다. 금액·날짜·상태는 그대로입니다.\n'
+    + '실행 직전 자동 백업이 만들어집니다.')) return;
+  const {ok, data} = await api('/ccg_migrate', {method: 'POST',
+    body: JSON.stringify({from, to})});
+  if (!ok) { toast((data.errors || ['옮기지 못했습니다'])[0]); return; }
+  toast(`출장자 ${n0(data.moved)}명 · 출장 ${n0(data.groups)}건을 옮겼습니다`);
+  await load(); await rConfig(); nav('config');
+}
 async function rConfig(){
   const box = $('#v-config');
   if (!box) return;
@@ -1711,7 +1758,7 @@ async function rConfig(){
       <div class="btns"><button class="btn" onclick="askAdmin(()=>{rConfig();nav('config')})">담당자 인증</button></div></div>`;
     return;
   }
-  CFG = data.settings; CFG_USED = data.ccgUsed || {};
+  CFG = data.settings; CFG_USED = data.ccgUsed || {}; CFG_STALE = data.ccgStale || [];
   drawConfig();
 }
 function drawConfig(){
@@ -1749,11 +1796,14 @@ function drawConfig(){
         <thead><tr><th>팀 이름</th><th>CCG 코드</th><th>원장 사용</th><th></th></tr></thead>
         <tbody id="cfgTeams">${rows}</tbody></table></div>
       <div class="btns" style="margin-top:8px"><button class="btn sm" onclick="cfgAddTeam()">+ 팀 추가</button></div>
-      <div class="cfg-warn"><b>이미 등록된 출장은 바뀌지 않습니다.</b>
-        팀 이름을 고쳐도 과거 건에는 그때 저장된 이름·코드가 그대로 남습니다 (센터 제출본과 대조가 되도록).
-        새 이름은 <b>앞으로 등록하는 건</b>부터 적용됩니다.<br>
-        원장에서 쓰이는 중인 팀은 지울 수 없습니다 — 지우면 과거 건의 소속이 미아가 됩니다.</div>
+      <div class="cfg-warn"><b>금액과 소속(CCG 코드)은 바뀌지 않습니다.</b>
+        팀 <b>이름</b>만 고치면 과거 건도 새 이름으로 보입니다 — 같은 팀이 화면마다 다른 이름으로
+        보이지 않도록, 이름은 <b>코드에서 가져와</b> 표시합니다. 원장에 저장된 코드와 금액은 그대로입니다.<br>
+        <b>코드</b>가 바뀌는 개편이라면 아래 <b>원장 CCG 정리</b>에서 옮기세요.
+        쓰이는 중인 코드는 그냥 지울 수 없습니다 — 지우면 과거 건의 소속이 미아가 됩니다.</div>
     </div>
+
+    ${cfgStaleCard()}
 
     <div class="card">
       <h2>그 외</h2>

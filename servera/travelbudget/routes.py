@@ -61,6 +61,23 @@ def _norm(g, data):
     return C.normalize_group(g, by_nm=C.ccg_by_nm(data), by_cd=C.ccg_by_cd(data))
 
 
+def _ccg_usage(data):
+    """원장에 실제로 쓰인 CCG 코드별 인원 수와, 그중 현재 목록에 없는 코드.
+    (조직 개편으로 목록을 갈아끼우면 옛 코드가 원장에 남는다 — 화면에서 보여야 옮길 수 있다)"""
+    used, names = {}, {}
+    for g in data.get("groups", []):
+        for p in (g.get("travelers") or []):
+            k = C._txt(p.get("ccg"))
+            if not k:
+                continue
+            used[k] = used.get(k, 0) + 1
+            names.setdefault(k, C._txt(p.get("ccg_nm")))
+    known = {t["ccg"] for t in C.ccg_teams(data)}
+    stale = [{"ccg": k, "name": names.get(k) or k, "n": n}
+             for k, n in sorted(used.items(), key=lambda kv: -kv[1]) if k not in known]
+    return used, stale
+
+
 def _clean_settings(body, cur, data):
     """설정 저장값 검증 — 잘못된 값이 원장에 들어가면 화면 전체가 못 쓰게 된다."""
     e, out = [], {}
@@ -114,8 +131,12 @@ def _clean_settings(body, cur, data):
             k = C._txt(p.get("ccg"))
             if k:
                 used[k] = used.get(k, 0) + 1
+    # 단, '지금 목록에 있던 것을 빼는' 경우만 막는다.
+    # 조직 개편 직후에는 원장에만 있고 목록에는 없는 옛 코드가 있는데(→ 원장 CCG 정리에서 옮김),
+    # 그것까지 여기서 걸면 메일 주소 한 줄 바꾸는 저장까지 통째로 거부된다.
+    prev = {t["ccg"] for t in C.ccg_teams(data)}
     for cd, n in used.items():
-        if cd not in codes:
+        if cd not in codes and cd in prev:
             nm = next((C._txt(p.get("ccg_nm")) for g in data.get("groups", [])
                        for p in (g.get("travelers") or []) if C._txt(p.get("ccg")) == cd), cd)
             e.append(f"‘{nm}({cd})’ 은 이미 {n}건에 쓰이고 있어 지울 수 없습니다. "
@@ -503,12 +524,7 @@ def set_sap(gid):
 def get_settings():
     data = load_data()
     # 어느 팀이 몇 건에 쓰이는지 함께 준다 — 지우기 전에 화면에서 보여야 한다
-    used = {}
-    for g in data.get("groups", []):
-        for p in (g.get("travelers") or []):
-            k = C._txt(p.get("ccg"))
-            if k:
-                used[k] = used.get(k, 0) + 1
+    used, stale = _ccg_usage(data)
     s = data["settings"]
     return jsonify({"ok": True, "settings": {
         "system_name": s.get("system_name", ""),
@@ -517,7 +533,46 @@ def get_settings():
         "mail_recipients": list(s.get("mail_recipients") or []),
         "ccg_teams": C.ccg_teams(data),
         "ccg_from_settings": isinstance(s.get("ccg_teams"), list),
-    }, "ccgUsed": used})
+    }, "ccgUsed": used, "ccgStale": stale})
+
+
+# ── 원장의 옛 CCG 코드를 새 팀으로 옮기기 (관리자) ──────────
+# 조직은 연 단위로 바뀐다. 목록만 갈아끼우면 원장의 옛 코드가 미아가 되고,
+# 그 코드는 '사용 중'이라 목록에서 지울 수도 없다 — 그래서 옮기는 길을 연다.
+@travelbudget.post("/api/ccg_migrate")
+@admin_required
+def ccg_migrate():
+    b = _body()
+    src, dst = C._txt(b.get("from")), C._txt(b.get("to"))
+    with LOCK:
+        data = load_data()
+        codes = {t["ccg"]: t["team"] for t in C.ccg_teams(data)}
+        if not src or not dst:
+            return _err("옮길 CCG 코드와 대상 팀을 모두 고르세요.")
+        if dst not in codes:
+            return _err(f"대상 팀({dst})이 CCG 목록에 없습니다. 먼저 목록에 추가하세요.")
+        if src == dst:
+            return _err("같은 코드로는 옮길 수 없습니다.")
+        moved, groups = 0, 0
+        for g in data.get("groups", []):
+            hit = False
+            for p in (g.get("travelers") or []):
+                if C._txt(p.get("ccg")) == src:
+                    p["ccg"] = dst
+                    p["ccg_nm"] = codes[dst]      # 이름은 대상 팀 이름으로
+                    moved += 1
+                    hit = True
+            if hit:
+                groups += 1
+        if not moved:
+            return _err(f"원장에서 {src} 를 쓰는 출장자를 찾지 못했습니다.")
+        append_audit(data, "CCG 코드 이동",
+                     f"{src} → {dst}({codes[dst]}) · 출장자 {moved}명 · 출장 {groups}건",
+                     actor="admin")
+        save_data(data)                            # 저장 직전 자동 백업 (되돌릴 수 있음)
+        used, stale = _ccg_usage(data)
+    return jsonify({"ok": True, "moved": moved, "groups": groups,
+                    "ccgUsed": used, "ccgStale": stale})
 
 
 @travelbudget.post("/api/settings")

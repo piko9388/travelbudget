@@ -30,7 +30,7 @@ await pg.fill('#pl_dep', '2026-08-04');
 await pg.fill('#pl_ret', '2026-08-05');
 await pg.fill('#travBody tr:nth-child(1) .t-nm', '박영희');
 await pg.fill('#travBody tr:nth-child(1) .t-no', '20140508');
-await pg.selectOption('#travBody tr:nth-child(1) .t-tm', 'Gas 소재팀');
+await pg.selectOption('#travBody tr:nth-child(1) .t-tm', 'EDTW소재기술');
 await pg.fill('#travBody tr:nth-child(1) .t-p-trans', '120000');
 await pg.fill('#travBody tr:nth-child(1) .t-p-lodg', '100000');
 await pg.fill('#travBody tr:nth-child(1) .t-p-meal', '70000');

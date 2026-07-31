@@ -103,7 +103,7 @@ note(/CCG/.test(ccgErr) ? 'OK' : 'ISSUE', '검증', `CCG팀 미선택 시 안내
 const keptCity = await page.inputValue('#pl_city');
 const keptName = await page.inputValue('#travBody tr:nth-child(1) .t-nm');
 note(keptCity && keptName ? 'OK' : 'ISSUE', '입력', `검증 실패 후 입력값 보존: 도시="${keptCity}" 성명="${keptName}"`);
-await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'Chemical 소재팀');
+await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'C&C소재기술');
 
 console.log('\n== D. 확정 체크박스 의미 전달 ==');
 const cbLabel = await page.textContent('#v-plan label:has(#pl_confirm)').catch(() => '');
