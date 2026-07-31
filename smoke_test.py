@@ -57,7 +57,10 @@ if st != 200:
 _, _, state = req("/state")
 ok("설정 로드", isinstance(state, dict) and "settings" in state)
 ok("[보안] 응답에 admin_pw 미포함", "admin_pw" not in json.dumps(state))
-ok("CCG 7팀 로드", len(state.get("ccg", [])) == 7, len(state.get("ccg", [])))
+# 팀 수는 조직 개편으로 바뀐다(화면 [시스템 설정]). 숫자를 박지 말고 '비어 있지 않은가'만 본다.
+_ccg = state.get("ccg", [])
+ok("CCG 목록 로드", len(_ccg) >= 1 and all(t.get("team") and t.get("ccg") for t in _ccg),
+   f"{len(_ccg)}팀")
 v = state.get("version", {})
 print(f"        버전 {v.get('v')} · {v.get('build')}")
 d = state.get("dash", {})
