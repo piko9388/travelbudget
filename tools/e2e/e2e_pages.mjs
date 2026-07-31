@@ -148,7 +148,8 @@ try {
   const mirror = await page.evaluate(() => {
     const d = ST.dash;
     const cost = (d.byCost || []).reduce((a, c) => a + c.amt, 0);
-    return { used: d.done + d.wip + d.commit, cost, nTrips: d.nTrips,
+    // 확정 예정은 아직 안 쓴 돈이라 부서별·비목 집계에서 빠진다 (core.py 와 같은 축)
+    return { used: d.done + d.wip, cost, nTrips: d.nTrips,
              zero: (d.byCcg || []).filter(r => r.total > 0 && Math.round(r.share * 100) === 0).length,
              names: (d.byCost || []).map(c => c.name) };
   });
@@ -156,6 +157,10 @@ try {
   ok('정적판 비목 4종', mirror.names.join(',') === '교통비,숙박비,식대&잡비,기타', mirror.names);
   ok('정적판 CCG 0% 없음', mirror.zero === 0, mirror);
   ok('정적판 nTrips 제공', typeof mirror.nTrips === 'number', mirror.nTrips);
+  const mUsed = await page.evaluate(() => ({ t: ST.dash.nUsedTrips, p: ST.dash.nUsedPeople,
+    ppl: (ST.dash.byCcg || []).reduce((a, r) => a + r.people, 0) }));
+  ok('정적판 실집행 건수·인원 제공', typeof mUsed.t === 'number' && typeof mUsed.p === 'number', mUsed);
+  ok('정적판 부서별 인원 = 실집행 인원', mUsed.ppl === mUsed.p, mUsed);
 
   // no external CDN, no code errors, XSS didn't fire
   const cdnBlocked = errs.some(e => /Failed to load resource|ERR_TUNNEL|jsdelivr/.test(e));

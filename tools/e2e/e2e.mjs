@@ -587,7 +587,7 @@ try {
   ok('막대 범례 3색(완료/처리중/확정)', (await page.$$('#v-dash .lgd i')).length === 3);
   const refTxt = await page.textContent('#v-dash .ref');
   // 잠정 설명은 예산 hero 한 곳에만 (v10.0 이전엔 hero·CCG 두 곳에 같은 문장이 찍혔다)
-  ok('CCG 참고줄은 건수·인원만', /출장\s*\d+건/.test(refTxt) && /인원\s*\d+명/.test(refTxt), refTxt.slice(0, 40));
+  ok('CCG 참고줄은 건수·인원만', /\d+건/.test(refTxt) && /인원\s*\d+명/.test(refTxt), refTxt.slice(0, 40));
   const planSent = await page.evaluate(() =>
     [...document.querySelectorAll('#v-dash')].map(x => x.textContent)
       .join('').split(/예산에 (?:잡히지|반영되지) 않/).length - 1);
@@ -615,9 +615,9 @@ try {
   const barSum = await page.evaluate(() => {
     const t = document.querySelector('#v-dash .hero .skey').textContent;
     const n = [...t.matchAll(/([\d,]+)/g)].map(m => +m[1].replace(/,/g, ''));
-    return n[0] + n[1] + n[2];        // 처리완료 + 처리중 + 확정예정
+    return n[0] + n[1];              // 처리완료 + 처리중 (확정 예정은 아직 안 쓴 돈이라 제외)
   });
-  ok('비목 합계 = 예산 막대 집행 합계', cost.sum === barSum, { cost: cost.sum, bar: barSum });
+  ok('비목 합계 = 실집행 합계', cost.sum === barSum, { cost: cost.sum, bar: barSum });
   const ccgTh = await page.$$eval('#v-dash .fold th', e => e.map(x => x.textContent.trim()));
   ok('CCG 금액표에 잠정계획 열 없음', !ccgTh.includes('잠정계획'), ccgTh);
   ok('CCG 금액표는 기본 접힘', !(await page.isVisible('#v-dash .fold table')));
@@ -863,12 +863,12 @@ try {
   // 최댓값 정규화였을 때 '34%' 라벨 옆에서 막대가 가로를 꽉 채워 그림이 숫자와 반대였다.
   const axis = await page.evaluate(() => {
     const read = sel => [...document.querySelectorAll(sel)].map(r => {
-      const w = parseFloat(r.querySelector('.bbar i').style.width) || 0;
-      const seg = [...r.querySelectorAll('.bbar i')]
+      // 확정 예정 세그먼트(.ghost-seg)는 집계 밖이라 폭 검사에서 뺀다
+      const seg = [...r.querySelectorAll('.bbar i:not(.ghost-seg)')]
         .reduce((a, i) => a + (parseFloat(i.style.width) || 0), 0);
       const m = r.querySelector('.bval').textContent.match(/(\d+)%/);
-      return { seg: +seg.toFixed(1), pct: m ? +m[1] : null, first: w };
-    });
+      return { seg: +seg.toFixed(1), pct: m ? +m[1] : null };
+    }).filter(r => r.pct != null);      // '예정' 만 있는 행은 구성비가 없다
     return { ccg: read('#v-dash .card > .bars .brow'), cost: read('#v-dash .cost .brow') };
   });
   const axisOk = rows => rows.length > 0 && rows.every(r => r.pct != null && Math.abs(r.seg - r.pct) <= 1.2);
@@ -1107,6 +1107,81 @@ try {
   ok('취소 안내가 거짓 복구 경로를 말하지 않음',
      !/되돌리려면 예산 담당자 모드가 필요/.test(appSrc));
   ok('취소 안내가 실제 복구 경로(백업 복원)를 안내', /백업 복원/.test(appSrc));
+
+  /* ── 24. v10.6 — 실집행 기준 집계 · 비목별 내역 열람 ── */
+  console.log('\n-- 24. 실집행 기준 · 비목별 내역 --');
+  await page.evaluate(() => nav('dash'));
+  await page.waitForSelector('#v-dash .card > .bars .brow');
+  const basis = await page.evaluate(() => {
+    const d = ST.dash;
+    const rows = [...document.querySelectorAll('#v-dash .card > .bars .brow')].map(r => ({
+      only: r.classList.contains('only-cmt'),
+      val: r.querySelector('.bval').textContent.trim(),
+      ghost: !!r.querySelector('.bbar i.ghost-seg'),
+    }));
+    return {
+      rows,
+      ccgPeople: d.byCcg.reduce((a, r) => a + r.people, 0),
+      usedPeople: d.nUsedPeople, allPeople: d.nPeople,
+      share: d.byCcg.reduce((a, r) => a + r.share, 0),
+      costSum: (d.byCost || []).reduce((a, c) => a + c.amt, 0),
+      used: d.done + d.wip, commit: d.commit,
+    };
+  });
+  // 부서별 인원은 실집행만 — 아직 안 간 사람을 세면 숫자가 부풀어 보인다
+  ok('부서별 인원 = 실집행 인원', basis.ccgPeople === basis.usedPeople, basis);
+  ok('실집행 인원 <= 전체 인원', basis.usedPeople <= basis.allPeople, basis);
+  ok('CCG 구성비 합 = 100%', Math.abs(basis.share - 1) < 0.01 || basis.used === 0, basis.share);
+  ok('비목 합계 = 실집행 합계 (확정 예정 제외)', basis.costSum === basis.used, basis);
+  // 확정만 있는 팀은 금액·구성비가 아니라 '예정'으로만 보여야 한다
+  const onlyRows = basis.rows.filter(r => r.only);
+  ok('확정만 있는 팀은 예정 표기', onlyRows.every(r => /예정/.test(r.val) && r.ghost), onlyRows);
+  ok('확정만 있는 팀에 구성비 없음', onlyRows.every(r => !/%/.test(r.val)), onlyRows);
+
+  // 출장 내역 — 상태를 건드리지 않고 비목별 내역을 볼 수 있어야 한다
+  await page.evaluate(() => nav('list'));
+  await page.waitForSelector('#listBody tr');
+  const dgid = await page.evaluate(() => (ST.groups.find(g => g.act_tot > 0) || {}).group_id);
+  const stBefore = await page.evaluate(g => {
+    const x = ST.groups.find(y => y.group_id === g);
+    return { roll: x.roll, st: x.status, act: x.act_tot };
+  }, dgid);
+  await page.evaluate(g => toggleDetail(g), dgid);
+  await sleep(300);
+  const dtl = await page.evaluate(() => {
+    const d = document.querySelector('.dtl-row');
+    if (!d) return null;
+    const th = [...d.querySelectorAll('thead th')].map(x => x.textContent.trim());
+    const foot = [...d.querySelectorAll('tfoot td')].map(x => x.textContent.trim());
+    return { th, foot, copy: !!d.querySelector('button'), rows: d.querySelectorAll('tbody tr').length };
+  });
+  ok('내역이 펼쳐짐', !!dtl && dtl.rows > 0, dtl && dtl.rows);
+  ok('비목 4종이 열로 표시', ['교통비', '숙박비', '식대&잡비', '기타'].every(k => dtl.th.includes(k)), dtl.th);
+  ok('정산서에 필요한 열 존재', ['성명', '사번', 'CCG팀'].every(k => dtl.th.includes(k)), dtl.th);
+  ok('합계 행 존재', dtl.foot.some(x => /합계/.test(x)), dtl.foot);
+  ok('표 복사 버튼 제공', dtl.copy);
+  // 핵심 — 보기만 해도 상태가 바뀌면 안 된다 (전에는 되돌리기→수정으로만 볼 수 있었다)
+  const stAfter = await page.evaluate(g => {
+    const x = ST.groups.find(y => y.group_id === g);
+    return { roll: x.roll, st: x.status, act: x.act_tot };
+  }, dgid);
+  ok('내역을 봐도 상태·금액이 그대로', JSON.stringify(stBefore) === JSON.stringify(stAfter),
+     { before: stBefore, after: stAfter });
+
+  // 이관·처리 관리에서도 비목별이 보여야 한다 (이관 시 정산서를 쓰는 화면)
+  await page.evaluate(() => { sessionStorage.setItem('tb_pw', '2071478'); nav('process'); });
+  await page.waitForSelector('#v-process .pgroup, #v-process .note');
+  const pdtl = await page.evaluate(() => {
+    const d = document.querySelector('#v-process details.pdtl');
+    if (!d) return null;
+    d.open = true;
+    const th = [...d.querySelectorAll('thead th')].map(x => x.textContent.trim());
+    return { th, copy: !!d.querySelector('button') };
+  });
+  if (pdtl) {
+    ok('이관·처리에도 비목별 내역', ['교통비', '숙박비', '식대&잡비', '기타'].every(k => pdtl.th.includes(k)), pdtl.th);
+    ok('이관·처리에도 표 복사', pdtl.copy);
+  }
 
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));

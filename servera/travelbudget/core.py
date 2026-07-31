@@ -41,7 +41,7 @@ CCG_TEAMS = [
 ]
 CCG_BY_NM = {t["team"]: t["ccg"] for t in CCG_TEAMS}
 
-APP_VERSION = "v10.5"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_VERSION = "v10.6"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-07-30"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -330,13 +330,14 @@ def dash(data, yq):
     # 비목(교통·숙박·식대&잡비·기타) 구성 — 예산에 잡힌 축(확정 예정 이후)만 담는다.
     # 확정 전은 계획값(p_*), 확정 후는 실적값(a_*) 으로 위 합계와 같은 금액이 되게 한다.
     cost_map = {k: 0 for k, _ in COST}
+    nUsedPeople = [0]                    # 실집행 인원 (계획·확정 단계 제외)
     ccg_map = {}
     for t in CCG_TEAMS:
         ccg_map[t["ccg"]] = dict(team=t["team"], ccg=t["ccg"], done=0, wip=0,
-                                 commit=0, plan=0, groups=set(), people=0)
+                                 commit=0, plan=0, groups=set(), people=0, cpeople=0)
     # 미등록 CCG 코드도 버리지 않고 모아 합계가 어긋나지 않게 한다
     ccg_map["_ETC"] = dict(team="기타(미등록 CCG)", ccg="-", done=0, wip=0,
-                           commit=0, plan=0, groups=set(), people=0)
+                           commit=0, plan=0, groups=set(), people=0, cpeople=0)
     # 확정 예정 = 계획 금액 선확보(가용에서 차감), 잠정 계획 = 참고만.
     # 실적 이후 금액은 출장자 개인 실효 상태 기준(5명 중 3완료·1보류 그대로).
     for g in G:
@@ -355,6 +356,7 @@ def dash(data, yq):
         for p in g["travelers"]:
             nPeople += 1
             row = ccg_map.get(p.get("ccg")) or ccg_map["_ETC"]
+            used = gs not in PRE            # 실집행(처리 중·처리 완료) 단계인가
             if gs == ST_PLAN:
                 pl = p_sum(p, "p")
                 plan_amt += pl
@@ -365,8 +367,6 @@ def dash(data, yq):
                 commit_amt += pl
                 if row:
                     row["commit"] += pl
-                for k, _ in COST:
-                    cost_map[k] += num(p.get("p_" + k))
             else:
                 eff = eff_status(p, g)
                 a = p_sum(p, "a")
@@ -381,24 +381,32 @@ def dash(data, yq):
                 for k, _ in COST:
                     cost_map[k] += num(p.get("a_" + k))
             if row:
-                row["groups"].add(g["group_id"])
-                row["people"] += 1
+                # 부서별 인원·참여 출장은 실집행 기준. 계획·확정 단계 인원은 세지 않는다
+                # (아직 안 간 사람까지 세면 '9명'이 '14명'으로 부풀어 보인다)
+                if used:
+                    row["groups"].add(g["group_id"])
+                    row["people"] += 1
+                    nUsedPeople[0] += 1
+                elif gs == ST_CONFIRM:
+                    row["cpeople"] += 1     # 확정 예정 인원 — 참고로만
     remain = alloc - done_amt - wip_amt              # 실집행 잔여
     avail = remain - commit_amt                      # 가용 잔여 (확정 예산 확보 반영)
 
-    # 구성비 분모 = 화면에 찍는 합계와 같은 축이어야 한다.
-    # (분자에 확정예정을 넣고 분모에서 빼면, 확정만 있는 팀이 310,000원 · 0% 로 찍힌다)
-    used_total = done_amt + wip_amt + commit_amt
+    # 부서별 구분은 '실제로 집행된 것'(처리 중 + 처리 완료) 기준.
+    # 확정 예정은 아직 안 쓴 돈이라 합계·구성비·정렬에 넣지 않고, 화면에서 흐리게 따로 보여준다.
+    used_total = done_amt + wip_amt
     by_ccg = []
     for row in ccg_map.values():
-        tot = row["done"] + row["wip"] + row["commit"]
-        if row["people"] == 0:
+        tot = row["done"] + row["wip"]
+        if tot == 0 and row["commit"] == 0:
             continue
         by_ccg.append(dict(team=row["team"], ccg=row["ccg"], done=row["done"],
                            wip=row["wip"], commit=row["commit"], total=tot, plan=row["plan"],
                            share=(tot / used_total) if used_total else 0,
-                           groups=len(row["groups"]), people=row["people"]))
-    by_ccg.sort(key=lambda r: -(r["total"] + r["commit"]))
+                           groups=len(row["groups"]), people=row["people"],
+                           cpeople=row["cpeople"]))
+    # 실집행이 큰 팀 우선. 실집행이 없고 확정만 있는 팀은 뒤로.
+    by_ccg.sort(key=lambda r: (-r["total"], -r["commit"]))
 
     todo = {
         # 실적 독촉은 '실제로 간' 확정 건만 — 잠정 계획까지 독촉하지 않는다
@@ -419,6 +427,9 @@ def dash(data, yq):
         # 실제 출장 건수(취소 제외, 중복 없음) — CCG행의 건수는 '참여' 기준이라
         # 두 팀이 함께 간 1건이 양쪽에 잡힌다. 합계에는 반드시 이 값을 쓸 것.
         "nTrips": nPlan + nConfirm + nWip + nDone,
+        # 실집행 기준 — 부서별 카드와 같은 축. 화면의 '건수·인원'은 이 값을 쓴다.
+        "nUsedTrips": nWip + nDone,
+        "nUsedPeople": nUsedPeople[0],
         "nHold": sum(g["proc"]["hold"] for g in G),
         "byCcg": by_ccg, "byCost": [
             dict(key=k, name=nm, amt=cost_map[k],

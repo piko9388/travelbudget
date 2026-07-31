@@ -538,10 +538,25 @@ ok('단일 프로세스 고정(processes=1)', 'processes=1' in _wm)
 r = _mk(city='교차', org='2CCG교차', purpose='교차', confirmed=True,
         travelers=[dict(name='A', emp_no='CC1', rank='TL', ccg_nm='Gas 소재팀', p_trans=100000),
                    dict(name='B', emp_no='CC2', rank='TL', ccg_nm='Photo 소재팀', p_trans=100000)])
+# 부서별 집계는 실집행 기준이라, 확정 예정 상태로는 참여 건수에 잡히지 않는다 → 실적을 넣는다
+_xid = r.get_json()['group']['group_id']
+c.post(f'/travelbudget/api/groups/{_xid}/actual',
+       json=dict(travelers=[dict(emp_no='CC1', a_trans=90000), dict(emp_no='CC2', a_trans=90000)]))
 _stt = c.get(f'/travelbudget/api/state?yq={yq}').get_json()
 _d2 = _stt['dash']
 _ccgsum = sum(x['groups'] for x in _d2['byCcg'])
-ok('CCG행 건수는 참여 기준(중복 허용)', _ccgsum > _d2['nTrips'], (_ccgsum, _d2['nTrips']))
+# 한 출장에 두 팀이 타면 양쪽 팀의 '참여 출장'에 각각 잡히므로, 합이 실제 건수보다 크다
+ok('CCG행 건수는 참여 기준(중복 허용)', _ccgsum > _d2['nUsedTrips'], (_ccgsum, _d2['nUsedTrips']))
+# 부서별 인원은 실집행만 — 계획·확정 단계 인원이 섞이면 안 된다
+_ccgppl = sum(x['people'] for x in _d2['byCcg'])
+ok('부서별 인원 = 실집행 인원', _ccgppl == _d2['nUsedPeople'], (_ccgppl, _d2['nUsedPeople']))
+ok('실집행 인원 <= 전체 인원', _d2['nUsedPeople'] <= _d2['nPeople'], (_d2['nUsedPeople'], _d2['nPeople']))
+# 구성비 분모도 실집행 — 확정 예정을 섞으면 합이 100%가 안 된다
+_sh = sum(x['share'] for x in _d2['byCcg'])
+ok('CCG 구성비 합 = 100%', abs(_sh - 1) < 0.01 or (_d2['done'] + _d2['wip']) == 0, _sh)
+ok('비목 합계 = 실집행 합계',
+   sum(x['amt'] for x in _d2['byCost']) == _d2['done'] + _d2['wip'],
+   (sum(x['amt'] for x in _d2['byCost']), _d2['done'] + _d2['wip']))
 _inq = [g for g in _stt['groups'] if g['yq'] == yq and g['status'] != '취소']
 ok('nTrips = 실제 출장 건수(중복 없음)', _d2['nTrips'] == len(_inq), (_d2['nTrips'], len(_inq)))
 ok('건수 KPI 합 = nTrips',

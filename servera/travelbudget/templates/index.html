@@ -173,6 +173,21 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 tbody tr:hover{background:#FAFBFC}
 tfoot td{background:var(--shade);font-weight:700;color:var(--navy)}
 td .sub{color:var(--mut);font-size:12px;line-height:18px}
+/* 출장자별 비목 내역 — 정산서를 쓰려면 여기서 다 보여야 한다 */
+.dtl-row>td{background:#FAFBFC;padding:12px!important;border-bottom:2px solid var(--line)}
+.dtl-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:13px;line-height:20px}
+.dtl-head .gb{margin-left:auto;display:flex;gap:8px}
+table.dtl{background:#FFF}
+table.dtl th{font-size:12px;line-height:18px;white-space:nowrap}
+table.dtl td{padding:8px;font-size:12px;line-height:18px}
+table.dtl tfoot td{background:var(--shade);font-weight:700}
+.mono{font-variant-numeric:tabular-nums}
+.dtl-rm{margin-top:8px;padding:8px 12px;background:#FFF;border:1px solid var(--line);
+border-radius:2px;font-size:12px;line-height:18px;color:var(--ink2)}
+.dtl-rm b{color:var(--navy);margin-right:4px}
+.pdtl{margin:0;padding:8px 12px 12px;border-top:1px solid var(--line2)}
+.pdtl summary{font-size:12px;line-height:18px}
+.pdtl summary .sub{font-weight:400;margin-left:4px}
 .status{display:inline-block;padding:2px 8px;border:1px solid var(--s4ln);background:#FFF;color:var(--s1);font-size:12px;line-height:18px;font-weight:700;border-radius:2px}
 /* 배지도 같은 단계 음영 — 채움 강도로 진행을 읽는다.
    흰 테두리(계획) → 옅은 바탕(확정) → 중간 채움(처리중) → 진한 채움(완료) */
@@ -212,6 +227,10 @@ gap:12px;padding:8px 12px;border-bottom:1px solid var(--line2)}
 .bbar i.sw,.lgd i.sw{background:var(--s2)}
 .bbar i.sc,.lgd i.sc{background:var(--s3)}
 .bbar i+i{box-shadow:-2px 0 0 #FFF}
+/* 확정 예정 — 집계에 안 들어가는 참고값. 사선으로 '아직 안 쓴 돈'임을 표시한다 */
+.ghost-seg{background:repeating-linear-gradient(135deg,var(--s3) 0 3px,#FFF 3px 6px)!important;opacity:.65}
+.brow.only-cmt .bnm,.brow.only-cmt .bval{color:var(--mut)}
+.lgd i.ghost-seg{opacity:.8}
 .bval{text-align:right;font-size:12px;line-height:18px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums}
 /* 구성비를 고정폭 칸에 넣어야 금액 끝이 세로로 맞는다 (안 그러면 8% 행과 34% 행이 어긋난다) */
 .bval .sub{display:inline-block;width:32px;text-align:right}

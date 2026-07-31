@@ -514,21 +514,21 @@ function rDash(){
       <div class="btns" style="margin-top:0"><button class="btn" onclick="showReport()">센터 제출 리포트</button></div></div>`;
   // ── CCG팀별 집행 — 막대로 도식화. 잠정(예산 미반영)은 표에서 빼고 아래에 따로 표기.
   //    (잠정 금액을 같은 표에 두면 실제 집행액보다 커져 숫자가 튀어 보임)
-  const rowsData = d.byCcg.filter(r => (r.done + r.wip + (r.commit || 0)) > 0);   // 합계 = 완료+처리중+확정 (구성비 분모와 동일 축)
-  // 막대 분모 = 옆에 찍는 구성비의 분모(표 합계)와 같아야 한다.
-  // 최댓값 기준으로 그리면 '34%' 라벨 옆에서 막대가 가로를 꽉 채워 그림이 숫자와 반대 말을 한다.
-  // (총예산 기준은 쓰지 않는다 — 최대 팀이 6%라 6개 막대가 전부 슬라이버가 된다)
-  const barTot = Math.max(1, rowsData.reduce((a, r) => a + r.done + r.wip + (r.commit || 0), 0));
+  // 부서별 구분은 실집행(처리 중 + 처리 완료) 기준. 확정 예정은 아직 안 쓴 돈이라
+  // 합계·구성비에서 빼고 막대 뒤에 흐리게 덧붙인다 — '앞으로 들어올 것'으로만 읽히게.
+  const rowsData = d.byCcg;
+  const barTot = Math.max(1, rowsData.reduce((a, r) => a + r.total, 0));
   const seg = (v, cls) => v > 0 ? `<i class="${cls}" style="width:${(v / barTot * 100).toFixed(2)}%"></i>` : '';
   const bars = rowsData.map(r => {
-    const sum = r.done + r.wip + (r.commit || 0);
-    return `<div class="brow">
-      <div class="bnm">${esc(r.team)}<span class="sub"> ${r.people}명</span></div>
-      <div class="bbar" title="완료 ${won(r.done)} · 처리 중 ${won(r.wip)} · 확정 ${won(r.commit || 0)}">
-        ${seg(r.done, 'sd')}${seg(r.wip, 'sw')}${seg(r.commit || 0, 'sc')}</div>
-      <div class="bval">${won(sum)}<span class="sub"> ${(r.share * 100).toFixed(0)}%</span></div>
+    const cm = r.commit || 0;
+    return `<div class="brow${r.total ? '' : ' only-cmt'}">
+      <div class="bnm">${esc(r.team)}<span class="sub"> ${r.total ? `${r.people}명` : `예정 ${r.cpeople || 0}명`}</span></div>
+      <div class="bbar" title="처리 완료 ${won(r.done)} · 처리 중 ${won(r.wip)}${cm ? ` / 확정 예정 ${won(cm)}` : ''}">
+        ${seg(r.done, 'sd')}${seg(r.wip, 'sw')}${seg(cm, 'sc ghost-seg')}</div>
+      <div class="bval">${r.total ? won(r.total) : '–'}<span class="sub"> ${r.total ? Math.round(r.share * 100) + '%' : '예정'}</span></div>
     </div>`;
   }).join('') || '<div class="note" style="margin:0">집행 내역이 없습니다.</div>';
+  const cmtTot = rowsData.reduce((a, r) => a + (r.commit || 0), 0);
 
   const rows = rowsData.map(r => `<tr>
     <td><b>${esc(r.team)}</b> <span class="sub">${r.ccg}</span></td>
@@ -566,7 +566,7 @@ function rDash(){
     <div class="card">
       <div class="card-head"><h2>CCG팀(부서)별 집행 현황</h2>
         <div class="lgd"><span><i class="sd"></i>처리 완료</span><span><i class="sw"></i>처리 중</span>
-          <span><i class="sc"></i>확정 예정</span></div></div>
+          <span><i class="sc ghost-seg"></i>확정 예정 <span class="sub">집계 제외</span></span></div></div>
       <div class="bars">${bars}</div>
       <details class="fold"><summary>금액 표로 보기</summary>
         <div class="scroll" style="margin-top:10px"><table>
@@ -579,8 +579,9 @@ function rDash(){
             <td class="num">${totSum ? '100.0%' : '–'}</td><td class="num">${tot.people}</td></tr></tfoot>
         </table></div></details>
       ${costStrip(d)}
-      ${d.nTrips ? `<div class="ref">이번 분기 출장 <b>${d.nTrips}건</b> · 인원 <b>${d.nPeople || 0}명</b>
-        <span class="sub">확정된 출장만 집계합니다</span></div>` : ''}
+      ${(d.nUsedTrips || 0) || cmtTot ? `<div class="ref">실집행 <b>${d.nUsedTrips || 0}건</b> · 인원 <b>${d.nUsedPeople || 0}명</b>
+        <span class="sub">위 금액·인원은 처리 중·처리 완료만 셉니다${
+          cmtTot ? ` · 확정 예정 ${won(cmtTot)}원은 아직 집계 밖` : ''}</span></div>` : ''}
     </div>`;
   $('#v-dash').innerHTML = notice + hero + todo + ccg;
 }
@@ -1282,6 +1283,69 @@ function clearList(){ LQ.q = ''; LQ.col = {}; rList(); nav('list'); }
 function toggleGroup(on){ LQ.group = on; renderListBody(); }
 function toggleLDir(){ LQ.dir = LQ.dir === 'asc' ? 'desc' : 'asc'; renderListBody(); }
 
+/* 출장자별 비목 내역 — 사내 출장 정산서를 쓰려면 이게 보여야 한다.
+   지금까지는 이 정보가 '출장 실적 입력' 화면에만 있어서, 담당자가 확인하려면
+   되돌리기 → 수정 으로 들어가야 했다(상태를 건드려야 볼 수 있었다).
+   여기서는 읽기만 한다 — 어떤 상태도 바뀌지 않는다. */
+const n0 = v => Number.isFinite(+v) ? +v : 0;
+function detailRows(g){
+  const act = g.act_tot > 0;                       // 실적이 있으면 실적, 없으면 계획
+  const px = act ? 'a_' : 'p_';
+  const body = g.travelers.map(p => {
+    const cells = KEYS.map(k => n0(p[px + k]));
+    const sum = cells.reduce((a, v) => a + v, 0);
+    const plan = KEYS.reduce((a, k) => a + n0(p['p_' + k]), 0);
+    const gap = act ? sum - plan : 0;
+    const eff = pEff(p, g);
+    return `<tr>
+      <td><b>${esc(p.name)}</b> <span class="sub">${esc(p.rank || '')}</span></td>
+      <td class="mono">${esc(p.emp_no)}</td>
+      <td>${esc(p.ccg_nm || '')} <span class="sub">${esc(p.ccg || '')}</span></td>
+      ${cells.map(v => `<td class="num">${v ? won(v) : '–'}</td>`).join('')}
+      <td class="num"><b>${won(sum)}</b></td>
+      ${act ? `<td class="num" style="color:${gap > 0 ? 'var(--red)' : gap < 0 ? 'var(--green)' : 'var(--mut)'}">${
+        gap ? (gap > 0 ? '+' : '−') + won(Math.abs(gap)) : '–'}</td>` : ''}
+      <td>${eff ? `<span class="status ${pStClass(eff)}">${esc(eff)}</span>` : '<span class="sub">–</span>'}</td>
+    </tr>`;
+  }).join('');
+  const tot = KEYS.map(k => g.travelers.reduce((a, p) => a + n0(p[px + k]), 0));
+  return `<table class="dtl">
+    <thead><tr><th>성명</th><th>사번</th><th>CCG팀</th>
+      ${KEYS.map((k, i) => `<th class="num">${ST.meta.cost[i].label}</th>`).join('')}
+      <th class="num">${act ? '실적' : '계획'} 합계</th>${act ? '<th class="num">계획 대비</th>' : ''}
+      <th>처리 상태</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td colspan="3">합계 ${g.travelers.length}명</td>
+      ${tot.map(v => `<td class="num">${won(v)}</td>`).join('')}
+      <td class="num">${won(tot.reduce((a, v) => a + v, 0))}</td>${act ? '<td></td>' : ''}<td></td></tr></tfoot>
+  </table>`;
+}
+/* 출장자 개인의 실효 처리 상태 — core.eff_status 와 같은 규칙 */
+function pEff(p, g){
+  if (['계획 등록', '확정 예정', '취소'].includes(g.status)) return '';
+  return p.status || g.status;
+}
+/* 정산서에 그대로 옮길 수 있게 탭 구분으로 — 엑셀에 붙여넣으면 칸이 맞는다 */
+function copyDetail(gid){
+  const g = ST.groups.find(x => x.group_id === gid);
+  if (!g) return;
+  const act = g.act_tot > 0, px = act ? 'a_' : 'p_';
+  const head = ['성명', '사번', '직책', 'CCG팀', 'CCG', ...ST.meta.cost.map(c => c.label), '합계'];
+  const lines = [`${gname(g)} · ${g.purpose} · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} (${act ? '실적' : '계획'})`,
+    head.join('\t')];
+  g.travelers.forEach(p => {
+    const cells = KEYS.map(k => n0(p[px + k]));
+    lines.push([p.name, p.emp_no, p.rank || '', p.ccg_nm || '', p.ccg || '',
+      ...cells, cells.reduce((a, v) => a + v, 0)].join('\t'));
+  });
+  copyText(lines.join('\n'), '정산서용 표를 복사했습니다 — 엑셀에 붙여넣으세요');
+}
+let DTL = new Set();                       // 펼쳐 둔 행 (다시 그려도 유지)
+let PDTL = new Set();                      // 이관·처리 화면에서 펼쳐 둔 그룹
+function toggleDetail(gid){
+  DTL.has(gid) ? DTL.delete(gid) : DTL.add(gid);
+  renderListBody();
+}
 function listRowHtml(g, grouped){
   const acts = [];
   if (g.status === '계획 등록') {          // 잠정: 확정하거나 흔적 없이 삭제
@@ -1295,6 +1359,10 @@ function listRowHtml(g, grouped){
     acts.unshift(`<button class="btn sm" onclick="editGroup('${g.group_id}')">수정</button>`);
   if (g.act_tot > 0)                       // 인폼 카드를 닫았어도 언제든 다시 발행
     acts.push(`<button class="btn sm" onclick="reopenMail('${g.group_id}')">인폼 보기</button>`);
+  // 비목별 내역 — 상태를 건드리지 않고 바로 볼 수 있어야 한다(정산서 기입용)
+  const open = DTL.has(g.group_id);
+  acts.unshift(`<button class="btn sm${open ? ' pri' : ''}" onclick="toggleDetail('${g.group_id}')"
+    title="출장자별 교통비·숙박비·식대·기타 내역">내역 ${open ? '▲' : '▼'}</button>`);
   return `<tr>
     <td>${grouped ? '' : `<span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>`}${
       g.plan_type === '긴급' ? '<span class="status urgent">긴급</span>' : ''}${
@@ -1304,7 +1372,14 @@ function listRowHtml(g, grouped){
     <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
     <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
     <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td>
-    <td>${acts.join(' ') || `<span class="sub">${g.roll === '취소' ? '–' : '진행/처리 단계'}</span>`}</td></tr>`;
+    <td>${acts.join(' ') || `<span class="sub">${g.roll === '취소' ? '–' : '진행/처리 단계'}</span>`}</td></tr>
+    ${open ? `<tr class="dtl-row"><td colspan="7">
+      <div class="dtl-head"><b>${esc(gname(g))}</b> <span class="sub">${esc(g.purpose)}</span>
+        <span class="gb"><button class="btn sm" onclick="copyDetail('${g.group_id}')">표 복사</button>
+        ${g.act_tot > 0 ? `<button class="btn sm" onclick="reopenMail('${g.group_id}')">인폼 보기</button>` : ''}</span></div>
+      <div class="scroll" style="border:0">${detailRows(g)}</div>
+      ${g.remark ? `<div class="dtl-rm"><b>비고</b> ${esc(g.remark)}</div>` : ''}
+    </td></tr>` : ''}`;
 }
 function renderListBody(){
   const {all, G} = listRows();
@@ -1451,7 +1526,16 @@ function rProcess(){
       <div style="padding:5px 13px 3px"><span class="pg-sum">${summary}</span></div>
       ${past ? `<div class="scroll" style="border:0"><table>
         <thead><tr><th style="width:120px">개인 상태</th><th>출장자</th><th class="num">실적</th><th>처리 (인당)</th></tr></thead>
-        <tbody>${prows}</tbody></table></div>` : ''}
+        <tbody>${prows}</tbody></table></div>
+      <details class="fold pdtl"${PDTL.has(g.group_id) ? ' open' : ''}
+        ontoggle="this.open?PDTL.add('${g.group_id}'):PDTL.delete('${g.group_id}')">
+        <summary>비목별 내역 보기 <span class="sub">교통·숙박·식대·기타 — 정산서 기입용</span></summary>
+        <div class="dtl-head" style="margin-top:8px">
+          <span class="sub">${esc(g.purpose)}</span>
+          <span class="gb"><button class="btn sm" onclick="copyDetail('${g.group_id}')">표 복사</button></span></div>
+        <div class="scroll" style="border:0">${detailRows(g)}</div>
+        ${g.remark ? `<div class="dtl-rm"><b>비고</b> ${esc(g.remark)}</div>` : ''}
+      </details>` : ''}
     </div>`;
   };
   $('#v-process').innerHTML = `
