@@ -663,6 +663,19 @@ for _f in ('tools/e2e/e2e.mjs', 'tools/e2e/e2e_pages.mjs', 'tools/e2e/fuzz.py', 
     ok(f'{_f} 저장소에 존재', os.path.exists(_f))
 ok('DEPLOY 는 서버에서 smoke_test 안내', 'smoke_test.py' in _dp)
 ok('DEPLOY 에 1 worker 명시', 'worker' in _dp or '프로세스 1개' in _dp)
+# 업그레이드 안내서 — 바꿀 파일 목록이 실제 배포 목록과 어긋나면 데이터 사고로 이어진다
+_ug = open('UPGRADE.md', encoding='utf-8').read()
+_UPFILES = ('core.py', 'routes.py', 'static/app.js',
+            'templates/index.html', 'templates/traveler_guide.html')
+for _f in _UPFILES:
+    _win = _f.replace('/', '\\')
+    ok(f'UPGRADE 에 {_f} 명시', _f in _ug or _win in _ug)
+ok('UPGRADE 는 store.py 를 바꾸지 말라고 안내', 'store.py' in _ug and '건드리지 않습니다' in _ug)
+ok('UPGRADE 는 폴더 삭제 금지를 경고', '절대 하지 말 것' in _ug)
+ok('UPGRADE 는 백업을 앱 밖에 두라고 안내', '바깥' in _ug or '밖에' in _ug)
+ok(f'UPGRADE 버전 = {_C.APP_VERSION}', _C.APP_VERSION in _ug,
+   [x for x in _re2.findall(r'v10\.\d+', _ug)][:3])
+ok('UPGRADE 는 되돌리기 절차 포함', 'backup' in _ug and '되돌' in _ug)
 # Qwen 프롬프트 — 순수 JSON
 _md = open('QWEN_PROMPT.md', encoding='utf-8').read()
 _pm = _re2.search(r'^````text\n(.*?)^````$', _md, _re2.S | _re2.M).group(1)
