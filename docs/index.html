@@ -319,6 +319,27 @@ tr.filt th{background:#FAFBFC;padding:4px 4px;border-bottom:1px solid var(--line
 .colf{width:100%;min-width:74px;padding:4px 8px;font-size:12px;line-height:18px;border:1px solid #DCE1E9;border-radius:2px}
 .colf::placeholder{color:var(--mut);font-size:12px;line-height:18px;opacity:1}   /* 1.87:1 → 5.67:1 */
 @media(max-width:980px){.filter-row input,.filter-row select,.filter-row .btn{width:100%;min-width:0}}
+/* 여러 건 골라 한 번에 확정 — 고른 게 있을 때만 나타나는 띠 */
+th.pick,td.pick{width:32px;padding-left:8px;padding-right:0;text-align:center}
+th.pick input,td.pick input{width:auto;min-width:0;margin:0;cursor:pointer}
+tr.picked td{background:#F2F6FC}
+.selbar{display:none}
+.selbar.on{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+margin:0 0 12px;padding:8px 12px;background:var(--s3bg);border:1px solid var(--s4ln);border-radius:2px;
+font-size:13px;line-height:20px;color:var(--navy)}
+/* 행의 ⋯ 메뉴 — 되돌릴 수 없는 동작을 주요 동작과 같은 크기로 늘어놓지 않는다 */
+details.rowmenu{display:inline-block;position:relative}
+details.rowmenu>summary{list-style:none;display:inline-block;padding:4px 8px;cursor:pointer}
+details.rowmenu>summary::-webkit-details-marker{display:none}
+details.rowmenu[open]>summary{background:var(--s3bg);border-color:var(--s4ln)}
+.rowmenu-pop{position:absolute;right:0;top:calc(100% + 4px);z-index:30;min-width:180px;
+background:#fff;border:1px solid var(--line);border-radius:2px;box-shadow:0 4px 16px rgba(18,48,79,.18);
+padding:4px 0;text-align:left}
+.rowmenu-item{display:block;width:100%;text-align:left;padding:8px 12px;background:none;border:0;
+font-size:13px;line-height:20px;color:var(--ink);cursor:pointer;white-space:nowrap}
+.rowmenu-item:hover{background:#F2F6FC}
+.rowmenu-item.danger{color:var(--red);border-top:1px solid var(--line);margin-top:4px;padding-top:8px}
+.rowmenu-item.danger:hover{background:#FDF2F2}
 /* 대시보드 안내 문구 */
 .notice{background:#FFF8E8;border:1px solid #E8D4B0;border-left:4px solid #C79A3A;border-radius:2px;
 padding:12px 16px;margin-bottom:16px}
@@ -476,7 +497,7 @@ padding:12px 16px;margin-bottom:16px}
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.10', APP_BUILD = '2026-07-31';
+  var APP_VERSION = 'v10.11', APP_BUILD = '2026-08-01';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -1194,6 +1215,37 @@ padding:12px 16px;margin-bottom:16px}
       appendAudit(data, 'SAP 전표번호', m[1] + ' → ' + (curS.sap_doc || '(삭제)'), 'admin');
       Store.save(data);
       return okr({ group: normalizeGroup(curS) });
+    }
+    // 여러 건 한꺼번에 확정 — routes.bulk_status 와 같은 규칙 (허용 전환은 확정 하나뿐)
+    if (path === '/groups/bulk_status' && method === 'POST') {
+      var want = txt(body.status);
+      var gids = (Array.isArray(body.group_ids) ? body.group_ids : []).map(txt).filter(Boolean);
+      if (want !== ST_CONFIRM) return err('일괄로는 출장 확정만 할 수 있습니다.');
+      if (!gids.length) return err('확정할 출장을 하나 이상 고르세요.');
+      if (gids.length > 200) return err('한 번에 200건까지입니다.');
+      var bdone = [], bfail = [], bseen = {};
+      gids.forEach(function (gid) {
+        if (bseen[gid]) return;
+        bseen[gid] = 1;
+        var cur = find(data, gid);
+        if (!cur) { bfail.push({ gid: gid, name: gid, reason: '출장을 찾을 수 없습니다.' }); return; }
+        var label = [cur.city, cur.org].filter(Boolean).join(' ') || gid;
+        if (cur.status !== ST_PLAN) {
+          bfail.push({ gid: gid, name: label, reason: '계획(잠정) 단계가 아닙니다 — 현재 ' + cur.status });
+          return;
+        }
+        if (cur.plan_type !== '긴급' && gSum(normalizeGroup(cur), 'p') <= 0) {
+          bfail.push({ gid: gid, name: label, reason: '계획 비용이 없어 예산을 확보할 수 없습니다.' });
+          return;
+        }
+        cur.status = ST_CONFIRM; cur.updated_at = nowISO();
+        bdone.push({ gid: gid, name: label });
+      });
+      if (bdone.length) {
+        appendAudit(data, '일괄 출장 확정', bdone.length + '건', isAdmin ? 'admin' : 'user');
+        Store.save(data);
+      }
+      return okr({ done: bdone, failed: bfail, dash: dash(data, yearQuarter()) });
     }
     if (path === '/settings' && method === 'GET') {
       if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
@@ -1938,7 +1990,9 @@ function rDash(){
         <span class="sub">위 금액·인원은 처리 중·처리 완료만 셉니다${
           cmtTot ? ` · 확정 예정 ${won(cmtTot)}원은 아직 집계 밖` : ''}</span></div>` : ''}
     </div>`;
-  $('#v-dash').innerHTML = notice + hero + todo + ccg;
+  // 부서별 현황이 먼저다 — 매번 스크롤해야 보이던 자리(y≈940px)를 첫 화면으로 올린다.
+  // '바로 할 일' 큐는 그 아래. 큐는 목록·처리 화면에도 진입로가 있지만 부서별 집계는 여기뿐이다.
+  $('#v-dash').innerHTML = notice + hero + ccg + todo;
 }
 let NOTICE_EDIT = false;
 function editNotice(on){
@@ -2717,24 +2771,118 @@ function toggleDetail(gid){
   DTL.has(gid) ? DTL.delete(gid) : DTL.add(gid);
   renderListBody();
 }
-function listRowHtml(g, grouped){
-  const acts = [];
-  if (g.status === '계획 등록') {          // 잠정: 확정하거나 흔적 없이 삭제
-    acts.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','확정 예정')">출장 확정</button>`);
-    acts.push(`<button class="btn sm" onclick="delGroup('${g.group_id}')">삭제</button>`);
-  } else if (g.status === '확정 예정') {   // 확정: 예산 확보됨
-    acts.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','계획 등록')">확정 해제</button>`);
-    acts.push(`<button class="btn sm red" onclick="setStatus('${g.group_id}','취소')">취소</button>`);
+/* 행의 ⋯ 메뉴 — 한 번에 하나만 열리고, 바깥을 누르거나 Esc 로 닫힌다 */
+function closeMenus(except){
+  $$('details.rowmenu[open]').forEach(d => { if (d !== except) d.removeAttribute('open'); });
+}
+document.addEventListener('click', e => {
+  const d = e.target.closest('details.rowmenu');
+  closeMenus(d);
+}, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenus(); });
+
+/* ═══ 여러 건 골라 한 번에 확정 ═══
+   엑셀로 20건을 넣고 하나씩 20번 누르던 자리. 고를 수 있는 것은 잠정 계획뿐이고,
+   금액이 나가는 전환(이관·완료·취소)은 일괄로 열지 않는다. */
+const SEL = new Set();
+function toggleSel(gid, on){
+  if (on) SEL.add(gid); else SEL.delete(gid);
+  renderListBody();
+}
+function selAll(on){
+  const {G} = listRows();
+  G.filter(g => g.status === '계획 등록').forEach(g => on ? SEL.add(g.group_id) : SEL.delete(g.group_id));
+  renderListBody();
+}
+function selClear(){ SEL.clear(); renderListBody(); }
+function drawSelBar(G){
+  const bar = $('#selBar');
+  if (!bar) return;
+  const pick = G.filter(g => SEL.has(g.group_id));
+  const able = G.filter(g => g.status === '계획 등록');
+  const head = $('#selAll');
+  if (head) {
+    head.checked = able.length > 0 && able.every(g => SEL.has(g.group_id));
+    head.indeterminate = !head.checked && able.some(g => SEL.has(g.group_id));
+    head.disabled = able.length === 0;
   }
-  if (g.status !== '취소')                  // 계획 수정 — 실적 후에는 서버가 담당자 인증 요구
-    acts.unshift(`<button class="btn sm" onclick="editGroup('${g.group_id}')">수정</button>`);
-  if (g.act_tot > 0)                       // 인폼 카드를 닫았어도 언제든 다시 발행
-    acts.push(`<button class="btn sm" onclick="reopenMail('${g.group_id}')">인폼 보기</button>`);
-  // 비목별 내역 — 상태를 건드리지 않고 바로 볼 수 있어야 한다(정산서 기입용)
-  const open = DTL.has(g.group_id);
-  acts.unshift(`<button class="btn sm${open ? ' pri' : ''}" onclick="toggleDetail('${g.group_id}')"
-    title="출장자별 교통비·숙박비·식대·기타 내역">내역 ${open ? '▲' : '▼'}</button>`);
-  return `<tr>
+  if (!pick.length) { bar.className = 'selbar'; bar.innerHTML = ''; return; }
+  const sum = pick.reduce((a, g) => a + (g.plan_tot || 0), 0);
+  const avail = ST.dash.avail || 0;
+  const over = sum > avail;
+  bar.className = 'selbar on';
+  bar.innerHTML = `<span><b>${n0(pick.length)}건</b> 선택 · 계획 합계 <b>${won(sum)}</b>원`
+    + (over ? ` <span style="color:var(--red)">— 가용 잔여 ${won(avail)}원을 넘습니다</span>` : '')
+    + `</span>
+    <span class="gb">
+      <button class="btn pri sm" id="selGo" onclick="bulkConfirm()">선택한 ${n0(pick.length)}건 출장 확정</button>
+      <button class="btn sm" onclick="selClear()">선택 해제</button>
+    </span>`;
+}
+async function bulkConfirm(){
+  const {G} = listRows();
+  const pick = G.filter(g => SEL.has(g.group_id));
+  if (!pick.length) return;
+  const sum = pick.reduce((a, g) => a + (g.plan_tot || 0), 0);
+  const avail = ST.dash.avail || 0;
+  let msg = `${pick.length}건을 출장 확정할까요?\n계획 합계 ${won(sum)}원만큼 예산이 확보됩니다.\n\n`
+    + pick.slice(0, 8).map(g => ` · ${gname(g)} ${fmtD(g.dep_dt)}`).join('\n')
+    + (pick.length > 8 ? `\n … 외 ${pick.length - 8}건` : '');
+  if (sum > avail) msg += `\n\n⚠ 확정 후 가용 잔여가 −${won(sum - avail)}원이 됩니다. 그래도 진행할까요?`;
+  if (!confirm(msg)) return;
+  const btn = $('#selGo');
+  if (btn) { btn.disabled = true; btn.textContent = '확정 중…'; }
+  const {ok, data} = await api('/groups/bulk_status', {method: 'POST',
+    body: JSON.stringify({status: '확정 예정', group_ids: pick.map(g => g.group_id)})});
+  if (!ok) { toast((data.errors || ['확정하지 못했습니다'])[0]); if (btn) btn.disabled = false; return; }
+  const done = (data.done || []).length, fail = data.failed || [];
+  SEL.clear();
+  await load();
+  rList(); nav('list');
+  if (fail.length) {
+    showErr('#listErr', [`${done}건 확정 · ${fail.length}건 실패`]
+      .concat(fail.slice(0, 5).map(f => `${f.name} — ${f.reason}`)));
+  } else {
+    toast(`${done}건을 확정했습니다 — 예산에 반영됐습니다`);
+  }
+}
+function listRowHtml(g, grouped){
+  /* 행마다 버튼 4개를 늘어놓으면 한 화면에 100개가 넘고, 되돌릴 수 없는 삭제가
+     주요 동작과 같은 크기로 붙는다. 주요 동작 1개 + 내역 + 나머지는 ⋯ 메뉴로. */
+  const gid = g.group_id;
+  const main = [];                          // 눈에 보이는 주요 동작 (상태마다 하나)
+  const more = [];                          // ⋯ 안으로 들어가는 것
+  if (g.status === '계획 등록') {
+    main.push(`<button class="btn sm pri" onclick="setStatus('${gid}','확정 예정')">출장 확정</button>`);
+    more.push(['수정', `editGroup('${gid}')`, '']);
+    more.push(['삭제 (되돌릴 수 없음)', `delGroup('${gid}')`, 'danger']);
+  } else if (g.status === '확정 예정') {
+    main.push(`<button class="btn sm" onclick="openActual('${gid}')">실적 입력</button>`);
+    more.push(['수정', `editGroup('${gid}')`, '']);
+    more.push(['확정 해제 (잠정으로)', `setStatus('${gid}','계획 등록')`, '']);
+    more.push(['출장 취소', `setStatus('${gid}','취소')`, 'danger']);
+  } else if (g.status !== '취소') {
+    if (g.act_tot > 0) main.push(`<button class="btn sm" onclick="reopenMail('${gid}')">인폼 보기</button>`);
+    more.push(['수정', `editGroup('${gid}')`, '']);
+    more.push(['이관·처리 관리로', `openProcess('${gid}')`, '']);
+  }
+  if (g.act_tot > 0 && !more.some(m => m[0] === '인폼 보기')
+      && !main.some(x => x.includes('인폼'))) more.push(['인폼 보기', `reopenMail('${gid}')`, '']);
+  const open = DTL.has(gid);
+  const detail = `<button class="btn sm${open ? ' pri' : ''}" onclick="toggleDetail('${gid}')"
+    title="출장자별 교통비·숙박비·식대·기타 내역">내역 ${open ? '▲' : '▼'}</button>`;
+  const menu = more.length ? `<details class="rowmenu"><summary class="btn sm" title="더 보기">⋯</summary>
+    <div class="rowmenu-pop">${more.map(([label, fn, cls]) =>
+      `<button class="rowmenu-item${cls ? ' ' + cls : ''}" onclick="closeMenus();${fn}">${label}</button>`).join('')}
+    </div></details>` : '';
+  const acts = [detail, ...main, menu].filter(Boolean);
+  // 잠정만 골라서 한 번에 확정할 수 있게 — 엑셀로 20건 넣고 20번 누르던 것
+  const pick = g.status === '계획 등록'
+    ? `<input type="checkbox" class="lsel" data-gid="${gid}" ${SEL.has(gid) ? 'checked' : ''}
+         aria-label="${esc(gname(g))} 선택" onchange="toggleSel('${gid}',this.checked)">`
+    : '';
+  return `<tr${SEL.has(gid) ? ' class="picked"' : ''}>
+    <td class="pick">${pick}</td>
     <td>${grouped ? '' : `<span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>`}${
       g.plan_type === '긴급' ? '<span class="status urgent">긴급</span>' : ''}${
       ''}</td>
@@ -2744,7 +2892,7 @@ function listRowHtml(g, grouped){
     <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
     <td class="num"><b>${g.act_tot ? won(g.act_tot) : '–'}</b></td>
     <td>${acts.join(' ') || `<span class="sub">${g.roll === '취소' ? '–' : '진행/처리 단계'}</span>`}</td></tr>
-    ${open ? `<tr class="dtl-row"><td colspan="7">
+    ${open ? `<tr class="dtl-row"><td colspan="8">
       <div class="dtl-head"><b>${esc(gname(g))}</b> <span class="sub">${esc(g.purpose)}</span>
         <span class="gb"><button class="btn sm" onclick="copyDetail('${g.group_id}')">표 복사</button>
         ${g.act_tot > 0 ? `<button class="btn sm" onclick="reopenMail('${g.group_id}')">인폼 보기</button>` : ''}</span></div>
@@ -2759,7 +2907,7 @@ function renderListBody(){
     if (LQ.group && g.roll !== last) {          // 프로세스가 바뀔 때마다 구분 머리행
       last = g.roll;
       const n = G.filter(x => x.roll === g.roll).length;
-      body += `<tr class="grp-head"><td colspan="7">
+      body += `<tr class="grp-head"><td colspan="8">
         <span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>
         <b style="margin-left:6px">${n}건</b></td></tr>`;
     }
@@ -2777,9 +2925,10 @@ function renderListBody(){
       ? `검색·필터 조건에 맞는 출장이 없습니다. <b>${all.length}건</b> 중 0건.
          <div style="margin-top:8px"><button class="btn sm" onclick="clearList()">필터 해제 →</button></div>`
       : '표시할 출장이 없습니다.';
-  tb.innerHTML = body || `<tr class="empty"><td colspan="7" style="color:var(--mut);text-align:center;padding:24px">${emptyMsg}</td></tr>`;
+  tb.innerHTML = body || `<tr class="empty"><td colspan="8" style="color:var(--mut);text-align:center;padding:24px">${emptyMsg}</td></tr>`;
   const cnt = $('#listCount');
   if (cnt) cnt.textContent = `${G.length}/${all.length}건 · 잠정 ${ST.dash.nPlan || 0} · 확정 ${ST.dash.nConfirm || 0}`;
+  drawSelBar(G);
   const eff = effSort();
   $$('#v-list .sic').forEach(el => {            // 정렬 표시(▲▼) — 실제로 뒤집히는 열에만
     el.textContent = el.dataset.k === eff ? (LQ.dir === 'asc' ? ' ▲' : ' ▼')
@@ -2819,10 +2968,13 @@ function rList(){
         <button class="btn" onclick="clearList()">필터 해제</button>
       </div>
       <p class="cap" style="margin:-4px 0 12px">머리글을 누르면 정렬, 아래 칸에 입력하면 검색됩니다.</p>
+      <div id="listErr"></div>
+      <div id="selBar" class="selbar"></div>
       <div class="scroll"><table>
         <thead>
-          <tr>${ths}<th>관리</th></tr>
-          <tr class="filt">${filts}<th></th></tr>
+          <tr><th class="pick"><input type="checkbox" id="selAll" aria-label="잠정 계획 전체 선택"
+                onchange="selAll(this.checked)" title="보이는 잠정 계획 전체 선택"></th>${ths}<th>관리</th></tr>
+          <tr class="filt"><th class="pick"></th>${filts}<th></th></tr>
         </thead>
         <tbody id="listBody"></tbody>
       </table></div>

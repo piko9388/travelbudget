@@ -323,6 +323,27 @@ tr.filt th{background:#FAFBFC;padding:4px 4px;border-bottom:1px solid var(--line
 .colf{width:100%;min-width:74px;padding:4px 8px;font-size:12px;line-height:18px;border:1px solid #DCE1E9;border-radius:2px}
 .colf::placeholder{color:var(--mut);font-size:12px;line-height:18px;opacity:1}   /* 1.87:1 → 5.67:1 */
 @media(max-width:980px){.filter-row input,.filter-row select,.filter-row .btn{width:100%;min-width:0}}
+/* 여러 건 골라 한 번에 확정 — 고른 게 있을 때만 나타나는 띠 */
+th.pick,td.pick{width:32px;padding-left:8px;padding-right:0;text-align:center}
+th.pick input,td.pick input{width:auto;min-width:0;margin:0;cursor:pointer}
+tr.picked td{background:#F2F6FC}
+.selbar{display:none}
+.selbar.on{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+margin:0 0 12px;padding:8px 12px;background:var(--s3bg);border:1px solid var(--s4ln);border-radius:2px;
+font-size:13px;line-height:20px;color:var(--navy)}
+/* 행의 ⋯ 메뉴 — 되돌릴 수 없는 동작을 주요 동작과 같은 크기로 늘어놓지 않는다 */
+details.rowmenu{display:inline-block;position:relative}
+details.rowmenu>summary{list-style:none;display:inline-block;padding:4px 8px;cursor:pointer}
+details.rowmenu>summary::-webkit-details-marker{display:none}
+details.rowmenu[open]>summary{background:var(--s3bg);border-color:var(--s4ln)}
+.rowmenu-pop{position:absolute;right:0;top:calc(100% + 4px);z-index:30;min-width:180px;
+background:#fff;border:1px solid var(--line);border-radius:2px;box-shadow:0 4px 16px rgba(18,48,79,.18);
+padding:4px 0;text-align:left}
+.rowmenu-item{display:block;width:100%;text-align:left;padding:8px 12px;background:none;border:0;
+font-size:13px;line-height:20px;color:var(--ink);cursor:pointer;white-space:nowrap}
+.rowmenu-item:hover{background:#F2F6FC}
+.rowmenu-item.danger{color:var(--red);border-top:1px solid var(--line);margin-top:4px;padding-top:8px}
+.rowmenu-item.danger:hover{background:#FDF2F2}
 /* 대시보드 안내 문구 */
 .notice{background:#FFF8E8;border:1px solid #E8D4B0;border-left:4px solid #C79A3A;border-radius:2px;
 padding:12px 16px;margin-bottom:16px}

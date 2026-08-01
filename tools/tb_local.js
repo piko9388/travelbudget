@@ -67,7 +67,7 @@
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.10', APP_BUILD = '2026-07-31';
+  var APP_VERSION = 'v10.11', APP_BUILD = '2026-08-01';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -785,6 +785,37 @@
       appendAudit(data, 'SAP 전표번호', m[1] + ' → ' + (curS.sap_doc || '(삭제)'), 'admin');
       Store.save(data);
       return okr({ group: normalizeGroup(curS) });
+    }
+    // 여러 건 한꺼번에 확정 — routes.bulk_status 와 같은 규칙 (허용 전환은 확정 하나뿐)
+    if (path === '/groups/bulk_status' && method === 'POST') {
+      var want = txt(body.status);
+      var gids = (Array.isArray(body.group_ids) ? body.group_ids : []).map(txt).filter(Boolean);
+      if (want !== ST_CONFIRM) return err('일괄로는 출장 확정만 할 수 있습니다.');
+      if (!gids.length) return err('확정할 출장을 하나 이상 고르세요.');
+      if (gids.length > 200) return err('한 번에 200건까지입니다.');
+      var bdone = [], bfail = [], bseen = {};
+      gids.forEach(function (gid) {
+        if (bseen[gid]) return;
+        bseen[gid] = 1;
+        var cur = find(data, gid);
+        if (!cur) { bfail.push({ gid: gid, name: gid, reason: '출장을 찾을 수 없습니다.' }); return; }
+        var label = [cur.city, cur.org].filter(Boolean).join(' ') || gid;
+        if (cur.status !== ST_PLAN) {
+          bfail.push({ gid: gid, name: label, reason: '계획(잠정) 단계가 아닙니다 — 현재 ' + cur.status });
+          return;
+        }
+        if (cur.plan_type !== '긴급' && gSum(normalizeGroup(cur), 'p') <= 0) {
+          bfail.push({ gid: gid, name: label, reason: '계획 비용이 없어 예산을 확보할 수 없습니다.' });
+          return;
+        }
+        cur.status = ST_CONFIRM; cur.updated_at = nowISO();
+        bdone.push({ gid: gid, name: label });
+      });
+      if (bdone.length) {
+        appendAudit(data, '일괄 출장 확정', bdone.length + '건', isAdmin ? 'admin' : 'user');
+        Store.save(data);
+      }
+      return okr({ done: bdone, failed: bfail, dash: dash(data, yearQuarter()) });
     }
     if (path === '/settings' && method === 'GET') {
       if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);

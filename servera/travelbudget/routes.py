@@ -517,6 +517,55 @@ def set_sap(gid):
     return jsonify({"ok": True, "group": g})
 
 
+# ── 여러 건 한꺼번에 확정 (엑셀로 20건 넣고 하나씩 누르던 것) ──
+# 단건 라우트를 20번 부르면 저장·백업도 20번이다. 한 번의 락 안에서 처리하고 한 번만 저장한다.
+# 허용 전환은 '계획 등록 → 확정 예정' 하나뿐 — 금액이 나가는 전환은 일괄로 열지 않는다.
+@travelbudget.post("/api/groups/bulk_status")
+def bulk_status():
+    b = _body()
+    want = C._txt(b.get("status"))
+    gids = [C._txt(x) for x in (b.get("group_ids") or []) if C._txt(x)]
+    if want != C.ST_CONFIRM:
+        return _err("일괄로는 출장 확정만 할 수 있습니다.")
+    if not gids:
+        return _err("확정할 출장을 하나 이상 고르세요.")
+    if len(gids) > 200:
+        return _err("한 번에 200건까지입니다.")
+    done, failed = [], []
+    with LOCK:
+        data = load_data()
+        now = datetime.now().isoformat(timespec="seconds")
+        seen = set()
+        for gid in gids:
+            if gid in seen:
+                continue
+            seen.add(gid)
+            cur = _find(data, gid)
+            if cur is None:
+                failed.append({"gid": gid, "name": gid, "reason": "출장을 찾을 수 없습니다."})
+                continue
+            label = " ".join(filter(None, [cur.get("city"), cur.get("org")])) or gid
+            if cur.get("status") != C.ST_PLAN:
+                failed.append({"gid": gid, "name": label,
+                               "reason": f"계획(잠정) 단계가 아닙니다 — 현재 {cur.get('status')}"})
+                continue
+            if cur.get("plan_type") != "긴급" and C.g_sum(_norm(cur, data), "p") <= 0:
+                failed.append({"gid": gid, "name": label,
+                               "reason": "계획 비용이 없어 예산을 확보할 수 없습니다."})
+                continue
+            cur["status"] = C.ST_CONFIRM
+            cur["updated_at"] = now
+            done.append({"gid": gid, "name": label})
+        if done:
+            append_audit(data, "일괄 출장 확정",
+                         f"{len(done)}건 — " + ", ".join(d["name"] for d in done[:5])
+                         + (" 외" if len(done) > 5 else ""),
+                         actor="admin" if _is_admin(data) else "user")
+            save_data(data)                      # 저장·백업은 한 번만
+        dash = C.dash(data, C.year_quarter())
+    return jsonify({"ok": True, "done": done, "failed": failed, "dash": dash})
+
+
 # ── 대시보드 안내 문구 (관리자) ───────────────────────────
 # ── 시스템 설정 (관리자) ────────────────────────────────
 @travelbudget.get("/api/settings")

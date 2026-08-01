@@ -284,8 +284,10 @@ try {
   // 잠정 계획 삭제 (시드 TB-0006 SK트리켐 = 계획 등록)
   await page.evaluate(() => { window.confirm = () => true; document.getElementById('mailCard')?.remove(); });
   const delRow = page.locator('#listBody tr').filter({ hasText: 'SK트리켐' });
-  if (await delRow.getByRole('button', { name: '삭제', exact: true }).count()) {
-    await delRow.getByRole('button', { name: '삭제', exact: true }).click(); await sleep(400);
+  // 삭제는 행에 그대로 노출하지 않고 ⋯ 메뉴 안에 둔다 (오클릭 방지) — 메뉴를 열어서 누른다
+  if (await delRow.locator('details.rowmenu summary').count()) {
+    await delRow.locator('details.rowmenu summary').first().click(); await sleep(250);
+    await delRow.locator('.rowmenu-item.danger').first().click(); await sleep(500);
   }
   ok('잠정 계획 흔적 없이 삭제', !(await page.evaluate(() => ST.groups.some(g => g.org === 'SK트리켐'))));
 
@@ -344,7 +346,7 @@ try {
     const rows = [...document.querySelectorAll('#listBody tr')];
     let cur = [], groups = [];
     rows.forEach(r => { if (r.classList.contains('grp-head')) { if (cur.length) groups.push(cur); cur = []; }
-      else { const t = r.children[3]?.textContent.trim(); if (t) cur.push(t); } });
+      else { const t = r.children[4]?.textContent.trim(); if (t) cur.push(t); } });   // 맨 앞 선택 열이 생겨 한 칸 밀림
     if (cur.length) groups.push(cur);
     return groups.every(g => g.every((v, i) => i === 0 || g[i-1] >= v));
   });
@@ -361,40 +363,40 @@ try {
   await page.fill('#listFilter', '');
   await sleep(400);
   // 오름/내림차순 토글
-  const before = await page.evaluate(() => document.querySelector('#listBody tr:not(.grp-head):not(.empty) td:nth-child(4)')?.textContent);
+  const before = await page.evaluate(() => document.querySelector('#listBody tr:not(.grp-head):not(.empty) td:nth-child(5)')?.textContent);
   await page.click('#v-list button:has-text("내림차순")');
   await sleep(300);
-  const after = await page.evaluate(() => document.querySelector('#listBody tr:not(.grp-head):not(.empty) td:nth-child(4)')?.textContent);
+  const after = await page.evaluate(() => document.querySelector('#listBody tr:not(.grp-head):not(.empty) td:nth-child(5)')?.textContent);
   ok('오름/내림차순 토글 동작', before !== after, {before, after});
   // 컬럼별 검색창 (머리글 아래) — 출장 컬럼에 '원익' 입력
-  await page.fill('#v-list tr.filt th:nth-child(2) input', '원익');
+  await page.fill('#v-list tr.filt th:nth-child(3) input', '원익');
   await sleep(300);
   const colFiltered = await page.evaluate(() => [...document.querySelectorAll('#listBody tr:not(.grp-head):not(.empty)')].length);
   ok('컬럼별 검색창 동작', colFiltered >= 1 && colFiltered < stageInfo.stages, {colFiltered});
   // 입력 후에도 포커스가 유지되는가 (본문만 갱신)
   ok('컬럼 검색 중 포커스 유지', await page.evaluate(() =>
-    document.activeElement === document.querySelector('#v-list tr.filt th:nth-child(2) input')));
-  await page.fill('#v-list tr.filt th:nth-child(2) input', '');
+    document.activeElement === document.querySelector('#v-list tr.filt th:nth-child(3) input')));
+  await page.fill('#v-list tr.filt th:nth-child(3) input', '');
   await sleep(300);
   // 상태 컬럼 드롭다운 — 실제 존재하는 상태로 필터
   const someStatus = await page.evaluate(() =>
     document.querySelector('#listBody tr.grp-head .status')?.textContent.trim());
   const rawStatus = someStatus === '계획(잠정)' ? '계획 등록' : someStatus;
-  await page.selectOption('#v-list tr.filt th:nth-child(1) select', rawStatus);
+  await page.selectOption('#v-list tr.filt th:nth-child(2) select', rawStatus);
   await sleep(300);
   const stFiltered = await page.evaluate(() => [...document.querySelectorAll('#listBody tr:not(.grp-head):not(.empty)')].length);
   ok('상태 컬럼 필터 동작', stFiltered >= 1 && stFiltered <= stageInfo.stages, {rawStatus, stFiltered});
   await page.click('#v-list button:has-text("필터 해제")');
   await sleep(300);
   // 머리글 클릭 정렬 — 순수 컬럼 정렬을 보려면 '프로세스별 묶기'를 끈다
-  await page.uncheck('#v-list input[type=checkbox]');
+  await page.uncheck('#v-list .filter-row input[type=checkbox]');
   await sleep(300);
   await page.click('#v-list th.sortable:has-text("계획")');
   await sleep(300);
   ok('머리글 클릭 정렬 표시(▲▼)', await page.evaluate(() =>
     !!document.querySelector('#v-list .sic[data-k="plan"]')?.textContent.trim()));
   const planOrder = await page.evaluate(() => {
-    const v = [...document.querySelectorAll('#listBody tr:not(.grp-head):not(.empty) td:nth-child(5)')]
+    const v = [...document.querySelectorAll('#listBody tr:not(.grp-head):not(.empty) td:nth-child(6)')]
       .map(t => Number(t.textContent.replace(/[^0-9]/g, '')) || 0);
     return v.every((x, i) => i === 0 || v[i-1] >= x);
   });
@@ -403,12 +405,12 @@ try {
   await page.click('#v-list th.sortable:has-text("계획")');
   await sleep(300);
   const planAsc = await page.evaluate(() => {
-    const v = [...document.querySelectorAll('#listBody tr:not(.grp-head):not(.empty) td:nth-child(5)')]
+    const v = [...document.querySelectorAll('#listBody tr:not(.grp-head):not(.empty) td:nth-child(6)')]
       .map(t => Number(t.textContent.replace(/[^0-9]/g, '')) || 0);
     return v.every((x, i) => i === 0 || v[i-1] <= x);
   });
   ok('머리글 재클릭 → 오름차순 전환', planAsc === true);
-  await page.check('#v-list input[type=checkbox]');
+  await page.check('#v-list .filter-row input[type=checkbox]');
   await sleep(300);
   ok('프로세스별 묶기 복원', (await page.evaluate(() => document.querySelectorAll('#listBody tr.grp-head').length)) >= 2);
 
@@ -928,8 +930,8 @@ try {
   await sleep(200);
   const ung = await page.evaluate(() => ({
     heads: document.querySelectorAll('#listBody tr.grp-head').length,
-    rowBadges: [...document.querySelectorAll('#listBody tr td:first-child .status')]
-      .filter(b => !b.classList.contains('urgent')).length,
+    rowBadges: [...document.querySelectorAll('#listBody tr td:nth-child(2) .status')]
+      .filter(b => !b.classList.contains('urgent')).length,   // 맨 앞은 선택 열
   }));
   ok('묶기 해제: 행마다 상태 배지', ung.heads === 0 && ung.rowBadges > 0, ung);
   await page.evaluate(() => toggleGroup(true));
@@ -1261,6 +1263,79 @@ try {
   await page.click('#cfgSave');
   await sleep(700);
   ok('잘못된 메일 주소는 저장 거부', await page.isVisible('#cfgErr .err'));
+
+  // ── §26 여러 건 한꺼번에 확정 · 행 메뉴 · 대시보드 순서 ──
+  console.log('\n== 26. 일괄 확정 · 행 메뉴 · 부서별 현황 위치 ==');
+  await page.evaluate(() => { window.confirm = () => true; });
+  // 잠정 계획 3건을 만들어 놓고 한 번에 확정
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(async n => {
+      await fetch('api/groups', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({plan_type: '계획', city: '일괄', org: 'B' + n, purpose: '일괄 확정',
+          kind: '정기 Audit', dep_dt: ST.groups[0].dep_dt, ret_dt: ST.groups[0].dep_dt, car: '미사용',
+          travelers: [{name: '일' + n, emp_no: 'E2EB' + n, rank: 'TL',
+                       ccg_nm: ST.ccg[0].team, ccg: ST.ccg[0].ccg, p_trans: 10000}]})});
+    }, i);
+  }
+  await page.evaluate(async () => { await load(); rList(); nav('list'); });
+  await sleep(500);
+  const bulk0 = await page.evaluate(() => ({commit: ST.dash.commit, avail: ST.dash.avail,
+                                            plan: ST.dash.nPlan}));
+  // 파괴적 동작이 행에 그대로 노출되지 않아야 한다
+  const vis = await page.evaluate(() => [...document.querySelectorAll('#listBody td:last-child button')]
+    .filter(b => b.checkVisibility() && /삭제|취소/.test(b.textContent)).length);
+  ok('삭제·취소가 행에 그대로 노출되지 않음', vis === 0, vis);
+  // ⋯ 메뉴: 하나만 열리고 Esc 로 닫힌다
+  await page.locator('#listBody details.rowmenu summary').first().click();
+  await sleep(200);
+  ok('⋯ 메뉴 열림', (await page.evaluate(() => document.querySelectorAll('details.rowmenu[open]').length)) === 1);
+  const menuHasDanger = await page.evaluate(() =>
+    !!document.querySelector('details.rowmenu[open] .rowmenu-item.danger'));
+  ok('메뉴 안에 위험 항목이 구분되어 있음', menuHasDanger);
+  await page.locator('#listBody details.rowmenu summary').nth(2).click().catch(() => {});
+  await sleep(200);
+  ok('메뉴는 한 번에 하나만',
+     (await page.evaluate(() => document.querySelectorAll('details.rowmenu[open]').length)) <= 1);
+  await page.keyboard.press('Escape');
+  await sleep(200);
+  ok('Esc 로 메뉴 닫힘',
+     (await page.evaluate(() => document.querySelectorAll('details.rowmenu[open]').length)) === 0);
+  // 전체 선택 → 일괄 확정
+  await page.click('#selAll');
+  await sleep(400);
+  const picked = await page.evaluate(() => document.querySelectorAll('#listBody input.lsel:checked').length);
+  ok('전체 선택이 잠정 계획만 고름', picked > 0 && picked === bulk0.plan, {picked, plan: bulk0.plan});
+  ok('선택 띠에 건수·합계 표시', await page.evaluate(() => {
+    const b = document.querySelector('#selBar');
+    return b.classList.contains('on') && /건.*원/.test(b.innerText);
+  }));
+  await page.click('#selGo');
+  await sleep(1500);
+  const bulk1 = await page.evaluate(() => ({commit: ST.dash.commit, avail: ST.dash.avail,
+                                            plan: ST.dash.nPlan}));
+  ok('일괄 확정으로 잠정이 0건', bulk1.plan === 0, bulk1);
+  ok('확정액 증가 = 가용 감소',
+     bulk1.commit - bulk0.commit === bulk0.avail - bulk1.avail,
+     {c: [bulk0.commit, bulk1.commit], a: [bulk0.avail, bulk1.avail]});
+  ok('확정 후 선택이 비워짐',
+     (await page.evaluate(() => document.querySelectorAll('#listBody tr.picked').length)) === 0);
+  // 부서별 현황이 첫 화면 안에 들어와야 한다
+  await page.setViewportSize({width: 1366, height: 768});
+  await page.evaluate(() => { rDash(); nav('dash'); });
+  await sleep(500);
+  const foldY = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('#v-dash h2,#v-dash h3,#v-dash .card')]
+      .find(e => e.textContent.trim().startsWith('CCG'));
+    return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : -1;
+  });
+  ok('부서별 현황이 1366x768 첫 화면 안', foldY > 0 && foldY < 768, foldY);
+  const queueY = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('#v-dash h2,#v-dash h3,#v-dash .card')]
+      .find(e => e.textContent.trim().startsWith('바로 할 일'));
+    return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : -1;
+  });
+  ok('부서별 현황이 큐보다 위', foldY < queueY, {foldY, queueY});
+  await page.setViewportSize({width: 1440, height: 900});
 
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));

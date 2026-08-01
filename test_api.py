@@ -835,6 +835,79 @@ ok('출장자 성명 40자 초과 거부',
    c.post('/travelbudget/api/groups', json=_b2).status_code == 400)
 ok('정적판도 같은 상한', 'TEXT_MAX' in open('tools/tb_local.js', encoding='utf-8').read())
 
+# ── 일괄 확정 · 행 메뉴 · 대시보드 순서 ──
+print('\n=== 28. 여러 건 한꺼번에 확정 ===')
+_bulk_ids, _bulk_sum = [], 0
+for _i in range(4):
+    _r = c.post('/travelbudget/api/groups', json=dict(
+        plan_type='계획', city='일괄', org=f'업체{_i}', purpose='일괄 확정 검증',
+        kind='정기 Audit', dep_dt=f'{yy}-{mm}-15', ret_dt=f'{yy}-{mm}-15', car='미사용',
+        travelers=[dict(name=f'일{_i}', emp_no=f'BLK{_i}', rank='TL',
+                        ccg_nm=_C.CCG_TEAMS[0]['team'], p_trans=10000 * (_i + 1))]))
+    _bulk_ids.append(_r.get_json()['group']['group_id'])
+    _bulk_sum += 10000 * (_i + 1)
+_d0 = c.get('/travelbudget/api/state').get_json()['dash']
+_r = c.post('/travelbudget/api/groups/bulk_status',
+            json=dict(status='확정 예정', group_ids=_bulk_ids))
+_j = _r.get_json()
+ok('일괄 확정 200', _r.status_code == 200, _j)
+ok('4건 전부 확정', len(_j['done']) == 4 and not _j['failed'], _j)
+_d1 = c.get('/travelbudget/api/state').get_json()['dash']
+ok('확정 예정 금액이 계획 합계만큼 증가', _d1['commit'] - _d0['commit'] == _bulk_sum,
+   (_d0['commit'], _d1['commit'], _bulk_sum))
+ok('가용 잔여는 같은 금액만큼 감소', _d0['avail'] - _d1['avail'] == _bulk_sum)
+ok('건수도 옮겨감', _d1['nConfirm'] - _d0['nConfirm'] == 4 and _d0['nPlan'] - _d1['nPlan'] == 4)
+# 이미 확정된 건을 다시 넣으면 그 건만 실패로 돌아오고 나머지는 처리된다
+_r2 = c.post('/travelbudget/api/groups', json=dict(
+    plan_type='계획', city='일괄', org='추가', purpose='부분 실패 검증', kind='정기 Audit',
+    dep_dt=f'{yy}-{mm}-16', ret_dt=f'{yy}-{mm}-16', car='미사용',
+    travelers=[dict(name='추', emp_no='BLKX', rank='TL',
+                    ccg_nm=_C.CCG_TEAMS[0]['team'], p_trans=5000)]))
+_mix = c.post('/travelbudget/api/groups/bulk_status', json=dict(
+    status='확정 예정',
+    group_ids=[_r2.get_json()['group']['group_id'], _bulk_ids[0], 'TB-NOPE']))
+_mj = _mix.get_json()
+ok('섞여 있어도 되는 것만 처리', len(_mj['done']) == 1 and len(_mj['failed']) == 2, _mj)
+ok('실패 사유를 건별로 알려줌', all(f.get('reason') and f.get('name') for f in _mj['failed']), _mj['failed'])
+# 금액이 나가는 전환은 일괄로 열지 않는다
+for _st in ('소재 이관', '처리 완료', '취소', '실적 입력·인폼'):
+    ok(f'일괄로 {_st} 불가',
+       c.post('/travelbudget/api/groups/bulk_status',
+              json=dict(status=_st, group_ids=_bulk_ids), headers=ADM).status_code == 400)
+ok('빈 목록 거부',
+   c.post('/travelbudget/api/groups/bulk_status',
+          json=dict(status='확정 예정', group_ids=[])).status_code == 400)
+ok('200건 초과 거부',
+   c.post('/travelbudget/api/groups/bulk_status',
+          json=dict(status='확정 예정', group_ids=['X'] * 201)).status_code == 400)
+ok('감사 로그에 일괄 확정 기록',
+   any('일괄 출장 확정' in str(a.get('action', ''))
+       for a in c.get('/travelbudget/api/audit?n=50', headers=ADM).get_json()['audit']))
+# 저장은 한 번만 — 20건 확정에 백업이 20개 쌓이면 30개 한도가 하루에 소진된다
+_bk0 = len(c.get('/travelbudget/api/backups', headers=ADM).get_json()['backups'])
+_ids2 = [c.post('/travelbudget/api/groups', json=dict(
+    plan_type='계획', city='백업', org=f'b{_i}', purpose='백업 수 검증', kind='정기 Audit',
+    dep_dt=f'{yy}-{mm}-17', ret_dt=f'{yy}-{mm}-17', car='미사용',
+    travelers=[dict(name='백', emp_no=f'BK{_i}', rank='TL',
+                    ccg_nm=_C.CCG_TEAMS[0]['team'], p_trans=1000)])).get_json()['group']['group_id']
+         for _i in range(5)]
+_bk1 = len(c.get('/travelbudget/api/backups', headers=ADM).get_json()['backups'])
+c.post('/travelbudget/api/groups/bulk_status', json=dict(status='확정 예정', group_ids=_ids2))
+_bk2 = len(c.get('/travelbudget/api/backups', headers=ADM).get_json()['backups'])
+ok('5건 일괄 확정에 백업은 1개만 (한도 30개 보호)', _bk2 - _bk1 <= 1, (_bk1, _bk2))
+
+print('\n=== 29. 행 메뉴 · 선택 · 대시보드 순서 ===')
+ok('행마다 ⋯ 메뉴', 'rowmenu' in _appjs and 'rowmenu-pop' in _tpl)
+ok('삭제는 메뉴 안 위험 항목', "'danger'" in _appjs and '.rowmenu-item.danger' in _tpl)
+ok('메뉴는 하나만 열림', 'function closeMenus' in _appjs)
+ok('Esc 로 닫힘', "e.key === 'Escape'" in _appjs)
+ok('잠정만 고를 수 있음', "g.status === '계획 등록'" in _appjs and 'class="lsel"' in _appjs)
+ok('전체 선택 체크박스', 'id="selAll"' in _appjs and 'function selAll' in _appjs)
+ok('선택 띠에 합계·가용 경고', 'selbar' in _tpl and '가용 잔여' in _appjs)
+ok('확정 전 확인창', 'function bulkConfirm' in _appjs and 'confirm(' in _appjs)
+ok('부서별 현황이 큐보다 먼저', _appjs.index('notice + hero + ccg + todo') > 0)
+ok('정적판도 일괄 확정 지원', '/groups/bulk_status' in open('tools/tb_local.js', encoding='utf-8').read())
+
 # 화면 낭독기 — 눈으로는 열 제목이 보이지만 select 에는 이름이 없던 칸들
 for _sel, _need in (('w-rk t-rk', '직책'), ('w-tm t-tm', 'CCG팀'), ('id="copySel"', '불러오기'),
                     ('id="actSel"', '출장 고르기'), ('class="colf" aria-label', '거르기'),
