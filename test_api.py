@@ -908,6 +908,27 @@ ok('확정 전 확인창', 'function bulkConfirm' in _appjs and 'confirm(' in _a
 ok('부서별 현황이 큐보다 먼저', _appjs.index('notice + hero + ccg + todo') > 0)
 ok('정적판도 일괄 확정 지원', '/groups/bulk_status' in open('tools/tb_local.js', encoding='utf-8').read())
 
+# ── 맥·아이패드 테스트 패키지 ──
+print('\n=== 30. 맥·아이패드 실행 패키지 ===')
+_mac = open('packaging/mac/시작하기.command', encoding='utf-8').read()
+ok('런처: 파이썬 없으면 설치법 안내', 'xcode-select --install' in _mac)
+ok('런처: 맥 기본 파이썬을 건드리지 않음(.venv)', '-m venv .venv' in _mac)
+ok('런처: 인터넷 없이 설치 먼저 시도', '--no-index --find-links vendor' in _mac)
+ok('런처: 5000번(AirPlay) 회피', 'range(5050' in _mac and '5000' not in _mac.split('range(5050')[1][:200])
+ok('런처: 포트가 막혀 있으면 다음 번호로', 'except OSError' in _mac)
+ok('런처: 데이터는 앱 폴더 밖(홈)', 'TB_DATA_DIR="$HOME/' in _mac)
+ok('런처: 서버가 응답한 뒤 브라우저 열기', 'curl -s -o /dev/null' in _mac and 'open "$URL"' in _mac)
+ok('런처: 실행 권한 있음', os.access('packaging/mac/시작하기.command', os.X_OK))
+ok('멈추기 스크립트 있음', os.path.exists('packaging/mac/멈추기.command'))
+_rd = open('packaging/mac/읽어보세요.txt', encoding='utf-8').read()
+ok('안내: 게이트키퍼(우클릭 열기) 설명', '오른쪽 클릭' in _rd and '열기' in _rd)
+ok('안내: 데이터 위치 명시', 'TravelBudget_데이터' in _rd)
+ok('안내: 아이패드용 파일 언급', 'travelbudget_ipad.html' in _rd)
+_bs = open('tools/build_mac_pkg.sh', encoding='utf-8').read()
+ok('빌드 스크립트가 버전을 코드에서 읽음', 'APP_VERSION' in _bs)
+ok('빌드 스크립트가 아이패드용도 만듦', 'travelbudget_ipad' in _bs)
+ok('아이패드용은 정적판(파이썬 불필요)', 'docs/index.html' in _bs)
+
 # 화면 낭독기 — 눈으로는 열 제목이 보이지만 select 에는 이름이 없던 칸들
 for _sel, _need in (('w-rk t-rk', '직책'), ('w-tm t-tm', 'CCG팀'), ('id="copySel"', '불러오기'),
                     ('id="actSel"', '출장 고르기'), ('class="colf" aria-label', '거르기'),

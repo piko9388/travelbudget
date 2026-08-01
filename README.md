@@ -14,13 +14,20 @@
 
 의존성: Flask 3.x 뿐 (`pip install -r requirements.txt`)
 
-**맥에서 확인용으로 띄울 때** (윈도우 서버와 같은 코드 그대로 — `DEPLOY.md` 8-6)
+**맥·아이패드에서 테스트할 때** — 실행 패키지를 따로 만듭니다.
 
 ```bash
-export TB_DATA_DIR="$HOME/travelbudget_data"
-export TB_PORT=5050        # macOS 12+ 는 5000 을 AirPlay 수신 모드가 씁니다
-python3 webmain.py         # → http://127.0.0.1:5050/travelbudget/
+./tools/build_mac_pkg.sh            # → dist/travelbudget_mac_vX.zip · travelbudget_ipad_vX.html
 ```
+
+| 기기 | 파일 | 방법 |
+|---|---|---|
+| 맥북 | `travelbudget_mac_vX.zip` | 압축 풀고 **`시작하기.command` 더블클릭** — 파이썬 확인 → 전용 폴더에 Flask 설치(동봉, 인터넷 불필요) → 빈 포트 자동 선택 → 브라우저 자동 실행 |
+| 아이패드 | `travelbudget_ipad_vX.html` | 파일 하나를 보내 **사파리에서 열기** — 파이썬 없이 동작, 데이터는 그 기기 안(localStorage) |
+
+- 맥은 사내 서버와 **같은 코드**입니다. 데이터만 `~/TravelBudget_데이터/` 에 따로 쌓입니다
+- macOS 12+ 는 5000번을 AirPlay 수신 모드가 써서 **5050부터** 빈 포트를 찾습니다
+- 직접 띄우려면: `TB_DATA_DIR=... TB_PORT=5050 python3 webmain.py`
 
 > **이미 데이터가 쌓인 서버를 올릴 때는 [UPGRADE.md](UPGRADE.md).**
 > 백업 → 파일 5개 교체 → 숫자 대조 → 되돌리기까지 클릭 순서로 적었습니다.
@@ -154,7 +161,7 @@ python3 tools/build_docs.py      # 정적(GitHub Pages) 재조립
 
 | 명령 | 필요 조건 | 결과 | 운영 데이터 |
 |---|---|---|---|
-| `python3 test_api.py` | Flask만 | **517 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
+| `python3 test_api.py` | Flask만 | **532 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
 | `python3 smoke_test.py [URL]` | 기동 중인 서버 | **19 passed / 0 failed** | 읽기 전용 (변경 없음) |
 | `python3 tools/e2e/fuzz.py` | Flask만 | 퍼징 1,302회 → 500 오류 **0건** | 임시 폴더 |
 | `node tools/e2e/e2e.mjs` | Node 18+ · Playwright | **223 passed / 0 failed** | 임시 폴더 |
