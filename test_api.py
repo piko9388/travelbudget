@@ -908,6 +908,38 @@ ok('확정 전 확인창', 'function bulkConfirm' in _appjs and 'confirm(' in _a
 ok('부서별 현황이 큐보다 먼저', _appjs.index('notice + hero + ccg + todo') > 0)
 ok('정적판도 일괄 확정 지원', '/groups/bulk_status' in open('tools/tb_local.js', encoding='utf-8').read())
 
+# ── 서버 ↔ 정적판(아이패드용) 기본값 대조 ──
+# 정적판은 같은 화면을 쓰지만 백엔드를 따로 흉내낸다. 기본값이 어긋나면
+# 아이패드에서만 수신인이 2명이거나 CCG가 7팀으로 보인다 — 실제로 그랬다.
+print('\n=== 31. 서버 ↔ 정적판 기본값 일치 ===')
+_js = open('tools/tb_local.js', encoding='utf-8').read()
+_blk = _js[_js.index('      settings: {'):_js.index('      budget: budget')]
+
+
+def _grab(key):
+    m = _re0.search(rf"{key}:\s*'((?:[^'\\]|\\.)*)'", _blk)
+    return m.group(1) if m else None
+
+
+_mails = _re0.search(r"mail_recipients:\s*\[(.*?)\]", _blk, _re0.S).group(1)
+_local = {
+    'system_name': _grab('system_name'), 'notice': _grab('notice'),
+    'notice_sub': _grab('notice_sub'), 'admin_pw': _grab('admin_pw'),
+    'reference_url': _grab('reference_url'),
+    'mail_recipients': _re0.findall(r"'([^']+)'", _mails),
+}
+_srv = _store._settings()
+for _k, _v in _srv.items():
+    ok(f'정적판 기본값 일치 — {_k}', _local.get(_k) == _v, (_v, _local.get(_k)))
+ok('정적판 수신인 수 = 서버', len(_local['mail_recipients']) == len(_srv['mail_recipients']),
+   (len(_srv['mail_recipients']), len(_local['mail_recipients'])))
+# CCG 목록 — 이름·코드·순서까지
+_jt = _re0.findall(r"\{ team: '([^']+)', ccg: '([^']+)' \}", _js[:_js.index('CCG_BY_NM')])
+ok('정적판 CCG 목록이 서버와 동일(순서 포함)',
+   [list(t) for t in _jt] == [[t['team'], t['ccg']] for t in _C.CCG_TEAMS],
+   {'서버': [(t['team'], t['ccg']) for t in _C.CCG_TEAMS], '정적판': _jt})
+ok('정적판 CCG 팀 수 = 서버', len(_jt) == len(_C.CCG_TEAMS), (len(_C.CCG_TEAMS), len(_jt)))
+
 # ── 맥·아이패드 테스트 패키지 ──
 print('\n=== 30. 맥·아이패드 실행 패키지 ===')
 _mac = open('packaging/mac/시작하기.command', encoding='utf-8').read()

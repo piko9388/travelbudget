@@ -453,11 +453,12 @@ padding:12px 16px;margin-bottom:16px}
   var ST_HOLD = '보류';                                    // 개인별 처리 보류
   var PSTATES = [ST_INFORM, ST_TRANSFER, ST_HOLD, ST_DONE]; // 출장자 개인 처리 상태
   var ADMIN_ZONE = [ST_TRANSFER, ST_HOLD, ST_DONE];         // 예산 담당자가 결정한 영역
+  // core.CCG_TEAMS 와 이름·코드·순서까지 같아야 한다 (test_api §31 이 대조한다)
   var CCG_TEAMS = [
-    { team: 'Patterning소재기술', ccg: '50119135' }, { team: 'C&C소재기술', ccg: '50139632' },
-    { team: 'C&C소재개발', ccg: '50134405' }, { team: 'EDTW소재기술', ccg: '50119134' },
-    { team: 'EDTW소재개발', ccg: '50103536' }, { team: 'P&C소재', ccg: '50128121' },
-    { team: '소재전략', ccg: '50110502' }];
+    { team: '소재전략', ccg: '50110502' }, { team: 'P&C소재', ccg: '50128121' },
+    { team: 'Patterning소재기술', ccg: '50119135' }, { team: 'Patterning소재개발', ccg: '50077468' },
+    { team: 'C&C소재기술', ccg: '50139632' }, { team: 'C&C소재개발', ccg: '50134405' },
+    { team: 'EDTW소재기술', ccg: '50119134' }, { team: 'EDTW소재개발', ccg: '50103536' }];
   var CCG_BY_NM = {}; CCG_TEAMS.forEach(function (t) { CCG_BY_NM[t.team] = t.ccg; });
   var CCG_MAX = 40;
   // CCG 는 설정(data.settings.ccg_teams)에 있으면 그것을, 없으면 위 기본값을 쓴다 — core.py 와 동일
@@ -497,7 +498,7 @@ padding:12px 16px;margin-bottom:16px}
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.11', APP_BUILD = '2026-08-01';
+  var APP_VERSION = 'v10.12', APP_BUILD = '2026-08-01';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -979,7 +980,9 @@ padding:12px 16px;margin-bottom:16px}
         notice: '현재 소재 배정 예산 소진 후 센터 예산 사용 중으로, 식비 15,000원, 회사 공용 차량 이용 통한 교통비 절감 요청 드립니다',
         notice_sub: '(사용 전/후 센터 검토 시 반려될 수 있음)',
         admin_pw: '2071478',
-        mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong5.kim@sk.com'],
+        // 소재 담당자 2 + 센터 담당자 2 — store._settings() 와 반드시 같아야 한다
+        mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong5.kim@sk.com',
+                          'Jeewoung.Chun@sk.com', 'geonyoung.kim@sk.com'],
         reference_url: 'material.skhynix.com/travelbudget'
       },
       budget: budget, groups: groups.map(normalizeGroup), audit_log: []
