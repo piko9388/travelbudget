@@ -1,4 +1,4 @@
-# 소재 국내 출장비 관리 v10.9
+# 소재 국내 출장비 관리 v10.10
 
 소재전략 국내 출장비 계획·실적·인폼·정산 관리 (Flask + data.json 단일 파일 저장)
 
@@ -14,9 +14,17 @@
 
 의존성: Flask 3.x 뿐 (`pip install -r requirements.txt`)
 
+**맥에서 확인용으로 띄울 때** (윈도우 서버와 같은 코드 그대로 — `DEPLOY.md` 8-6)
+
+```bash
+export TB_DATA_DIR="$HOME/travelbudget_data"
+export TB_PORT=5050        # macOS 12+ 는 5000 을 AirPlay 수신 모드가 씁니다
+python3 webmain.py         # → http://127.0.0.1:5050/travelbudget/
+```
+
 > **이미 데이터가 쌓인 서버를 올릴 때는 [UPGRADE.md](UPGRADE.md).**
 > 백업 → 파일 5개 교체 → 숫자 대조 → 되돌리기까지 클릭 순서로 적었습니다.
-> 실제로 v9.4에 데이터를 쌓아 v10.9로 올리고 다시 되돌리는 리허설을 돌려 확인한 절차입니다.
+> 실제로 v9.4에 데이터를 쌓아 v10.10로 올리고 다시 되돌리는 리허설을 돌려 확인한 절차입니다.
 
 ## 구성 (6개 파일)
 
@@ -47,7 +55,7 @@
 파싱·묶기는 모두 화면(app.js)에서 하고 기존 `POST /api/groups` 를 그대로 씁니다 —
 **data.json 스키마는 변하지 않습니다.**
 
-## 시스템 설정 (v10.9)
+## 시스템 설정 (v10.10)
 
 좌측 메뉴 **시스템 설정**(예산 담당자 인증 필요) — 조직이 바뀔 때 **코드를 고치지 않고** 화면에서 바꿉니다.
 
@@ -146,7 +154,7 @@ python3 tools/build_docs.py      # 정적(GitHub Pages) 재조립
 
 | 명령 | 필요 조건 | 결과 | 운영 데이터 |
 |---|---|---|---|
-| `python3 test_api.py` | Flask만 | **468 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
+| `python3 test_api.py` | Flask만 | **492 passed / 0 failed** | 임시 폴더에서만 동작 (건드리지 않음) |
 | `python3 smoke_test.py [URL]` | 기동 중인 서버 | **19 passed / 0 failed** | 읽기 전용 (변경 없음) |
 | `python3 tools/e2e/fuzz.py` | Flask만 | 퍼징 1,302회 → 500 오류 **0건** | 임시 폴더 |
 | `node tools/e2e/e2e.mjs` | Node 18+ · Playwright | **211 passed / 0 failed** | 임시 폴더 |

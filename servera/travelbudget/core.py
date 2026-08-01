@@ -75,7 +75,7 @@ def ccg_by_cd(data=None):
     """CCG 코드 → 팀 이름. 표시용 이름은 항상 코드에서 파생한다."""
     return {t["ccg"]: t["team"] for t in ccg_teams(data)}
 
-APP_VERSION = "v10.9"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_VERSION = "v10.10"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-07-31"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -92,6 +92,12 @@ STAGE_ORDER = {ST_PLAN: 0, ST_CONFIRM: 1, ST_INFORM: 2, ST_TRANSFER: 3, ST_DONE:
 LEAD_DAYS_MIN = 7                        # 사전 신청 기준 (D-7)
 # 비용 1건(1인·1항목) 상한 — 업무 규칙이 아니라 오타 방어선(0을 더 찍은 값이 원장에 들어가는 것을 막음)
 AMT_MAX = 100_000_000
+# 텍스트 길이 상한 — 업무 규칙이 아니라 붙여넣기 사고 방어선.
+# (실제 값은 도시 2~4자, 업체 10자 안팎, 목적 30자 안팎이라 넉넉한 자리)
+TEXT_MAX = (("city", "출장도시", 40), ("org", "출장기관&업체", 100),
+            ("purpose", "출장목적&사유", 300), ("remark", "비고", 500))
+PERSON_MAX = (("name", "성명", 40), ("emp_no", "사번", 30))
+TRAVELERS_MAX = 30                       # 한 출장의 동행 상한 (센터 양식·인폼 표가 견디는 선)
 
 
 # ── 유틸 ──────────────────────────────────────────────────
@@ -286,6 +292,13 @@ def validate_group(g, require_actual=False, by_nm=None):
                      ("ret_dt", "복귀일자"), ("kind", "출장구분")):
         if not str(g.get(k, "")).strip():
             e.append(f"{label}{josa(label)} 입력하세요.")
+    # 금액엔 상한(1억)이 있는데 텍스트엔 없어서, 잘못 붙여넣은 5,000자가 그대로 원장에 들어갔다.
+    # 업무 규칙이 아니라 사고 방어선 — 목록·CSV·인폼 표가 통째로 망가지는 것을 막는다.
+    for k, label, lim in TEXT_MAX:
+        v = _txt(g.get(k))
+        if len(v) > lim:
+            e.append(f"{label}{josa(label, '은는')} {lim}자를 넘습니다 ({len(v):,}자) — "
+                     f"붙여넣기가 잘못되지 않았는지 확인하세요.")
     if g.get("plan_type") not in PLAN_TYPES:
         e.append("구분이 올바르지 않습니다.")
     if g.get("status") not in STATUSES:
@@ -301,9 +314,15 @@ def validate_group(g, require_actual=False, by_nm=None):
         return e + ["출장자 형식이 올바르지 않습니다."]     # 잘못된 타입은 500 대신 400
     if not T:
         e.append("출장자를 1명 이상 입력하세요.")
+    if len(T) > TRAVELERS_MAX:
+        e.append(f"한 출장의 동행은 {TRAVELERS_MAX}명까지입니다 ({len(T)}명) — "
+                 f"붙여넣기 범위가 잘못되지 않았는지 확인하세요.")
     seen = set()
     valid_ccg = set((by_nm if by_nm is not None else CCG_BY_NM).values())
     for i, p in enumerate(T, 1):
+        for k, label, lim in PERSON_MAX:
+            if len(_txt(p.get(k))) > lim:
+                e.append(f"{i}번 출장자 {label}{josa(label, '은는')} {lim}자를 넘습니다.")
         if not str(p.get("name", "")).strip():
             e.append(f"{i}번 출장자 성명을 입력하세요.")
         emp = str(p.get("emp_no", "")).strip()

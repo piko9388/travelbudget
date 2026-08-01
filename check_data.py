@@ -103,6 +103,7 @@ def main():
 
   1) 서버에서 data.json 을 찾으세요
        Linux   : find / -name data.json -path '*travelbudget*' 2>/dev/null
+       macOS   : find ~ / -name data.json -path '*travelbudget*' 2>/dev/null
        Windows : dir /s /b C:\\data.json
   2) 찾은 폴더를 인자로 넘겨 다시 실행
        python3 check_data.py <그 폴더>
@@ -136,7 +137,7 @@ def main():
     → data_json/ 이 같이 지워집니다. 백업 30개도 그 안에 있어서 함께 사라집니다.
 
 ■ 안전한 방법 A — 파일 5개만 교체 (권장, 가장 안전)
-    v10.9 에서 바뀐 것은 이 5개뿐입니다. 나머지는 손대지 않습니다.
+    v10.10 에서 바뀐 것은 이 5개뿐입니다. 나머지는 손대지 않습니다.
 
       servera/travelbudget/core.py
       servera/travelbudget/routes.py
@@ -147,7 +148,7 @@ def main():
     1. 원장 백업          cp -r {info['dir']} ~/tb_backup_$(date +%Y%m%d)
     2. 위 5개 파일만 덮어쓰기 (data_json/ 은 건드리지 않음)
     3. 서비스 재기동
-    4. 좌측 하단에 v10.9 · 2026-07-31 확인
+    4. 좌측 하단에 v10.10 · 2026-07-31 확인
 
 ■ 안전한 방법 B — 데이터를 앱 밖으로 옮기고 나서 통째로 교체
     이번에 한 번만 하면 다음 배포부터는 폴더를 마음대로 덮어써도 됩니다.
@@ -167,8 +168,8 @@ def main():
 
 ■ 절차
     1. 원장 백업        cp -r {info['dir']} ~/tb_backup_$(date +%Y%m%d)
-    2. servera/travelbudget/ 폴더를 v10.9 것으로 교체
-    3. 재기동 → 좌측 하단 v10.9 · 2026-07-31 확인
+    2. servera/travelbudget/ 폴더를 v10.10 것으로 교체
+    3. 재기동 → 좌측 하단 v10.10 · 2026-07-31 확인
 """)
 
     print(f"""■ 올린 뒤 이 숫자가 그대로인지 확인하세요 (바뀌면 즉시 되돌릴 것)
@@ -176,7 +177,7 @@ def main():
 
 ■ 되돌리기
     앱만: 이전 버전 파일 5개로 교체 후 재기동. 데이터는 영향 없습니다.
-    v10.9 는 출장·예산 데이터에 새 필드를 쓰지 않으므로, 되돌려도 이전 버전이 그대로 읽습니다.
+    v10.10 는 출장·예산 데이터에 새 필드를 쓰지 않으므로, 되돌려도 이전 버전이 그대로 읽습니다.
     단, [시스템 설정]에서 CCG 목록을 고치면 settings.ccg_teams 한 칸이 생깁니다.
     이전 버전은 이 칸을 무시하고 코드에 박힌 CCG 목록을 쓰므로 오류는 나지 않지만,
     되돌린 동안에는 고친 CCG 목록이 반영되지 않습니다(데이터는 보존됨).

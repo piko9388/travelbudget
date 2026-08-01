@@ -1,8 +1,8 @@
-# 사내 Flask 서버 업로드 방법 (v10.9)
+# 사내 Flask 서버 업로드 방법 (v10.10)
 
 ## 0. 준비물
 
-- 패키지 `travelbudget_flask_v10.9.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
+- 패키지 `travelbudget_flask_v10.10.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
 
 > **이미 데이터가 쌓인 서버에 올리는 경우 → [UPGRADE.md](UPGRADE.md) 를 보세요.**
 > 클릭 순서까지 적은 초보자용 안내입니다(백업 → 파일 5개 교체 → 숫자 대조 → 되돌리기).
@@ -21,7 +21,7 @@ pip install -r requirements.txt      # Flask 뿐입니다
 압축을 풀면 이 구조입니다.
 
 ```
-travelbudget_flask_v10.9/
+travelbudget_flask_v10.10/
 └─ servera/
    └─ travelbudget/          ← 이 폴더 하나만 서버로 옮기면 됩니다
       ├─ __init__.py
@@ -88,7 +88,7 @@ Windows 서비스라면 서비스 환경변수에 `TB_DATA_DIR` 을 등록합니
 material.skhynix.com/travelbudget
 ```
 
-좌측 하단에 **v10.9 · 2026-07-31** 이 보이면 이 버전이 올라간 것입니다.
+좌측 하단에 **v10.10 · 2026-07-31** 이 보이면 이 버전이 올라간 것입니다.
 (버전이 안 바뀌었으면 브라우저 캐시 — `Ctrl+F5`)
 
 ---
@@ -187,11 +187,11 @@ servera/travelbudget/templates/traveler_guide.html
 cp -r servera/travelbudget/data_json ~/tb_backup_$(date +%Y%m%d)
 
 # 2. 5개 파일만 덮어쓰기
-cp travelbudget_flask_v10.9/servera/travelbudget/core.py                       servera/travelbudget/
-cp travelbudget_flask_v10.9/servera/travelbudget/routes.py                     servera/travelbudget/
-cp travelbudget_flask_v10.9/servera/travelbudget/static/app.js                 servera/travelbudget/static/
-cp travelbudget_flask_v10.9/servera/travelbudget/templates/index.html          servera/travelbudget/templates/
-cp travelbudget_flask_v10.9/servera/travelbudget/templates/traveler_guide.html servera/travelbudget/templates/
+cp travelbudget_flask_v10.10/servera/travelbudget/core.py                       servera/travelbudget/
+cp travelbudget_flask_v10.10/servera/travelbudget/routes.py                     servera/travelbudget/
+cp travelbudget_flask_v10.10/servera/travelbudget/static/app.js                 servera/travelbudget/static/
+cp travelbudget_flask_v10.10/servera/travelbudget/templates/index.html          servera/travelbudget/templates/
+cp travelbudget_flask_v10.10/servera/travelbudget/templates/traveler_guide.html servera/travelbudget/templates/
 
 # 3. 재기동 후 확인
 python3 check_data.py       # 숫자가 그대로인지
@@ -199,14 +199,14 @@ python3 smoke_test.py       # 19개 항목 (읽기만)
 ```
 
 `store.py` 의 **저장 로직**은 v9.4 이후 한 줄도 바뀌지 않았습니다 — 건드릴 필요가 없습니다.
-(v10.9 에서 `store.py` 의 신규 설치용 기본값만 바뀌었고, 이미 원장이 있는 서버에서는 쓰이지 않습니다)
+(v10.10 에서 `store.py` 의 신규 설치용 기본값만 바뀌었고, 이미 원장이 있는 서버에서는 쓰이지 않습니다)
 
 ### 8-2. 데이터가 앱 폴더 밖에 있는 경우 — 폴더 통째로 교체
 
 ```bash
 cp -r $TB_DATA_DIR ~/tb_backup_$(date +%Y%m%d)      # 1. 원장 백업
 rm -rf servera/travelbudget                          # 2. 앱 폴더 교체
-cp -r travelbudget_flask_v10.9/servera/travelbudget servera/
+cp -r travelbudget_flask_v10.10/servera/travelbudget servera/
 # 3. 재기동 → check_data.py · smoke_test.py
 ```
 
@@ -255,6 +255,42 @@ NODE_BIN=node PLAYWRIGHT_PATH=<playwright 경로> python3 tools/build_guide.py
 - 안내서가 300KB 를 넘으면 경고합니다 — 메일 첨부가 불편해지는 선입니다
 
 Playwright 가 없는 서버라면 개발 PC 에서 돌린 뒤 `traveler_guide.html` 만 옮기면 됩니다.
+
+---
+
+## 8-6. 맥에서 띄워 보기 (검토·시연용)
+
+사내 서버는 윈도우지만, **맥에서도 그대로 돕니다.** 윈도우 전용 코드나 경로를 쓰지 않습니다.
+
+```bash
+cd travelbudget_flask_v10.10
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+export TB_DATA_DIR="$HOME/travelbudget_data"   # 원장을 홈 폴더에 (앱 폴더 밖)
+export TB_PORT=5050                            # ★ 맥에서는 5000 을 쓰지 마세요
+python3 webmain.py
+```
+
+브라우저에서 `http://127.0.0.1:5050/travelbudget/` — 멈출 때는 그 터미널에서 **Ctrl + C**.
+
+> ⚠ **macOS 12 이상은 5000번 포트를 AirPlay 수신 모드가 쓰고 있습니다.**
+> 그대로 두면 안 뜨거나 엉뚱한 응답이 옵니다. `TB_PORT` 로 다른 번호를 주세요
+> (또는 시스템 설정 → 일반 → AirDrop 및 Handoff → **AirPlay 수신 모드** 끄기).
+
+점검도 같은 방식입니다.
+
+```bash
+python3 smoke_test.py http://127.0.0.1:5050    # 19개 항목, 읽기만
+python3 check_data.py "$TB_DATA_DIR"           # 데이터 위치·건수 확인
+```
+
+**글꼴** — 맥에는 맑은 고딕이 없어서 라틴은 **SF Pro**, 한글은 **Apple SD Gothic Neo** 로 떨어집니다.
+윈도우 순서(맑은 고딕 우선)는 그대로 두고 그 뒤에 애플 글꼴을 받쳐 뒀으므로
+**사내 윈도우 화면은 한 픽셀도 바뀌지 않습니다.**
+
+맥에서 만든 원장을 그대로 서버로 옮겨도 됩니다 — `data.json` 은 UTF-8 텍스트 한 개라
+운영체제와 무관합니다.
 
 ---
 

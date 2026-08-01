@@ -67,8 +67,13 @@
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.9', APP_BUILD = '2026-07-31';
+  var APP_VERSION = 'v10.10', APP_BUILD = '2026-07-31';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
+  // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
+  var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
+                  ['purpose', '출장목적&사유', 300], ['remark', '비고', 500]];
+  var PERSON_MAX = [['name', '성명', 40], ['emp_no', '사번', 30]];
+  var TRAVELERS_MAX = 30;
   // 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서
   var CSV_HEADERS = ['구분', 'LV2', 'CCG', 'CCG명', '사번', '성명', '직책',
     '출장도시', '출장기관&업체', '출장목적&사유', '출발일자', '복귀일자',
@@ -195,6 +200,11 @@
     ['dep_dt', '출발일자'], ['ret_dt', '복귀일자'], ['kind', '출장구분']].forEach(function (kv) {
       if (!String(g[kv[0]] == null ? '' : g[kv[0]]).trim()) e.push(kv[1] + josa(kv[1]) + ' 입력하세요.');
     });
+    TEXT_MAX.forEach(function (kv) {
+      var v = txt(g[kv[0]]);
+      if (v.length > kv[2]) e.push(kv[1] + josa(kv[1], '은는') + ' ' + kv[2] + '자를 넘습니다 ('
+        + v.length.toLocaleString() + '자) — 붙여넣기가 잘못되지 않았는지 확인하세요.');
+    });
     if (PLAN_TYPES.indexOf(g.plan_type) < 0) e.push('구분이 올바르지 않습니다.');
     if (STATUSES.indexOf(g.status) < 0) e.push('상태 값이 올바르지 않습니다.');
     if (String(g.kind || '').trim() && KINDS.indexOf(g.kind) < 0) e.push('출장구분이 올바르지 않습니다.');
@@ -204,6 +214,8 @@
     if (!Array.isArray(T) || T.some(function (p) { return !p || typeof p !== 'object'; }))
       return e.concat(['출장자 형식이 올바르지 않습니다.']);
     if (!T.length) e.push('출장자를 1명 이상 입력하세요.');
+    if (T.length > TRAVELERS_MAX) e.push('한 출장의 동행은 ' + TRAVELERS_MAX + '명까지입니다 ('
+      + T.length + '명) — 붙여넣기 범위가 잘못되지 않았는지 확인하세요.');
     var seen = {}, valid = {}; Object.keys(CCG_BY_NM).forEach(function (k) { valid[CCG_BY_NM[k]] = 1; });
     T.forEach(function (p, idx) {
       var i = idx + 1;

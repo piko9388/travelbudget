@@ -661,8 +661,8 @@ function travRow(p = {}){
   return `<tr data-tid="${TRAV_N}">
     <td><input class="w-nm t-nm" value="${esc(p.name || '')}" placeholder="성명"></td>
     <td><input class="w-no t-no" value="${esc(p.emp_no || '')}" placeholder="사번"></td>
-    <td><select class="w-rk t-rk">${ranks}</select></td>
-    <td><select class="w-tm t-tm" onchange="syncCcg(this)"><option value="">선택</option>${teams}</select>
+    <td><select class="w-rk t-rk" aria-label="직책">${ranks}</select></td>
+    <td><select class="w-tm t-tm" aria-label="CCG팀" onchange="syncCcg(this)"><option value="">선택</option>${teams}</select>
       <input class="t-cc" type="hidden" value="${esc(p.ccg || '')}">
       <div class="ccgno">CCG <b class="t-cc-v">${esc(p.ccg || '–')}</b></div></td>
     ${KEYS.map(k => `<td>${mfield('w-mn t-p-' + k, p['p_' + k], '0', 'planSum()')}</td>`).join('')}
@@ -743,7 +743,7 @@ function rPlan(){
   $('#v-plan').innerHTML = justPanel() + `
     <div class="card">
       <div class="card-head"><h2>${ed ? '출장 계획 수정' : '출장 계획 등록'}</h2>
-        ${ed ? '' : `<select id="copySel" class="headsel" onchange="copyPlan(this.value)">
+        ${ed ? '' : `<select id="copySel" class="headsel" aria-label="이전 출장에서 불러오기" onchange="copyPlan(this.value)">
           <option value="">이전 출장 복사…</option>${copyOpts}</select>`}</div>
       ${ed ? `<div class="note"><b>${esc(gname(ed))}</b> · ${fmtD(ed.dep_dt)}–${fmtD(ed.ret_dt)} 를 수정합니다.
         <span class="status ${stClass(ed.roll)}">${esc(dispSt(ed.roll))}</span>
@@ -891,7 +891,7 @@ function rActual(){
       <div id="actErr"></div>
       <div class="filter-row">
         <input id="actFilter" placeholder="성명·업체·도시로 검색" oninput="filterActual()">
-        <select id="actSel" onchange="pickActual(this.value)" style="flex:1;min-width:300px">
+        <select id="actSel" aria-label="실적을 입력할 출장 고르기" onchange="pickActual(this.value)" style="flex:1;min-width:300px">
           <option value="">대상 출장 선택 (${targets.length}건${wg.length ? ` · 실적 대기 ${wg.length}` : ''})</option>${opts}</select>
       </div>
       <div id="actBody"></div>
@@ -1457,7 +1457,7 @@ function rList(){
     + `${esc(c.th)}<span class="sic" data-k="${c.k}"></span></th>`).join('');
   // 컬럼별 검색창 — 상태는 선택, 금액은 '이상', 나머지는 포함 검색
   const filts = LCOLS.map(c => {
-    if (c.f === 'sel') return `<th><select class="colf" onchange="setCol('stage',this.value)">`
+    if (c.f === 'sel') return `<th><select class="colf" aria-label="상태로 거르기" onchange="setCol('stage',this.value)">`
       + [''].concat(ST.meta.statuses).map(x => opt(x, LQ.col.stage || '', x ? dispSt(x) : '전체')).join('')
       + `</select></th>`;
     return `<th class="${c.num ? 'num' : ''}"><input class="colf" value="${esc(LQ.col[c.k] || '')}"`
@@ -1648,7 +1648,7 @@ function rBudget(){
       <div class="filter-row" style="margin-top:10px">
         <input value="${esc(BQ.q)}" placeholder="🔍 REV·유형·사유·반영일"
           oninput="BQ.q=this.value; clearTimeout(window._bt); window._bt=setTimeout(()=>{rBudget();nav('budget')},250)">
-        <select onchange="setBQ('type',this.value)">
+        <select aria-label="리비전 유형으로 거르기" onchange="setBQ('type',this.value)">
           ${[''].concat(ST.meta.revTypes).map(t => bopt(t, BQ.type, t || '전체 유형')).join('')}
         </select>
         <button class="btn" onclick="toggleBDir()">반영일 ${dirIcon(BQ.dir)}</button>
@@ -1712,7 +1712,7 @@ function cfgStaleCard(){
   const rows = CFG_STALE.map((s, i) => `<tr>
     <td><b>${esc(s.name)}</b> <span class="sub">${esc(s.ccg)}</span></td>
     <td class="num">출장자 <b>${n0(s.n)}</b>명</td>
-    <td><select id="mig${i}" class="cfg-mig"><option value="">옮길 팀 선택</option>${opts}</select></td>
+    <td><select id="mig${i}" class="cfg-mig" aria-label="옮길 팀 고르기"><option value="">옮길 팀 선택</option>${opts}</select></td>
     <td><button class="btn sm" onclick="cfgMigrate('${esc(s.ccg)}', ${i})">옮기기</button></td>
   </tr>`).join('');
   return `<div class="card">

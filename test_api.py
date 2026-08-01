@@ -791,10 +791,57 @@ for _hf in ('servera/travelbudget/templates/index.html',
         _fams = [x.strip().strip('"\'') for x in _stack.split(',') if x.strip()]
         ok(f'{_hf.split("/")[-1]} 시스템 글꼴 중 맑은고딕이 첫째',
            _fams[0] in ('Malgun Gothic', 'TB UI'), _fams[:2])
+        # 맥에는 맑은고딕이 없다. 윈도우 순서는 그대로 두고 뒤에 애플 글꼴을 받쳐 둔다
+        # (라틴 = -apple-system(SF), 한글 = Apple SD Gothic Neo).
+        ok(f'{_hf.split("/")[-1]} 맥 폴백 포함', '-apple-system' in _fams
+           and 'Apple SD Gothic Neo' in _fams, _fams)
+        ok(f'{_hf.split("/")[-1]} 맥 폴백은 윈도우 글꼴 뒤',
+           _fams.index('맑은 고딕') < _fams.index('-apple-system'), _fams)
+        ok(f'{_hf.split("/")[-1]} 라틴이 한글 글꼴보다 먼저(맥)',
+           _fams.index('-apple-system') < _fams.index('Apple SD Gothic Neo'), _fams)
     ok(f'{_hf.split("/")[-1]} 외부 글꼴 URL 없음',
        'fonts.googleapis' not in _h and 'cdn.jsdelivr' not in _h and '//fonts.' not in _h)
     ok(f'{_hf.split("/")[-1]} Pretendard 를 스택에 직접 넣지 않음(주석 제외)',
        not any('Pretendard' in l for l in _decl), [l for l in _decl if 'Pretendard' in l])
+
+# 텍스트 길이 상한 — 금액엔 상한이 있는데 텍스트엔 없어 5,000자가 그대로 저장됐다
+print('\n=== 27. 붙여넣기 사고 방어선 (텍스트·동행 수) ===')
+_base = dict(plan_type='계획', city='이천', org='업체', purpose='목적', kind='정기 Audit',
+             dep_dt=f'{yy}-{mm}-09', ret_dt=f'{yy}-{mm}-09', car='미사용',
+             travelers=[dict(name='정상', emp_no='LEN1', rank='TL',
+                             ccg_nm=_C.CCG_TEAMS[0]['team'], p_trans=1000)])
+for _k, _label, _lim in _C.TEXT_MAX:
+    _b = dict(_base); _b[_k] = '가' * (_lim + 1)
+    _r = c.post('/travelbudget/api/groups', json=_b)
+    ok(f'{_label} {_lim}자 초과 거부', _r.status_code == 400
+       and any(str(_lim) in x for x in _r.get_json()['errors']), _r.status_code)
+    _b[_k] = '가' * _lim
+    _r = c.post('/travelbudget/api/groups', json=_b)
+    ok(f'{_label} {_lim}자 정확히는 통과', _r.status_code == 201, _r.get_json().get('errors'))
+_b = dict(_base)
+_b['travelers'] = [dict(name='동행', emp_no=f'MX{i:03d}', rank='TL',
+                        ccg_nm=_C.CCG_TEAMS[0]['team'], p_trans=1000)
+                   for i in range(_C.TRAVELERS_MAX + 1)]
+_r = c.post('/travelbudget/api/groups', json=_b)
+ok(f'동행 {_C.TRAVELERS_MAX}명 초과 거부', _r.status_code == 400
+   and any('동행' in x for x in _r.get_json()['errors']), _r.status_code)
+_b['travelers'] = _b['travelers'][:_C.TRAVELERS_MAX]
+ok(f'동행 {_C.TRAVELERS_MAX}명은 통과',
+   c.post('/travelbudget/api/groups', json=_b).status_code == 201)
+_b2 = dict(_base)
+_b2['travelers'] = [dict(name='가' * 41, emp_no='LONG1', rank='TL',
+                         ccg_nm=_C.CCG_TEAMS[0]['team'], p_trans=1000)]
+ok('출장자 성명 40자 초과 거부',
+   c.post('/travelbudget/api/groups', json=_b2).status_code == 400)
+ok('정적판도 같은 상한', 'TEXT_MAX' in open('tools/tb_local.js', encoding='utf-8').read())
+
+# 화면 낭독기 — 눈으로는 열 제목이 보이지만 select 에는 이름이 없던 칸들
+for _sel, _need in (('w-rk t-rk', '직책'), ('w-tm t-tm', 'CCG팀'), ('id="copySel"', '불러오기'),
+                    ('id="actSel"', '출장 고르기'), ('class="colf" aria-label', '거르기'),
+                    ('cfg-mig', '옮길 팀')):
+    _i = _appjs.find(_sel)
+    _seg = _appjs[max(0, _i - 120):_i + 200] if _i >= 0 else ''
+    ok(f'select 이름표 있음 — {_need}', 'aria-label' in _seg, _sel)
 
 # ── 시스템 설정 (관리자) ──────────────────────────────
 # CCG·수신인은 조직이 바뀌면 같이 바뀐다. 코드에 두면 매번 배포해야 하므로 원장으로 옮겼다.
