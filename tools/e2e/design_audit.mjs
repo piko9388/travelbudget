@@ -122,7 +122,10 @@ try {
   });
   Object.entries(FAM).forEach(([f, n]) => console.log(`   ×${String(n).padStart(4)}  ${f.slice(0, 96)}`));
   const stacks = Object.keys(FAM);
-  note(stacks.length === 1 ? 'OK' : 'INFO', '글씨체', `폰트 스택 ${stacks.length}종`);
+  // 본문 스택 하나 + 고정폭 하나(붙여넣기 원문·미리보기)까지가 정상이다.
+  const extra = stacks.filter(f => !/monospace/.test(f));
+  note(stacks.length <= 2 && extra.length === 1 ? 'OK' : 'INFO', '글씨체',
+       `폰트 스택 ${stacks.length}종 (본문 ${extra.length} + 고정폭 ${stacks.length - extra.length})`);
   const hasWinFallback = stacks.every(f => /Malgun Gothic|맑은 고딕/.test(f));
   note(hasWinFallback ? 'OK' : 'FAIL', '글씨체', `윈도우 폴백(맑은 고딕) ${hasWinFallback ? '전 요소 확보' : '누락 — 사내 PC에서 깨질 수 있음'}`);
   const actual = await page.evaluate(() => document.fonts ? [...document.fonts].length : -1);

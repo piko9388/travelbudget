@@ -344,7 +344,7 @@ function rGuide(){
           <span class="grole ${roleCls}">${role}</span></div>
         <div class="gwhat">${what}</div>
         ${auto ? `<div class="gauto">⚙ 자동 · ${auto}</div>` : ''}
-        ${jump ? `<div class="btns" style="margin-top:10px">${jump}</div>` : ''}
+        ${jump ? `<div class="btns" style="margin-top:8px">${jump}</div>` : ''}
       </div>
     </div>`;
   const lead = `
@@ -383,7 +383,7 @@ function rGuide(){
       '안 가게 되면 잠정은 <b>삭제</b>, 확정 후엔 <b>출장 취소</b>. 취소 건은 예산에서 빠집니다.',
       '', '');
   const money = `
-      <div class="note" style="margin:14px 0 0">
+      <div class="note" style="margin:16px 0 0">
         💡 예산 계산: <b>가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정(확보)</b>.
         <b>잠정 계획</b>은 참고만(미반영), <b>확정 예정</b>은 미리 확보(가용 차감), 실제 집행은 처리 중·처리 완료로 반영됩니다.
       </div></div>`;
@@ -400,7 +400,7 @@ function rGuide(){
         <span class="arrow">→</span>
         <span><span class="status done">처리 완료</span> 정산 끝</span>
       </div>
-      <p class="cap" style="margin:10px 0 0">단계가 아닌 것은 빨강으로 따로 표시합니다.</p>
+      <p class="cap" style="margin:8px 0 0">단계가 아닌 것은 빨강으로 따로 표시합니다.</p>
       <div class="glegend">
         <span><span class="status cancel">취소</span> 취소된 건</span>
         <span><span class="status urgent">긴급</span> 긴급 출장</span>
@@ -484,7 +484,7 @@ function rDash(){
         <textarea id="nt_main">${esc(nt)}</textarea>
         <label style="margin-top:8px">보조 문구 (괄호 안내 등)</label>
         <input id="nt_sub" value="${esc(ns)}">
-        <div class="btns" style="margin-top:9px">
+        <div class="btns" style="margin-top:8px">
           <button class="btn pri sm" onclick="saveNotice()">저장</button>
           <button class="btn sm" onclick="editNotice(false)">취소</button>
         </div>
@@ -552,7 +552,7 @@ function rDash(){
     <td class="num"><b>${won(r.done + r.wip + (r.commit || 0))}</b></td>
     <td class="num">${(r.share * 100).toFixed(1)}%</td>
     <td class="num">${r.people}</td></tr>`).join('')
-    || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">집행 내역이 없습니다.</td></tr>';
+    || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:16px">집행 내역이 없습니다.</td></tr>';
   const tot = rowsData.reduce((a, r) => ({done: a.done + r.done, wip: a.wip + r.wip,
     commit: a.commit + (r.commit || 0), people: a.people + r.people}), {done:0, wip:0, commit:0, people:0});
   const totSum = tot.done + tot.wip + tot.commit;
@@ -584,7 +584,7 @@ function rDash(){
           <span><i class="sc ghost-seg"></i>확정 예정 <span class="sub">집계 제외</span></span></div></div>
       <div class="bars">${bars}</div>
       <details class="fold"><summary>금액 표로 보기</summary>
-        <div class="scroll" style="margin-top:10px"><table>
+        <div class="scroll" style="margin-top:8px"><table>
           <thead><tr><th>CCG팀</th><th class="num">처리 완료</th><th class="num">처리 중</th>
             <th class="num">확정 예정</th><th class="num">합계</th><th class="num">구성비</th>
             <th class="num">인원</th></tr></thead>
@@ -784,7 +784,7 @@ function rPlan(){
         </thead>
         <tbody id="travBody"></tbody>
       </table></div>
-      <div class="btns" style="margin-top:10px">
+      <div class="btns" style="margin-top:8px">
         <button class="btn" onclick="addTrav()">+ 동행자 추가</button>
         <span style="margin-left:auto;font-weight:700;color:var(--navy)">계획 총합계 <span id="planTot">0원</span></span>
       </div>
@@ -1115,19 +1115,19 @@ function bPreview(){
   }).join('');
   $('#bkOut').innerHTML = `
     ${errs.length ? `<div class="err">${errs.map(esc).join('\n')}</div>` : ''}
-    ${groups.length ? `<div class="note" style="margin:10px 0 0">
+    ${groups.length ? `<div class="note" style="margin:8px 0 0">
         <b>${groups.length}건</b> · 출장자 <b>${groups.reduce((a, g) => a + g.travelers.length, 0)}명</b>
         — 같은 도시·업체·일자·목적은 한 건으로 묶었습니다. 내용을 확인하고 아래 버튼을 누르세요.</div>
-      <div class="scroll" style="margin-top:10px"><table>
+      <div class="scroll" style="margin-top:8px"><table>
         <thead><tr><th class="num">#</th><th>출장</th><th class="num">기간</th><th>출장자</th>
           <th class="num">계획</th><th class="num">실적</th><th>원본</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
       <div class="btns">
         <button class="btn pri" id="bkGo" onclick="bSubmit()">${groups.length}건 등록</button>
-        <label style="display:flex;align-items:center;gap:6px;font-weight:600;margin:0">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0">
           <input type="checkbox" id="bkConfirm" style="width:auto;margin:0"> 실제로 가는 출장 — 바로 확정(예산 반영)</label>
       </div>`
-    : '<div class="note" style="margin:10px 0 0">등록할 수 있는 행이 없습니다.</div>'}`;
+    : '<div class="note" style="margin:8px 0 0">등록할 수 있는 행이 없습니다.</div>'}`;
 }
 async function bSubmit(){
   if (!BULK_ROWS || !BULK_ROWS.length) return;
@@ -1143,7 +1143,7 @@ async function bSubmit(){
   BULK_ROWS = null;
   rBulk(); nav('bulk');                     // 화면을 먼저 새로 그린 뒤 결과를 넣는다
   $('#bkText').value = fail.length ? $('#bkText').value : '';   // 실패가 있으면 원본을 남겨 고칠 수 있게
-  $('#bkOut').innerHTML = `<div class="${fail.length ? 'err' : 'note'}" style="margin:10px 0 0">
+  $('#bkOut').innerHTML = `<div class="${fail.length ? 'err' : 'note'}" style="margin:8px 0 0">
     <b>${okN}건 등록 완료</b>${fail.length
       ? `\n실패 ${fail.length}건 — 아래 내용을 고쳐 다시 등록하세요:\n${fail.map(esc).join('\n')}`
       : ''}</div>`;
@@ -1161,7 +1161,7 @@ function rBulk(){
         같은 도시·업체·일자·목적 행은 <b>동행자</b>로 보고 한 건으로 묶습니다. 금액은 콤마·"원"이 있어도 됩니다.</span>
       </div>
       <label for="bkText">붙여넣기</label>
-      <textarea id="bkText" style="min-height:150px;font-family:Consolas,'Malgun Gothic',monospace;font-size:12.5px"
+      <textarea id="bkText" class="mono" style="min-height:152px;font-size:13px;line-height:20px"
         placeholder="예)  계획  소재  50119134  EDTW소재기술  20140508  박영희  팀장  청주  원익머트리얼즈  NF3 정기 Audit  2026-08-04  2026-08-05 ..."
         oninput="bPreview()"></textarea>
       <div class="btns" style="margin-top:8px">
@@ -1523,7 +1523,7 @@ function renderListBody(){
       const n = G.filter(x => x.roll === g.roll).length;
       body += `<tr class="grp-head"><td colspan="8">
         <span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>
-        <b style="margin-left:6px">${n}건</b></td></tr>`;
+        <b style="margin-left:4px">${n}건</b></td></tr>`;
     }
     body += listRowHtml(g, LQ.group);
   });
@@ -1575,7 +1575,7 @@ function rList(){
       <div class="filter-row" style="margin-top:12px">
         <input id="listFilter" value="${esc(LQ.q)}" placeholder="🔍 전체 검색 (성명·사번·업체·도시·목적)"
           oninput="LQ.q=this.value; renderListBody()">
-        <label style="display:flex;align-items:center;gap:6px;font-weight:600;margin:0;white-space:nowrap">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0;white-space:nowrap">
           <input type="checkbox" style="width:auto;margin:0" ${LQ.group ? 'checked' : ''}
             onchange="toggleGroup(this.checked)"> 프로세스별 묶기</label>
         <button class="btn" id="listDir" onclick="toggleLDir()">${dirIcon(LQ.dir)}</button>
@@ -1660,7 +1660,7 @@ function rProcess(){
         <span class="sub">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${g.travelers.length}명 · 실적 ${g.act_tot ? won(g.act_tot) : '–'}</span>
         <span class="gb">${gb.join(' ')}</span>
       </div>
-      <div style="padding:5px 13px 3px"><span class="pg-sum">${summary}</span></div>
+      <div style="padding:4px 12px"><span class="pg-sum">${summary}</span></div>
       ${past ? `<div class="scroll" style="border:0"><table>
         <thead><tr><th style="width:120px">개인 상태</th><th>출장자</th><th class="num">실적</th><th>처리 (인당)</th></tr></thead>
         <tbody>${prows}</tbody></table></div>
@@ -1752,7 +1752,7 @@ function rBudget(){
     <td><button class="btn sm red" onclick="delBudget('${esc(b.rev_id)}')">삭제</button></td></tr>`).join('');
   const bopt = (v, cur, label) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label || v || '전체')}</option>`;
   const bctl = `
-      <div class="filter-row" style="margin-top:10px">
+      <div class="filter-row" style="margin-top:8px">
         <input value="${esc(BQ.q)}" placeholder="🔍 REV·유형·사유·반영일"
           oninput="BQ.q=this.value; clearTimeout(window._bt); window._bt=setTimeout(()=>{rBudget();nav('budget')},250)">
         <select aria-label="리비전 유형으로 거르기" onchange="setBQ('type',this.value)">
@@ -1781,10 +1781,10 @@ function rBudget(){
           <a class="btn" href="${API}/export_budget.csv">전체 예산 CSV</a>
         </span></div>
       ${bctl}
-      <div class="scroll" style="margin-top:10px"><table>
+      <div class="scroll" style="margin-top:8px"><table>
         <thead><tr><th>REV</th><th class="num">반영일</th><th>유형</th><th class="num">증감액</th>
           <th class="num">누적</th><th>사유</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:18px">조건에 맞는 리비전이 없습니다.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="7" style="color:var(--faint);text-align:center;padding:16px">조건에 맞는 리비전이 없습니다.</td></tr>'}</tbody>
       </table></div></div>`;
 }
 async function submitBudget(){
@@ -1973,7 +1973,7 @@ async function rData(){
     <td><button class="btn sm" onclick="restoreBackup('${esc(b.filename)}')">복원</button></td></tr>`).join('');
   $('#v-data').innerHTML = `
     <div class="card"><h2>내보내기</h2>
-      <div class="btns" style="margin-top:6px">
+      <div class="btns" style="margin-top:8px">
         <a class="btn pri" href="${API}/export.xls?yq=${encodeURIComponent(YQ)}">${YQ} 센터 제출 (Excel)</a>
         <a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">${YQ} 출장 CSV</a>
         <a class="btn" href="${API}/export.csv">전체 출장 CSV</a>
@@ -1984,7 +1984,7 @@ async function rData(){
       <p class="cap">저장 직전 자동 백업됩니다. 복원은 관리자 인증이 필요합니다.</p>
       <div class="scroll"><table>
         <thead><tr><th>파일</th><th class="num">크기</th><th class="num">시각</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="4" style="color:var(--faint);text-align:center;padding:18px">백업이 없습니다.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="4" style="color:var(--faint);text-align:center;padding:16px">백업이 없습니다.</td></tr>'}</tbody>
       </table></div></div>
     <div class="card"><h2>감사 로그 <span class="sub" style="font-weight:600">최근 활동 — 누가 무엇을 했는지</span></h2>
       <p class="cap">삭제·상태 변경·예산·복원 이력이 남습니다. 잠정 계획 삭제는 내용까지 기록됩니다.</p>
@@ -2029,7 +2029,7 @@ async function loadAudit(){
     <td>${esc(a.detail || '')}</td></tr>`).join('');
   $('#auditBox').innerHTML = `<div class="scroll"><table>
     <thead><tr><th class="num">시각</th><th>행위자</th><th>동작</th><th>내용</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="4" style="color:var(--faint);text-align:center;padding:18px">기록이 없습니다.</td></tr>'}</tbody>
+    <tbody>${rows || '<tr><td colspan="4" style="color:var(--faint);text-align:center;padding:16px">기록이 없습니다.</td></tr>'}</tbody>
   </table></div>`;
 }
 
@@ -2060,13 +2060,13 @@ async function showReport(){
         <div class="kpi"><span>확정 예정</span><b>${won(r.commit)}</b></div>
         <div class="kpi"><span>${r.need > 0 ? '추가 필요' : '가용 잔여'}</span><b style="color:${r.need > 0 ? 'var(--red)' : 'var(--navy)'}">${won(r.need > 0 ? r.need : r.avail)}</b></div>
       </div>
-      <p class="cap" style="margin:6px 0 10px">소진율 ${(r.burn * 100).toFixed(1)}% · 출장 ${r.nDone + r.nWip + r.nConfirm}건 · 연인원 ${r.nPeople}명</p>
+      <p class="cap" style="margin:8px 0">소진율 ${(r.burn * 100).toFixed(1)}% · 출장 ${r.nDone + r.nWip + r.nConfirm}건 · 연인원 ${r.nPeople}명</p>
       <table style="width:100%"><thead><tr><th>CCG팀</th><th class="num">완료</th><th class="num">처리 중</th>
         <th class="num">확정 예정</th><th class="num">합계</th><th class="num">건</th><th class="num">인원</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--faint);padding:14px">집행 없음</td></tr>'}</tbody></table>
-      <h2 style="font-size:13px;margin:14px 0 6px;color:var(--navy)">예산 리비전</h2>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--faint);padding:12px">집행 없음</td></tr>'}</tbody></table>
+      <h2 style="font-size:13px;line-height:20px;margin:16px 0 8px;color:var(--navy)">예산 리비전</h2>
       <table style="width:100%"><thead><tr><th class="num">반영일</th><th>유형</th><th class="num">증감</th><th>사유</th></tr></thead>
-        <tbody>${revs || '<tr><td colspan="4" style="text-align:center;color:var(--faint);padding:14px">없음</td></tr>'}</tbody></table>
+        <tbody>${revs || '<tr><td colspan="4" style="text-align:center;color:var(--faint);padding:12px">없음</td></tr>'}</tbody></table>
     </div>
     <div class="mf"><button class="btn sm pri" id="rptCopy">요약 복사</button>
       <a class="btn sm" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">상세 CSV</a>
@@ -2126,7 +2126,7 @@ load().catch(e => {
       <h2 style="color:var(--red)">데이터를 읽지 못했습니다</h2>
       <p class="cap">화면 코드가 아니라 원장 파일이나 서버 쪽 문제입니다. 아래를 순서대로 확인하세요.</p>
       <div class="err">${esc(e.message || String(e))}</div>
-      <ol style="margin:12px 0 0 16px;padding:0;color:var(--ink2);font-size:13px;line-height:1.9">
+      <ol style="margin:12px 0 0 16px;padding:0;color:var(--ink2);font-size:13px;line-height:20px">
         <li><b>Ctrl+F5</b> 로 다시 불러오기 — 캐시 문제면 여기서 해결됩니다.</li>
         <li>서버가 떠 있는지 확인 — 주소창의 <code>/travelbudget</code> 를 다시 여세요.</li>
         <li>그래도 안 되면 <b>data.json 이 깨진 것</b>입니다.

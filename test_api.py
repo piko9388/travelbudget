@@ -914,13 +914,10 @@ print('\n=== 32. 모서리 · 그림자 척도 ===')
 for _t in ('--r-ctl', '--r-box', '--r-pill', '--r-bar', '--sh-1', '--sh-2', '--sh-3'):
     ok(f'토큰 정의 {_t}', _t + ':' in _tpl)
 _rad = _re0.findall(r'border-radius:\s*([^;}]+)', _tpl)
-_bad_r = [v.strip() for v in _rad
-          if not v.strip().startswith('var(--r-') and v.strip() not in ('50%',)]
-ok('토큰 밖 모서리 값 없음', not _bad_r, _bad_r)
+_bad_r = [v.strip() for v in _rad if not v.strip().startswith('var(--r-')]
+ok('토큰 밖 모서리 값 없음 (원도 --r-pill 로)', not _bad_r, _bad_r)
 _sh = [v.strip() for v in _re0.findall(r'box-shadow:\s*([^;}]+)', _tpl)]
-_bad_s = [v for v in _sh if not v.startswith('var(--sh-')
-          and v not in ('none',) and not v.startswith('-2px 0 0')
-          and not v.startswith('inset')]
+_bad_s = [v for v in _sh if not v.startswith('var(--sh-') and v not in ('none',)]
 ok('토큰 밖 그림자 값 없음', not _bad_s, _bad_s)
 ok('컨테이너가 컨트롤보다 한 단계 큼',
    int(_re0.search(r'--r-box:(\d+)px', _tpl).group(1))
@@ -1412,6 +1409,91 @@ for _hf in ('servera/travelbudget/templates/index.html',
     _left = [f'{t}({l}행)' for t, l in _p.stack if t in _WATCH]
     ok(f'{_hf.split("/")[-1]} 태그 짝 맞음', not _p.bad, _p.bad[:3])
     ok(f'{_hf.split("/")[-1]} 닫히지 않은 컨테이너 없음', not _left, _left[:3])
+
+# ── 테마 전수 — 색 · 글씨 · 여백이 화면마다 어긋나지 않게 ──
+# 화면(index.html)과 인쇄물(traveler_guide.html)은 같은 제도의 두 얼굴이다.
+# 한쪽만 손보면 안내문과 실제 화면이 다른 시스템처럼 읽힌다 — 실제로 그랬다.
+print('\n=== 33. 테마 전수 (색 · 글씨 · 여백) ===')
+_guide = open('servera/travelbudget/templates/traveler_guide.html', encoding='utf-8').read()
+
+
+def _css_body(txt):
+    """<style> 안에서 :root 정의부와 주석을 뺀 나머지 — 실제 선언만 본다."""
+    css = _re0.search(r'<style[^>]*>(.*?)</style>', txt, _re0.S).group(1)
+    css = css[css.index('}', css.index(':root{')) + 1:]
+    return _re0.sub(r'/\*.*?\*/', '', css, flags=_re0.S)
+
+
+_tpl_body, _guide_body = _css_body(_tpl), _css_body(_guide)
+for _name, _body in (('화면', _tpl_body), ('안내문', _guide_body)):
+    _hex = sorted(set(_re0.findall(r'#[0-9A-Fa-f]{3,6}\b', _body)))
+    ok(f'{_name}: :root 밖 하드코딩 색 없음', not _hex, _hex[:8])
+
+# 글씨 척도 — 크기 6단계, 줄높이는 px 정수(윈도우에서 소수 줄높이는 글자가 뭉개진다)
+_SCALE = {'12px': '18px', '13px': '20px', '14px': '22px',
+          '16px': '24px', '20px': '28px', '32px': '38px'}
+for _name, _body in (('화면', _tpl_body), ('안내문', _guide_body)):
+    _fs = [v for v in _re0.findall(r'font-size:\s*([^;}]+)', _body)]
+    _off = [v for v in _fs if v.strip() not in _SCALE and not v.strip().endswith('pt')]
+    ok(f'{_name}: 글씨 크기가 척도 안 (인쇄용 pt 제외)', not _off, _off[:6])
+    _lh = [v.strip() for v in _re0.findall(r'line-height:\s*([^;}]+)', _body)]
+    _off2 = [v for v in _lh if not _re0.fullmatch(r'\d+px', v)]
+    ok(f'{_name}: 줄높이가 px 정수', not _off2, _off2[:6])
+    _pair = [(m.group(1), m.group(2)) for m in
+             _re0.finditer(r'font-size:\s*(\d+px);\s*line-height:\s*([\d.]+px?)', _body)
+             if _SCALE.get(m.group(1)) and m.group(2) != _SCALE[m.group(1)]]
+    ok(f'{_name}: 크기↔줄높이 짝이 맞음', not _pair, _pair[:4])
+    _w = sorted(set(_re0.findall(r'font-weight:\s*(\d+)', _body)))
+    ok(f'{_name}: 굵기는 400·700 둘뿐 (맑은 고딕이 가진 것)',
+       set(_w) <= {'400', '700'}, _w)
+    ok(f'{_name}: letter-spacing 미사용 (한글은 기본 자간이 맞다)',
+       'letter-spacing' not in _body)
+
+# 모서리 — 안내문도 화면과 같은 토큰을 쓴다
+_grad = [v.strip() for v in _re0.findall(r'border-radius:\s*([^;}]+)', _guide_body)]
+ok('안내문: 토큰 밖 모서리 값 없음',
+   all(v.startswith('var(--r-') for v in _grad), )
+ok('안내문: 상태 배지는 화면과 같이 알약',
+   _re0.search(r'\.st\{[^}]*border-radius:var\(--r-pill\)', _guide_body) is not None)
+
+# 테두리 굵기 — 1(구분) · 2(강한 구분) · 4(한쪽 표식) 세 단계.
+# 3px 과 4px 이 같은 용도로 섞여 있으면 같은 종류의 블록이 서로 다르게 보인다.
+for _name, _body in (('화면', _tpl_body), ('안내문', _guide_body)):
+    _bw = sorted(set(_re0.findall(r'border(?:-top|-bottom|-left|-right)?\s*:\s*(\d+)px', _body)),
+                 key=int)
+    ok(f'{_name}: 테두리 굵기는 1·2·4 뿐', set(_bw) <= {'1', '2', '4'}, _bw)
+
+# 팔레트 — 안내문 :root 값이 화면 :root 와 같아야 한다
+_root_of = lambda t: _re0.search(r':root\{(.*?)\n\}', t, _re0.S).group(1)
+_tp, _gp = _root_of(_tpl), _root_of(_guide)
+for _tok in ('--bg', '--ink', '--ink2', '--mut', '--line', '--line2', '--soft',
+             '--navy', '--s1', '--s2', '--s3', '--s4', '--red', '--green', '--amber',
+             '--r-ctl', '--r-box', '--r-pill'):
+    _a = _re0.search(rf'{_tok}:\s*([^;]+);', _tp)
+    _b = _re0.search(rf'{_tok}:\s*([^;]+);', _gp)
+    ok(f'안내문 {_tok} 값이 화면과 같음',
+       _a and _b and _a.group(1).strip().upper() == _b.group(1).strip().upper(),
+       (_a and _a.group(1), _b and _b.group(1)))
+
+# 화면 안에서 JS 가 찍는 인라인 style — CSS 밖이라 척도 검사를 빠져나가던 자리
+_OKSP = {'0', 'auto'} | {f'{n}px' for n in (1, 2, 4, 8, 12, 16, 24, 32, 48)}
+_inline_bad = []
+for _m in _re0.finditer(r'style="([^"]+)"', _appjs):
+    for _d in _m.group(1).split(';'):
+        _mm = _re0.match(r'\s*(margin|padding|gap)(-[a-z]+)?\s*:\s*(.+)$', _d)
+        if not _mm:
+            continue
+        for _part in _mm.group(3).split():
+            if 'var(' in _part or '%' in _part or 'calc' in _part:
+                continue
+            if _part.lstrip('-') not in _OKSP:
+                _inline_bad.append(_d.strip())
+ok('app.js 인라인 여백도 4·8·12·16·24 척도', not _inline_bad, _inline_bad[:6])
+_inline_fs = [v for v in _re0.findall(r'style="[^"]*font-size:\s*([\d.]+px)', _appjs)
+              if v not in _SCALE]
+ok('app.js 인라인 글씨 크기도 척도 안', not _inline_fs, _inline_fs[:6])
+ok('고정폭은 .mono 한 곳에서만 정의', _tpl.count('monospace') == 1
+   and 'font-family:Consolas' not in _appjs, _tpl.count('monospace'))
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)
