@@ -1360,6 +1360,32 @@ try {
   ok('부서별 현황이 큐보다 위', foldY < queueY, {foldY, queueY});
   await page.setViewportSize({width: 1440, height: 900});
 
+  // ── §27 렌더된 모서리·그림자가 척도 안인가 (선언이 아니라 실제 화면 기준) ──
+  console.log('\n== 27. 모서리 · 그림자 · 강조선 ==');
+  await page.click('.nav a[data-view="list"]');
+  await sleep(600);
+  const look = await page.evaluate(() => {
+    const vis = e => e.checkVisibility && e.checkVisibility();
+    const radii = {}, shadows = {};
+    [...document.querySelectorAll('*')].filter(vis).forEach(e => {
+      const cs = getComputedStyle(e);
+      if (cs.borderRadius && cs.borderRadius !== '0px') radii[cs.borderRadius] = (radii[cs.borderRadius] || 0) + 1;
+      if (cs.boxShadow && cs.boxShadow !== 'none') shadows[cs.boxShadow] = (shadows[cs.boxShadow] || 0) + 1;
+    });
+    const g = s2 => { const e = document.querySelector(s2); return e ? getComputedStyle(e) : null; };
+    return { radii: Object.keys(radii).sort(), shadows: Object.keys(shadows).length,
+             btn: g('.btn')?.borderRadius, card: g('.card')?.borderRadius,
+             badge: g('.status')?.borderRadius, th: g('th')?.borderBottomWidth,
+             navOn: g('.nav a.on')?.boxShadow || '' };
+  });
+  ok('렌더된 모서리 값이 4종 이하', look.radii.length <= 4, look.radii);
+  ok('버튼 3px · 카드 4px (컨테이너가 한 단계 큼)',
+     look.btn === '3px' && look.card === '4px', {btn: look.btn, card: look.card});
+  ok('상태 배지는 알약', parseFloat(look.badge) >= 99, look.badge);
+  ok('표 머리글 경계가 본문보다 두꺼움', parseFloat(look.th) >= 2, look.th);
+  ok('지금 보고 있는 메뉴에 왼쪽 강조선', /inset/.test(look.navOn) && /3px/.test(look.navOn), look.navOn.slice(0, 50));
+  ok('그림자 종류 4개 이하', look.shadows <= 4, look.shadows);
+
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));
   ok('콘솔 JS 에러 없음 (외부 CDN 제외)', codeErrs.length === 0, codeErrs.slice(0, 3));

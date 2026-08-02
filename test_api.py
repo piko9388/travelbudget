@@ -908,6 +908,37 @@ ok('확정 전 확인창', 'function bulkConfirm' in _appjs and 'confirm(' in _a
 ok('부서별 현황이 큐보다 먼저', _appjs.index('notice + hero + ccg + todo') > 0)
 ok('정적판도 일괄 확정 지원', '/groups/bulk_status' in open('tools/tb_local.js', encoding='utf-8').read())
 
+# ── 모서리·그림자·테두리 척도 ──
+# 값이 제각각이면 화면마다 다른 제품처럼 보인다. 토큰 밖 값을 쓰지 못하게 막는다.
+print('\n=== 32. 모서리 · 그림자 척도 ===')
+for _t in ('--r-ctl', '--r-box', '--r-pill', '--r-bar', '--sh-1', '--sh-2', '--sh-3'):
+    ok(f'토큰 정의 {_t}', _t + ':' in _tpl)
+_rad = _re0.findall(r'border-radius:\s*([^;}]+)', _tpl)
+_bad_r = [v.strip() for v in _rad
+          if not v.strip().startswith('var(--r-') and v.strip() not in ('50%',)]
+ok('토큰 밖 모서리 값 없음', not _bad_r, _bad_r)
+_sh = [v.strip() for v in _re0.findall(r'box-shadow:\s*([^;}]+)', _tpl)]
+_bad_s = [v for v in _sh if not v.startswith('var(--sh-')
+          and v not in ('none',) and not v.startswith('-2px 0 0')
+          and not v.startswith('inset')]
+ok('토큰 밖 그림자 값 없음', not _bad_s, _bad_s)
+ok('컨테이너가 컨트롤보다 한 단계 큼',
+   int(_re0.search(r'--r-box:(\d+)px', _tpl).group(1))
+   > int(_re0.search(r'--r-ctl:(\d+)px', _tpl).group(1)))
+ok('막대는 가장 작게 (조각이 맞닿아 있음)',
+   int(_re0.search(r'--r-bar:(\d+)px', _tpl).group(1))
+   < int(_re0.search(r'--r-ctl:(\d+)px', _tpl).group(1)))
+ok('상태 배지는 알약', _re0.search(r'\.status\{[^}]*border-radius:var\(--r-pill\)', _tpl) is not None)
+ok('버튼은 컨트롤 척도', _re0.search(r'\.btn\{[^}]*border-radius:var\(--r-ctl\)', _tpl) is not None)
+ok('입력칸도 컨트롤 척도',
+   _re0.search(r'input,select,textarea\{[^}]*border-radius:var\(--r-ctl\)', _tpl) is not None)
+ok('카드는 컨테이너 척도', _re0.search(r'\.card\{[^}]*border-radius:var\(--r-box\)', _tpl) is not None)
+# 테두리 색이 토큰 밖에 하드코딩되어 있으면 회색이 미묘하게 다른 화면이 생긴다
+for _c in ('#CDD4DF', '#CFD5DF', '#E3E7ED', '#DCE1E9'):
+    ok(f'하드코딩 테두리 {_c} 없음', _c not in _tpl)
+ok('지금 보고 있는 메뉴에 강조선', 'box-shadow:inset 3px 0 0 var(--navy)' in _tpl)
+ok('모달은 가장 높은 그림자', _re0.search(r'\.modal-box\{[^}]*var\(--sh-3\)', _tpl) is not None)
+
 # 인쇄물(결재 첨부)에 조작용 UI 가 찍히면 안 된다 — 선택칸·⋯메뉴는 v10.11 에서 새로 생겼다
 ok('인쇄 시 선택칸 숨김', 'th.pick,td.pick' in _tpl.replace(' ', '') and
    '@media print' in _tpl)
