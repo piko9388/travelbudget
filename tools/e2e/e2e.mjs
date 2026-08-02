@@ -1376,14 +1376,21 @@ try {
     return { radii: Object.keys(radii).sort(), shadows: Object.keys(shadows).length,
              btn: g('.btn')?.borderRadius, card: g('.card')?.borderRadius,
              badge: g('.status')?.borderRadius, th: g('th')?.borderBottomWidth,
-             navOn: g('.nav a.on')?.boxShadow || '' };
+             navOn: g('.nav a.on')?.boxShadow || '',
+             navOnBg: g('.nav a.on')?.backgroundColor || '',
+             navOnLine: g('.nav a.on')?.borderTopColor || '',
+             soft: getComputedStyle(document.documentElement).getPropertyValue('--soft').trim() };
   });
   ok('렌더된 모서리 값이 4종 이하', look.radii.length <= 4, look.radii);
   ok('버튼 3px · 카드 4px (컨테이너가 한 단계 큼)',
      look.btn === '3px' && look.card === '4px', {btn: look.btn, card: look.card});
   ok('상태 배지는 알약', parseFloat(look.badge) >= 99, look.badge);
   ok('표 머리글 경계가 본문보다 두꺼움', parseFloat(look.th) >= 2, look.th);
-  ok('지금 보고 있는 메뉴에 왼쪽 강조선', /inset/.test(look.navOn) && /3px/.test(look.navOn), look.navOn.slice(0, 50));
+  // 지금 보고 있는 메뉴 — 막대가 아니라 면(옅은 남색)으로 표시한다
+  ok('지금 보고 있는 메뉴가 남색 면으로 채워짐',
+     look.navOnBg === 'rgb(211, 225, 240)', look.navOnBg);
+  ok('선택 항목 테두리도 남색 계열', look.navOnLine === 'rgb(184, 204, 226)', look.navOnLine);
+  ok('강조 막대(그림자)를 쓰지 않음', look.navOn === '' || look.navOn === 'none', look.navOn.slice(0, 50));
   ok('그림자 종류 4개 이하', look.shadows <= 4, look.shadows);
 
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors

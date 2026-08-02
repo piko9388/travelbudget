@@ -74,10 +74,11 @@ padding:24px 16px;display:flex;flex-direction:column;overflow-y:auto}
 .nav a{display:block;margin:1px 0;padding:8px 12px;color:var(--ink2);border:1px solid transparent;
 cursor:pointer;border-radius:var(--r-ctl);font-size:13px;line-height:20px;user-select:none}
 .nav a:hover{background:var(--soft);border-color:var(--line2);color:var(--navy)}
-/* 지금 보고 있는 화면 — 왼쪽 강조선. 자리를 밀지 않도록 inset 그림자로 그린다 */
-.nav a.on{background:var(--soft);border-color:var(--line2);color:var(--navy);font-weight:700;
-box-shadow:inset 3px 0 0 var(--navy)}
+/* 지금 보고 있는 화면 — 항목 전체를 옅은 남색 면으로 채운다.
+   마우스만 올린 상태는 회색(--soft)이라 색으로 구분된다 */
+.nav a.on{background:var(--s3bg);border-color:var(--s4ln);color:var(--navy);font-weight:700}
 .nav a .lk{font-size:12px;line-height:18px;color:var(--mut);margin-left:4px;font-weight:400}
+.nav a.on .lk{color:var(--navy)}
 .nav a.ext{color:var(--ink2);font-weight:400;font-size:12px;line-height:18px;text-decoration:none}
 .nav a.ext::after{content:' ↗';color:var(--mut);font-size:12px;line-height:18px}
 .ver{padding:0 8px 8px;color:var(--mut);font-size:12px;line-height:18px}

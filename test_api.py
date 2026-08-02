@@ -936,7 +936,13 @@ ok('카드는 컨테이너 척도', _re0.search(r'\.card\{[^}]*border-radius:var
 # 테두리 색이 토큰 밖에 하드코딩되어 있으면 회색이 미묘하게 다른 화면이 생긴다
 for _c in ('#CDD4DF', '#CFD5DF', '#E3E7ED', '#DCE1E9'):
     ok(f'하드코딩 테두리 {_c} 없음', _c not in _tpl)
-ok('지금 보고 있는 메뉴에 강조선', 'box-shadow:inset 3px 0 0 var(--navy)' in _tpl)
+ok('지금 보고 있는 메뉴는 남색 면으로 채움',
+   _re0.search(r'\.nav a\.on\{[^}]*background:var\(--s3bg\)[^}]*border-color:var\(--s4ln\)', _tpl)
+   is not None)
+ok('마우스만 올린 메뉴는 회색 (선택과 색이 다름)',
+   _re0.search(r'\.nav a:hover\{[^}]*background:var\(--soft\)', _tpl) is not None)
+ok('메뉴 표시에 강조 막대를 쓰지 않음',
+   _re0.search(r'\.nav a\.on\{[^}]*box-shadow', _tpl) is None)
 ok('모달은 가장 높은 그림자', _re0.search(r'\.modal-box\{[^}]*var\(--sh-3\)', _tpl) is not None)
 
 # 인쇄물(결재 첨부)에 조작용 UI 가 찍히면 안 된다 — 선택칸·⋯메뉴는 v10.11 에서 새로 생겼다
