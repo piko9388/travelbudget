@@ -1495,5 +1495,15 @@ ok('app.js 인라인 글씨 크기도 척도 안', not _inline_fs, _inline_fs[:6
 ok('고정폭은 .mono 한 곳에서만 정의', _tpl.count('monospace') == 1
    and 'font-family:Consolas' not in _appjs, _tpl.count('monospace'))
 
+# 이모지 금지 — 색 이모지는 윈도우/맥/아이패드에서 서로 다르게 그려지고 인쇄물에도 튄다.
+# 화살표(→ ↗ ↓)·체크(✓) 같은 단색 글리프는 글자로 렌더되므로 허용한다.
+_EMOJI = _re0.compile('[\U0001F000-\U0001FAFF☀-➿⬀-⯿⚙⚠]')
+for _f in ('servera/travelbudget/templates/index.html',
+           'servera/travelbudget/templates/traveler_guide.html',
+           'servera/travelbudget/static/app.js', 'tools/tb_local.js'):
+    _src = open(_f, encoding='utf-8').read()
+    _hit = sorted(set(_EMOJI.findall(_src)))
+    ok(f'{_f.split("/")[-1]} 이모지 없음', not _hit, _hit[:6])
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

@@ -542,7 +542,7 @@ padding:12px 16px;margin-bottom:16px}
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.17', APP_BUILD = '2026-08-02';
+  var APP_VERSION = 'v10.18', APP_BUILD = '2026-08-02';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -1723,7 +1723,7 @@ const QWEN_PROMPT = `당신은 사내 출장비 데이터 변환기입니다.
      아직 안 갔고 갈지 미정인 건                 → "계획 등록"
      취소된 건                                  → "취소"
 
-   ★ 실적 금액이 있다는 이유만으로 "처리 완료" 로 추론하지 마세요.
+   [주의] 실적 금액이 있다는 이유만으로 "처리 완료" 로 추론하지 마세요.
      처리 완료는 돈이 실제로 나갔다는 뜻이라, 잘못 넣으면 예산 잔액이 틀어집니다.
      근거가 없으면 실적이 있어도 "실적 입력·인폼", 실적이 없으면 "계획 등록" 으로 두고
      해당 건을 _confirm_needed 에 적으세요.
@@ -1782,7 +1782,7 @@ function rGuide(){
         <div class="gtitle"><span class="status ${stClass(status)}">${status}</span> ${title}
           <span class="grole ${roleCls}">${role}</span></div>
         <div class="gwhat">${what}</div>
-        ${auto ? `<div class="gauto">⚙ 자동 · ${auto}</div>` : ''}
+        ${auto ? `<div class="gauto">자동 · ${auto}</div>` : ''}
         ${jump ? `<div class="btns" style="margin-top:8px">${jump}</div>` : ''}
       </div>
     </div>`;
@@ -1790,9 +1790,9 @@ function rGuide(){
     <div class="g-lead">
       <a class="btn sm pri" href="traveler_guide.html" target="_blank" rel="noopener"
          style="float:right;margin-left:12px">자세한 사용법 · 인쇄용 ↗</a>
-      <h2>출장비, 이렇게 흘러갑니다</h2>
-      <p>출장자는 <b>계획</b>과 <b>실적</b>만 입력하면 됩니다. 인폼(메일)·이관·정산·이력은 시스템과 <b>소재 출장 예산 담당자</b>가 이어받습니다.
-      입력은 한 번, 실비 이관 인폼은 <b>그룹당 한 통</b>이에요.</p>
+      <h2>출장비는 이런 순서로 처리됩니다</h2>
+      <p>출장 가시는 분은 <b>계획</b>과 <b>실적</b>만 넣으시면 됩니다. 메일 만들기와 이관·정산은
+      <b>소재 출장 예산 담당자</b>와 시스템이 맡습니다. 같이 간 사람이 여럿이어도 <b>메일은 한 통</b>입니다.</p>
       <div class="g-formula">가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정(확보)</div>
     </div>
     <div class="card">
@@ -1803,33 +1803,33 @@ function rGuide(){
         <span class="pill done">④ 처리 완료</span>
       </div>`;
   const steps =
-    step(1, '', '계획 등록', '계획을 올리고, 실제로 갈 건 ‘확정’', '담당자', 'owner',
-      '<b>출장 계획 등록</b>에서 도시·업체·목적·일자와 출장자별 예상 비용을 넣습니다. 여러 건은 <b>엑셀 일괄 등록</b>에 붙여넣기.',
-      '잠정 계획은 예산 미반영(참고), 확정하면 가용 잔여에서 차감됩니다.',
+    step(1, '', '계획 등록', '계획을 등록하고, 정말 가는 건은 확정합니다', '담당자', 'owner',
+      '<b>출장 계획 등록</b>에 도시·업체·목적·일자와 사람별 예상 비용을 넣습니다. 여러 건이면 <b>엑셀 일괄 등록</b>에 시트를 붙여넣으세요.',
+      '잠정 계획은 예산에 잡히지 않습니다. 확정하면 그만큼 가용 잔여에서 빠집니다.',
       `<button class="btn pri" onclick="nav('plan')">출장 계획 등록으로 가기 →</button>`) +
-    step(2, '', '실적 입력·인폼', '출장을 다녀온 뒤, 실제 쓴 금액을 넣습니다', '담당자', 'owner',
-      '<b>출장 실적 입력</b>에서 실제 쓴 금액을 넣으면 인폼이 자동 생성됩니다. 표를 끌어다 메일에 놓아 보내세요.',
-      '계획 대비 차액이 자동 계산됩니다. (긴급 출장은 비고 필수)',
+    step(2, '', '실적 입력·인폼', '다녀와서 실제 쓴 금액을 넣습니다', '담당자', 'owner',
+      '<b>출장 실적 입력</b>에 실제 쓴 금액을 넣으면 메일이 만들어집니다. 그 표를 끌어다 메일 본문에 놓으면 됩니다.',
+      '계획과의 차액은 자동으로 계산됩니다. 긴급 출장은 비고를 꼭 적어야 합니다.',
       `<button class="btn pri" onclick="nav('actual')">출장 실적 입력으로 가기 →</button>`) +
-    step(3, 'admin', '소재 이관', '예산 담당자가 이관 후 소재 담당자에게 인폼', '예산 담당자', 'admin',
-      '예산 담당자가 이관 결재를 올리고 소재 담당자에게 인폼을 보냅니다. <b>출장자별로 따로</b> 이관·완료·보류할 수 있습니다.',
-      '소재 이관 시 비용 처리 요청 인폼이 자동 생성됩니다. 보류(예산 부족 등)는 대시보드 ‘바로 할 일’에 알림으로 표시돼요.',
+    step(3, 'admin', '소재 이관', '예산 담당자가 이관하고 소재 담당자에게 메일을 보냅니다', '예산 담당자', 'admin',
+      '예산 담당자가 이관 결재를 올리고 소재 담당자에게 메일을 보냅니다. <b>사람별로 따로</b> 이관·완료·보류할 수 있습니다.',
+      '이관하면 비용 처리 요청 메일이 만들어집니다. 보류된 건은 대시보드 바로 할 일에 표시됩니다.',
       `<button class="btn" onclick="nav('list')">내 출장 상태 확인 (출장 내역) →</button>`) +
-    step(4, 'done', '처리 완료', '소재 담당자가 비용 처리하면 완료', '소재 담당자', 'owner',
-      '소재 담당자가 비용을 처리하면 예산 담당자가 <b>처리 완료</b>로 표시합니다. 이 금액이 최종 차감됩니다.',
+    step(4, 'done', '처리 완료', '소재 담당자가 비용을 처리하면 끝납니다', '소재 담당자', 'owner',
+      '소재 담당자가 비용을 처리하면 예산 담당자가 <b>처리 완료</b>로 표시합니다. 이 금액이 최종으로 빠집니다.',
       '', '') +
-    step('취', 'cancel', '취소', '안 가게 되면 취소', '담당자·예산 담당자', 'owner',
-      '안 가게 되면 잠정은 <b>삭제</b>, 확정 후엔 <b>출장 취소</b>. 취소 건은 예산에서 빠집니다.',
+    step('취', 'cancel', '취소', '안 가게 되면 취소합니다', '담당자·예산 담당자', 'owner',
+      '잠정 계획은 <b>삭제</b>, 확정한 뒤라면 <b>출장 취소</b>를 누릅니다. 확보됐던 예산은 다시 풀립니다.',
       '', '');
   const money = `
       <div class="note" style="margin:16px 0 0">
-        💡 예산 계산: <b>가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정(확보)</b>.
-        <b>잠정 계획</b>은 참고만(미반영), <b>확정 예정</b>은 미리 확보(가용 차감), 실제 집행은 처리 중·처리 완료로 반영됩니다.
+        예산 계산 — <b>가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정(확보)</b>.
+        <b>잠정 계획</b>은 참고용이라 예산에 잡히지 않고, <b>확정 예정</b>은 미리 확보해 둔 금액입니다. 실제 집행은 처리 중·처리 완료로 반영됩니다.
       </div></div>`;
   const legend = `
     <div class="card"><h2>배지 진하기 보는 법</h2>
-      <p class="cap">단계가 진행될수록 배지가 진해집니다 — <b>진할수록 이미 나간 돈</b>.
-        색을 외울 필요 없이 진하기만 보면 됩니다.</p>
+      <p class="cap">단계가 진행될수록 배지가 진해집니다. <b>진할수록 이미 나간 돈</b>이라,
+        색을 외우지 않고 진하기만 보시면 됩니다.</p>
       <div class="glegend">
         <span><span class="status">계획(잠정)</span> 예산 미반영</span>
         <span class="arrow">→</span>
@@ -1847,10 +1847,10 @@ function rGuide(){
       </div></div>`;
   const faq = `
     <div class="card"><h2>자주 묻는 것</h2>
-      <div class="gwhat"><b>· 같이 출장 가면?</b> 대표 1명이 그룹으로 등록하고 <b>동행자 행을 추가</b>하세요. 비용은 개인별로 저장되고, 인폼은 <b>그룹당 1통</b>만 나갑니다.</div>
-      <div class="gwhat"><b>· 인폼은 누구에게 가나요?</b> ${to || '설정된 수신자'} 로 발송용 초안이 만들어집니다.</div>
-      <div class="gwhat"><b>· 5명 중 일부만 처리됐다면?</b> 처리 관리에서 <b>출장자별로</b> 완료·보류를 따로 정할 수 있어요. 3명 완료·1명 보류 같은 상태가 예산·대시보드에 그대로 반영됩니다.</div>
-      <div class="gwhat"><b>· 내 출장이 지금 어느 단계인지?</b> <a onclick="nav('list')" style="color:var(--navy);cursor:pointer;font-weight:700">‘출장 내역’</a>에서 상태 배지로 확인하세요.</div>
+      <div class="gwhat"><b>· 같이 출장 가면?</b> 한 분이 대표로 등록하고 <b>동행자 행을 추가</b>하세요. 비용은 사람별로 저장되고, 메일은 <b>한 통</b>만 나갑니다.</div>
+      <div class="gwhat"><b>· 메일은 누구에게 보내나요?</b> ${to || '설정된 수신자'} 앞으로 보낼 초안이 만들어집니다.</div>
+      <div class="gwhat"><b>· 5명 중 일부만 처리됐다면?</b> 처리 관리에서 <b>사람별로</b> 완료·보류를 따로 정할 수 있습니다. 3명 완료·1명 보류 같은 상태가 예산·대시보드에 그대로 반영됩니다.</div>
+      <div class="gwhat"><b>· 내 출장이 어디까지 왔는지?</b> <a onclick="nav('list')" style="color:var(--navy);cursor:pointer;font-weight:700">‘출장 내역’</a>에서 상태 배지로 확인하세요.</div>
     </div>`;
   $('#v-guide').innerHTML = lead + steps + money + legend + faq;
 }
@@ -2146,7 +2146,7 @@ function justPanel(){
   if (!g) return '';
   const tentative = g.status === '계획 등록';
   return `<div class="card just">
-    <div class="jt">✓ 등록되었습니다 — <b>${esc(gname(g))}</b> · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${(g.travelers || []).length}명
+    <div class="jt">등록되었습니다 — <b>${esc(gname(g))}</b> · ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${(g.travelers || []).length}명
       <span class="status ${stClass(g.status)}">${esc(dispSt(g.status))}</span></div>
     <div class="jw">${tentative
       ? '아직 <b>잠정</b>이라 예산이 잡히지 않았습니다. 실제로 간다면 <b>출장 확정</b>을 눌러 예산을 확보하세요.'
@@ -2881,7 +2881,7 @@ async function bulkConfirm(){
         ` · ${fmtD(g.dep_dt)} ${gname(g)} — ${(g.purpose || '').slice(0, 24)}`
         + ` (${g.travelers.length}명 ${won(g.plan_tot)}원)`).join('\n')
     + (pick.length > 8 ? `\n … 외 ${pick.length - 8}건` : '');
-  if (sum > avail) msg += `\n\n⚠ 확정 후 가용 잔여가 −${won(sum - avail)}원이 됩니다. 그래도 진행할까요?`;
+  if (sum > avail) msg += `\n\n확정 후 가용 잔여가 −${won(sum - avail)}원이 됩니다. 그래도 진행할까요?`;
   if (!confirm(msg)) return;
   const btn = $('#selGo');
   if (btn) { btn.disabled = true; btn.textContent = '확정 중…'; }
@@ -3012,7 +3012,7 @@ function rList(){
       <div class="card-head"><h2>${YQ} 출장 내역 <span class="sub" id="listCount" style="font-weight:600"></span></h2>
         <button class="btn" onclick="downloadCsv(YQ)">CSV 다운로드</button></div>
       <div class="filter-row" style="margin-top:12px">
-        <input id="listFilter" value="${esc(LQ.q)}" placeholder="🔍 전체 검색 (성명·사번·업체·도시·목적)"
+        <input id="listFilter" value="${esc(LQ.q)}" placeholder="전체 검색 (성명·사번·업체·도시·목적)"
           oninput="LQ.q=this.value; renderListBody()">
         <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0;white-space:nowrap">
           <input type="checkbox" style="width:auto;margin:0" ${LQ.group ? 'checked' : ''}
@@ -3192,7 +3192,7 @@ function rBudget(){
   const bopt = (v, cur, label) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label || v || '전체')}</option>`;
   const bctl = `
       <div class="filter-row" style="margin-top:8px">
-        <input value="${esc(BQ.q)}" placeholder="🔍 REV·유형·사유·반영일"
+        <input value="${esc(BQ.q)}" placeholder="REV·유형·사유·반영일"
           oninput="BQ.q=this.value; clearTimeout(window._bt); window._bt=setTimeout(()=>{rBudget();nav('budget')},250)">
         <select aria-label="리비전 유형으로 거르기" onchange="setBQ('type',this.value)">
           ${[''].concat(ST.meta.revTypes).map(t => bopt(t, BQ.type, t || '전체 유형')).join('')}

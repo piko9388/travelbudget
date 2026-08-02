@@ -1,8 +1,8 @@
-# 사내 Flask 서버 업로드 방법 (v10.17)
+# 사내 Flask 서버 업로드 방법 (v10.18)
 
 ## 0. 준비물
 
-- 패키지 `travelbudget_flask_v10.17.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
+- 패키지 `travelbudget_flask_v10.18.zip` (파일명 전부 영문 — 사내 압축 해제 문제 없음)
 
 > **이미 데이터가 쌓인 서버에 올리는 경우 → [UPGRADE.md](UPGRADE.md) 를 보세요.**
 > 클릭 순서까지 적은 초보자용 안내입니다(백업 → 파일 5개 교체 → 숫자 대조 → 되돌리기).
@@ -21,7 +21,7 @@ pip install -r requirements.txt      # Flask 뿐입니다
 압축을 풀면 이 구조입니다.
 
 ```
-travelbudget_flask_v10.17/
+travelbudget_flask_v10.18/
 └─ servera/
    └─ travelbudget/          ← 이 폴더 하나만 서버로 옮기면 됩니다
       ├─ __init__.py
@@ -88,7 +88,7 @@ Windows 서비스라면 서비스 환경변수에 `TB_DATA_DIR` 을 등록합니
 material.skhynix.com/travelbudget
 ```
 
-좌측 하단에 **v10.17 · 2026-08-02** 이 보이면 이 버전이 올라간 것입니다.
+좌측 하단에 **v10.18 · 2026-08-02** 이 보이면 이 버전이 올라간 것입니다.
 (버전이 안 바뀌었으면 브라우저 캐시 — `Ctrl+F5`)
 
 ---
@@ -187,11 +187,11 @@ servera/travelbudget/templates/traveler_guide.html
 cp -r servera/travelbudget/data_json ~/tb_backup_$(date +%Y%m%d)
 
 # 2. 5개 파일만 덮어쓰기
-cp travelbudget_flask_v10.17/servera/travelbudget/core.py                       servera/travelbudget/
-cp travelbudget_flask_v10.17/servera/travelbudget/routes.py                     servera/travelbudget/
-cp travelbudget_flask_v10.17/servera/travelbudget/static/app.js                 servera/travelbudget/static/
-cp travelbudget_flask_v10.17/servera/travelbudget/templates/index.html          servera/travelbudget/templates/
-cp travelbudget_flask_v10.17/servera/travelbudget/templates/traveler_guide.html servera/travelbudget/templates/
+cp travelbudget_flask_v10.18/servera/travelbudget/core.py                       servera/travelbudget/
+cp travelbudget_flask_v10.18/servera/travelbudget/routes.py                     servera/travelbudget/
+cp travelbudget_flask_v10.18/servera/travelbudget/static/app.js                 servera/travelbudget/static/
+cp travelbudget_flask_v10.18/servera/travelbudget/templates/index.html          servera/travelbudget/templates/
+cp travelbudget_flask_v10.18/servera/travelbudget/templates/traveler_guide.html servera/travelbudget/templates/
 
 # 3. 재기동 후 확인
 python3 check_data.py       # 숫자가 그대로인지
@@ -199,14 +199,14 @@ python3 smoke_test.py       # 19개 항목 (읽기만)
 ```
 
 `store.py` 의 **저장 로직**은 v9.4 이후 한 줄도 바뀌지 않았습니다 — 건드릴 필요가 없습니다.
-(v10.17 에서 `store.py` 의 신규 설치용 기본값만 바뀌었고, 이미 원장이 있는 서버에서는 쓰이지 않습니다)
+(v10.18 에서 `store.py` 의 신규 설치용 기본값만 바뀌었고, 이미 원장이 있는 서버에서는 쓰이지 않습니다)
 
 ### 8-2. 데이터가 앱 폴더 밖에 있는 경우 — 폴더 통째로 교체
 
 ```bash
 cp -r $TB_DATA_DIR ~/tb_backup_$(date +%Y%m%d)      # 1. 원장 백업
 rm -rf servera/travelbudget                          # 2. 앱 폴더 교체
-cp -r travelbudget_flask_v10.17/servera/travelbudget servera/
+cp -r travelbudget_flask_v10.18/servera/travelbudget servera/
 # 3. 재기동 → check_data.py · smoke_test.py
 ```
 
@@ -263,7 +263,7 @@ Playwright 가 없는 서버라면 개발 PC 에서 돌린 뒤 `traveler_guide.h
 사내 서버는 윈도우지만, **맥에서도 그대로 돕니다.** 윈도우 전용 코드나 경로를 쓰지 않습니다.
 
 ```bash
-cd travelbudget_flask_v10.17
+cd travelbudget_flask_v10.18
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
