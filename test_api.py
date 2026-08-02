@@ -1505,5 +1505,20 @@ for _f in ('servera/travelbudget/templates/index.html',
     _hit = sorted(set(_EMOJI.findall(_src)))
     ok(f'{_f.split("/")[-1]} 이모지 없음', not _hit, _hit[:6])
 
+# ── 업그레이드 때 설정이 흐트러지지 않는가 (점검 도구 쪽) ──
+print('\n=== 34. 설정 보존 점검 도구 ===')
+_cd = open('check_data.py', encoding='utf-8').read()
+ok('check_data 가 설정 지문을 찍는다', 'def settings_view' in _cd and '설정 지문' in _cd)
+for _k in ('notice', 'mail_recipients', 'ccg_teams', 'admin_pw'):
+    ok(f'설정 지문에 {_k} 포함', f'"{_k}"' in _cd.split('def settings_view')[1][:400])
+ok('비밀번호 값은 찍지 않는다',
+   "'기본값(2071478)' if s.get('admin_pw') == '2071478' else '바꿔 두셨습니다'" in _cd)
+ok('CCG 출처를 알려준다', 'ccg_from_settings' in open(
+   'servera/travelbudget/routes.py', encoding='utf-8').read())
+ok('설정 보존 리허설 스크립트 있음', os.path.exists('tools/e2e/settings_keep.py'))
+_sk = open('tools/e2e/settings_keep.py', encoding='utf-8').read()
+ok('리허설이 운영 데이터를 쓰지 않음', 'mkdtemp' in _sk and 'data.example.json' in _sk)
+ok('UPGRADE 에 설정 보존 절차', '설정 지문' in _ug and 'settings_keep.py' in _ug)
+
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)
