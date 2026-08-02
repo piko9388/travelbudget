@@ -383,6 +383,9 @@ padding:12px 16px;margin-bottom:16px}
 .hero{flex-wrap:wrap}.hero>div{min-width:0}.hero .amount{font-size:20px;line-height:28px}.hero .fig{word-break:keep-all;white-space:normal}}
 @media print{
   aside,.top select,.btns,.btn,.mailcard,.modal,.filter-row,tr.filt,.nav{display:none!important}
+  /* 조작용 UI 는 결재 첨부물에 찍히면 안 된다 — 선택칸·⋯메뉴·선택 띠 */
+  th.pick,td.pick,details.rowmenu,.selbar{display:none!important}
+  tr.picked td{background:transparent!important}
   .app{display:block}main{max-width:none;padding:0}
   .card,.hero,.kpi,.scroll{border-color:#999;box-shadow:none;break-inside:avoid}
   th,td{white-space:normal}

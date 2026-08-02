@@ -908,6 +908,21 @@ ok('확정 전 확인창', 'function bulkConfirm' in _appjs and 'confirm(' in _a
 ok('부서별 현황이 큐보다 먼저', _appjs.index('notice + hero + ccg + todo') > 0)
 ok('정적판도 일괄 확정 지원', '/groups/bulk_status' in open('tools/tb_local.js', encoding='utf-8').read())
 
+# 인쇄물(결재 첨부)에 조작용 UI 가 찍히면 안 된다 — 선택칸·⋯메뉴는 v10.11 에서 새로 생겼다
+ok('인쇄 시 선택칸 숨김', 'th.pick,td.pick' in _tpl.replace(' ', '') and
+   '@media print' in _tpl)
+_pr = _tpl[_tpl.index('@media print'):]
+_pr = _pr[:_pr.index('}\n</style>') if '}\n</style>' in _pr else 400]
+for _sel, _label in (('td.pick', '선택칸'), ('details.rowmenu', '⋯ 메뉴'), ('.selbar', '선택 띠')):
+    ok(f'인쇄에서 {_label} 숨김', _sel in _pr, _pr[:120])
+ok('인쇄에서 선택 행 음영 제거',
+   'tr.pickedtd{background:transparent' in _pr.replace(' ', '').replace('\n', ''), _pr[-160:])
+# 일괄 확정 확인창 — 같은 도시·업체로 두 번 가는 건이 구별되어야 한다
+ok('확인창에 목적 표시', 'g.purpose' in _appjs.split('function bulkConfirm')[1][:900])
+ok('확인창에 인원·금액 표시',
+   'travelers.length' in _appjs.split('function bulkConfirm')[1][:900]
+   and 'plan_tot' in _appjs.split('function bulkConfirm')[1][:900])
+
 # ── 서버 ↔ 정적판(아이패드용) 기본값 대조 ──
 # 정적판은 같은 화면을 쓰지만 백엔드를 따로 흉내낸다. 기본값이 어긋나면
 # 아이패드에서만 수신인이 2명이거나 CCG가 7팀으로 보인다 — 실제로 그랬다.

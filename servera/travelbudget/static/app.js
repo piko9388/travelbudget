@@ -1434,7 +1434,9 @@ async function bulkConfirm(){
   const sum = pick.reduce((a, g) => a + (g.plan_tot || 0), 0);
   const avail = ST.dash.avail || 0;
   let msg = `${pick.length}건을 출장 확정할까요?\n계획 합계 ${won(sum)}원만큼 예산이 확보됩니다.\n\n`
-    + pick.slice(0, 8).map(g => ` · ${gname(g)} ${fmtD(g.dep_dt)}`).join('\n')
+    + pick.slice(0, 8).map(g =>
+        ` · ${fmtD(g.dep_dt)} ${gname(g)} — ${(g.purpose || '').slice(0, 24)}`
+        + ` (${g.travelers.length}명 ${won(g.plan_tot)}원)`).join('\n')
     + (pick.length > 8 ? `\n … 외 ${pick.length - 8}건` : '');
   if (sum > avail) msg += `\n\n⚠ 확정 후 가용 잔여가 −${won(sum - avail)}원이 됩니다. 그래도 진행할까요?`;
   if (!confirm(msg)) return;
