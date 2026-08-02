@@ -73,8 +73,6 @@ cursor:pointer;border-radius:2px;font-size:13px;line-height:20px;user-select:non
 .contact b{display:block;color:var(--navy);font-size:12px;line-height:18px}
 .contact a{color:var(--navy);text-decoration:none}
 main{width:100%;max-width:1560px;padding:24px 24px 48px}
-/* 인폼 카드(position:fixed)가 덮는 만큼 본문 아래에 여유 — 없으면 맨 아래 버튼에 손이 닿지 않는다 */
-body.mailopen main{padding-bottom:var(--mailh,48px)}
 .top{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 .top h1{margin:0;color:var(--navy);font-size:20px;line-height:28px}
 .top .sub{color:var(--mut);font-size:12px;line-height:18px}
@@ -281,14 +279,14 @@ border-radius:2px;font-size:12px;line-height:18px;color:var(--ink2)}
 .trav-table th.grp{text-align:center;border-bottom:1px solid var(--line2);
 font-weight:700;color:var(--mut);padding-bottom:4px}
 .trav-table th.sub2{font-weight:700;color:#475467}
-.mailcard{position:fixed;right:16px;bottom:16px;width:520px;max-width:calc(100vw - 32px);max-height:min(72vh,760px);
-background:#FFF;border:1px solid #CDD4DF;box-shadow:0 8px 24px rgba(16,24,40,.16);z-index:90;display:flex;flex-direction:column;border-radius:3px;overflow:hidden}
+/* 인폼은 떠 있지 않고 화면 맨 아래에 놓인다 — 아래쪽 버튼을 가리지 않는다 */
+.mailcard{margin:16px 0 0;background:#FFF;border:1px solid #CDD4DF;border-radius:3px;overflow:hidden;
+box-shadow:0 1px 3px rgba(16,24,40,.06)}
 .mailcard .mh{background:var(--navy);color:#FFF;padding:8px 16px;font-size:12px;line-height:18px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
 .mailcard .mh button{background:none;border:0;color:#B9C6DC;font-size:16px;line-height:24px;cursor:pointer;padding:0 4px}
 .mailcard .mh button:hover{color:#FFF}
 .mailcard .mhb{display:flex;gap:2px;align-items:center}
-/* 접으면 제목줄만 남아 화면 아래 버튼을 가리지 않는다 */
-.mailcard.min .how,.mailcard.min .meta,.mailcard.min .body,.mailcard.min .mf{display:none}
+
 .mailcard .meta{padding:8px 16px;background:var(--bg);border-bottom:1px solid var(--line);font-size:12px;line-height:18px}
 .mailcard .meta .row{display:flex;gap:8px;margin-bottom:4px}
 .mailcard .meta .k{color:var(--mut);font-weight:700;width:36px;flex-shrink:0}
@@ -296,8 +294,18 @@ background:#FFF;border:1px solid #CDD4DF;box-shadow:0 8px 24px rgba(16,24,40,.16
 font-size:12px;line-height:18px;color:var(--ink2)}
 .mailcard .how b{color:var(--navy)}
 .mailcard .how .sub{color:var(--mut)}
-.mailcard .body{padding:16px;overflow:auto;flex:1;cursor:grab}
-.mailcard .body:active{cursor:grabbing}
+/* 끌 수 있는 곳임을 눈으로 알리는 구역 — 점선 테두리 + 손잡이 + 잡는 커서 */
+.mailcard .dragzone{margin:12px 16px 0;border:2px dashed var(--s3);border-radius:4px;background:#F7FAFD;
+transition:border-color .12s,background .12s,box-shadow .12s}
+.mailcard .dragzone:hover{border-color:var(--s2);background:#EFF5FC;box-shadow:0 2px 8px rgba(18,48,79,.10)}
+.mailcard .dragzone.dragging{border-color:var(--s1);background:#E6EFF8;box-shadow:0 4px 14px rgba(18,48,79,.18)}
+.mailcard .draghint{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px dashed var(--s4ln);
+font-size:12px;line-height:18px;color:var(--s2);font-weight:700;cursor:grab;user-select:none}
+.mailcard .draghint b{color:var(--navy)}
+.mailcard .draghint .grip{font-size:14px;line-height:18px;color:var(--s3)}
+.mailcard .dragzone:hover .draghint .grip{color:var(--s2)}
+.mailcard .body{padding:12px;overflow:auto;max-height:420px;cursor:grab}
+.mailcard .dragzone:active,.mailcard .body:active,.mailcard .draghint:active{cursor:grabbing}
 .mailcard .mfhint{margin-left:auto;font-size:12px;line-height:18px;color:var(--mut)}
 .mailcard .mf{padding:8px 16px;border-top:1px solid var(--line);background:var(--bg);display:flex;gap:8px;flex-wrap:wrap}
 .modal{position:fixed;inset:0;background:rgba(16,24,40,.46);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px}
@@ -379,7 +387,7 @@ padding:12px 16px;margin-bottom:16px}
 .glegend .arrow{color:var(--mut);font-weight:700}
 @media(max-width:980px){.app{grid-template-columns:minmax(0,1fr)}aside,main{min-width:0;max-width:100%}aside{position:relative;height:auto}
 .contact{margin-top:16px}.kpis,.grid2,.c4,.c3,.c2{grid-template-columns:1fr}main{padding:16px}
-.top select{margin-left:0}.mailcard{left:12px;right:12px;width:auto}
+.top select{margin-left:0}
 .hero{flex-wrap:wrap}.hero>div{min-width:0}.hero .amount{font-size:20px;line-height:28px}.hero .fig{word-break:keep-all;white-space:normal}}
 @media print{
   aside,.top select,.btns,.btn,.mailcard,.modal,.filter-row,tr.filt,.nav{display:none!important}

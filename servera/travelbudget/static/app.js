@@ -1189,23 +1189,19 @@ async function reopenMail(gid){
   if (!ok) { toast((data.errors || ['인폼을 만들 수 없습니다'])[0]); return; }
   showMail(data.mail);
 }
-/* 카드가 덮는 만큼 본문 아래에 여유를 둔다 — 없으면 화면 맨 아래 버튼에 손이 닿지 않는다 */
-function mailPad(){
-  const c = document.getElementById('mailCard');
-  const h = c ? c.getBoundingClientRect().height + 32 : 0;
-  document.documentElement.style.setProperty('--mailh', h + 'px');
-  document.body.classList.toggle('mailopen', !!c);
+/* 인폼은 지금 보고 있는 화면의 맨 아래에 붙는다.
+   떠 있는 카드는 아래쪽 버튼을 가려서 접기·여백 보정이 필요했다 — 흐름 안에 두면 그럴 일이 없다. */
+function mailHost(){
+  return [...document.querySelectorAll('.view')].find(v => v.offsetParent !== null) || document.body;
 }
 function showMail(mail){
   document.getElementById('mailCard')?.remove();
-  mailPad();
-  const el = document.createElement('div');
+  const el = document.createElement('section');
   el.className = 'mailcard'; el.id = 'mailCard';
   el.innerHTML = `
     <div class="mh"><span>${esc(mail.heading || '실비 이관 요청 인폼 (그룹당 1통)')}</span>
       <span class="mhb">
-        <button title="접기 / 펼치기" onclick="this.closest('.mailcard').classList.toggle('min');mailPad()">–</button>
-        <button title="닫기" onclick="this.closest('.mailcard').remove();mailPad()">×</button></span></div>
+        <button title="닫기" onclick="this.closest('.mailcard').remove()">×</button></span></div>
     <div class="meta">
       <div class="row"><span class="k">수신</span>${mail.to
         ? `<span style="word-break:break-all">${esc(mail.to)}</span>`
@@ -1214,20 +1210,28 @@ function showMail(mail){
     </div>
     <div class="how">아래 표를 <b>끌어다 놓기(드래그 &amp; 드롭)</b> 하거나 <b>표 포함 복사</b> 후
       메일에 붙여넣어 보내주세요. <span class="sub">서식·표가 그대로 유지됩니다.</span></div>
-    <div class="body" id="mailBody" draggable="true">${mail.body_html}</div>
+    <div class="dragzone">
+      <div class="draghint"><span class="grip" aria-hidden="true">⠿</span>
+        <span>여기를 <b>마우스로 끌어</b> 메일 본문에 놓으세요</span></div>
+      <div class="body" id="mailBody" draggable="true"
+           title="끌어서 메일 본문에 놓으세요">${mail.body_html}</div>
+    </div>
     <div class="mf">
       <button class="btn sm pri" id="mailCopyHtml">표 포함 복사</button>
       <button class="btn sm" id="mailCopyText">본문 텍스트 복사</button>
       <span class="mfhint">수신 · 제목은 위에 있습니다</span>
     </div>`;
-  document.body.appendChild(el);
-  mailPad();
+  mailHost().appendChild(el);
+  el.scrollIntoView({behavior: 'smooth', block: 'nearest'});
   // 드래그로 메일에 바로 떨어뜨릴 수 있게 HTML 서식을 함께 실어 보낸다
+  const zone = el.querySelector('.dragzone');
   $('#mailBody').addEventListener('dragstart', e => {
     e.dataTransfer.setData('text/html', mail.body_html);
     e.dataTransfer.setData('text/plain', mail.body_text);
     e.dataTransfer.effectAllowed = 'copy';
+    zone.classList.add('dragging');          // 끌고 가는 중이라는 표시
   });
+  $('#mailBody').addEventListener('dragend', () => zone.classList.remove('dragging'));
   $('#mailCopyHtml').onclick = async () => {
     if (!navigator.clipboard) { copyText(mail.body_text); return; }
     try {
@@ -1700,9 +1704,10 @@ async function setStatus(gid, status){
     if (data.errors?.[0]?.includes('인증')) { askAdmin(() => setStatus(gid, status)); return; }
     toast((data.errors || ['실패'])[0]); return;
   }
-  if (data.mail) showMail(data.mail);          // 이관 → 비용 처리 요청 인폼
   toast(data.held ? `${dispSt(status)} — 보류 ${data.held}명은 제외(유지)됨` : `상태 변경 — ${dispSt(status)}`);
   await load(); nav(VIEW);
+  // 인폼은 화면 안에 그리므로 재렌더가 끝난 뒤에 붙인다 (먼저 붙이면 지워진다)
+  if (data.mail) showMail(data.mail);          // 이관 → 비용 처리 요청 인폼
 }
 async function setPersonStatus(gid, emp, status){
   const {ok, data} = await api(`/groups/${gid}/status`, {method: 'POST', body: JSON.stringify({status, emp_no: emp})});
@@ -1710,9 +1715,9 @@ async function setPersonStatus(gid, emp, status){
     if (data.errors?.[0]?.includes('인증')) { askAdmin(() => setPersonStatus(gid, emp, status)); return; }
     toast((data.errors || ['실패'])[0]); return;
   }
-  if (data.mail) showMail(data.mail);          // 이관 → 비용 처리 요청 인폼
   toast(`개인 처리 — ${status}`);
   await load(); nav(VIEW);
+  if (data.mail) showMail(data.mail);          // 재렌더 후에 붙인다
 }
 async function delGroup(gid){
   const g = ST.groups.find(x => x.group_id === gid);
@@ -2044,10 +2049,10 @@ async function showReport(){
     `가용 잔여 ${won(r.avail)}원` + (r.need > 0 ? ` · 추가 필요 예상 ${won(r.need)}원` : ''), '',
     `출장 ${r.nDone + r.nWip + r.nConfirm}건 (완료 ${r.nDone} · 진행 ${r.nWip} · 확정 ${r.nConfirm}) · 연인원 ${r.nPeople}명`].join('\n');
   document.getElementById('mailCard')?.remove();
-  const el = document.createElement('div');
-  el.className = 'mailcard'; el.id = 'mailCard'; el.style.width = '760px';
+  const el = document.createElement('section');
+  el.className = 'mailcard'; el.id = 'mailCard';
   el.innerHTML = `<div class="mh"><span>센터 제출 리포트 · ${esc(r.yq)}</span>
-      <button onclick="this.closest('.mailcard').remove();mailPad()">×</button></div>
+      <button onclick="this.closest('.mailcard').remove()">×</button></div>
     <div class="body">
       <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
         <div class="kpi"><span>배정</span><b>${won(r.alloc)}</b></div>
@@ -2066,8 +2071,8 @@ async function showReport(){
     <div class="mf"><button class="btn sm pri" id="rptCopy">요약 복사</button>
       <a class="btn sm" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">상세 CSV</a>
       <a class="btn sm" href="${API}/export_budget.csv?yq=${encodeURIComponent(YQ)}">예산 CSV</a></div>`;
-  document.body.appendChild(el);
-  mailPad();
+  mailHost().appendChild(el);
+  el.scrollIntoView({behavior: 'smooth', block: 'nearest'});
   $('#rptCopy').onclick = () => copyText(text, '센터 제출용 요약을 복사했습니다');
 }
 

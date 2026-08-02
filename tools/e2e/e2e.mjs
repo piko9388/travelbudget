@@ -637,11 +637,30 @@ try {
   ok('Outlook 열기 버튼 없음', !(await page.$('#mailOpen')));
   ok('드래그 안내 노출', (await page.textContent('#mailCard .how')).includes('끌어다'));
   ok('본문이 draggable', (await page.getAttribute('#mailBody', 'draggable')) === 'true');
-  const hBefore = await page.evaluate(() => document.getElementById('mailCard').getBoundingClientRect().height);
-  await page.click('#mailCard .mh button[title="접기 / 펼치기"]');
-  await sleep(150);
-  const hAfter = await page.evaluate(() => document.getElementById('mailCard').getBoundingClientRect().height);
-  ok('접으면 제목줄만 남음(하단 버튼 가림 해소)', hAfter < 60 && hAfter < hBefore / 3, {hBefore, hAfter});
+  // 예전엔 카드가 떠 있어서 아래 버튼을 가렸고, 그래서 '접기'가 필요했다.
+  // 이제는 화면 흐름 안에 놓이므로 '가리지 않는다'를 직접 잰다.
+  const inline = await page.evaluate(() => {
+    const c = document.getElementById('mailCard');
+    const cs = getComputedStyle(c);
+    const cr = c.getBoundingClientRect();
+    // 카드 밖의 보이는 버튼 중 카드와 겹치는 것이 있는가
+    const covered = [...document.querySelectorAll('button')].filter(b => {
+      if (c.contains(b) || !b.checkVisibility()) return false;
+      const r = b.getBoundingClientRect();
+      return r.top < cr.bottom && r.bottom > cr.top && r.left < cr.right && r.right > cr.left;
+    }).length;
+    return { pos: cs.position, parent: c.parentElement.id, covered,
+             zone: !!c.querySelector('.dragzone'),
+             hint: (c.querySelector('.draghint') || {}).textContent || '',
+             dashed: c.querySelector('.dragzone')
+               ? getComputedStyle(c.querySelector('.dragzone')).borderStyle : '',
+             cursor: getComputedStyle(c.querySelector('#mailBody')).cursor };
+  });
+  ok('인폼이 떠 있지 않고 화면 안에 놓임', inline.pos === 'static' && /^v-/.test(inline.parent), inline);
+  ok('인폼이 다른 버튼을 가리지 않음', inline.covered === 0, inline.covered);
+  ok('끌 수 있는 구역이 점선으로 표시됨', inline.zone && inline.dashed === 'dashed', inline.dashed);
+  ok('끄는 방법이 글로 적혀 있음', /끌어/.test(inline.hint), inline.hint.slice(0, 40));
+  ok('마우스 커서가 잡는 모양', inline.cursor === 'grab', inline.cursor);
   await page.evaluate(() => document.getElementById('mailCard')?.remove());
 
   // 엑셀 일괄 등록
@@ -1090,7 +1109,7 @@ try {
   });
   ok('금액 끝이 세로로 맞음 (구성비 고정폭)', alignPx <= 1, alignPx);
 
-  // 인폼 카드(position:fixed)가 화면 아래 버튼을 영구히 덮으면 안 된다
+  // 인폼은 화면 흐름 안에 놓인다 — 떠 있지 않으므로 여백 보정도, 가림도 없다
   const cover = await page.evaluate(async () => {
     const g = ST.groups.find(x => x.act_tot > 0);
     if (!g) return null;
@@ -1098,16 +1117,20 @@ try {
     await new Promise(r => setTimeout(r, 400));
     const card = document.getElementById('mailCard');
     if (!card) return null;
-    const pad = parseFloat(getComputedStyle(document.querySelector('main')).paddingBottom);
-    const h = card.getBoundingClientRect().height;
-    const open = document.body.classList.contains('mailopen');
-    card.remove(); mailPad();
-    const padAfter = parseFloat(getComputedStyle(document.querySelector('main')).paddingBottom);
-    return { pad, h, open, padAfter };
+    const cr = card.getBoundingClientRect();
+    const covered = [...document.querySelectorAll('button')].filter(b => {
+      if (card.contains(b) || !b.checkVisibility()) return false;
+      const r = b.getBoundingClientRect();
+      return r.top < cr.bottom && r.bottom > cr.top && r.left < cr.right && r.right > cr.left;
+    }).length;
+    const pos = getComputedStyle(card).position;
+    const inView = /^v-/.test(card.parentElement.id);
+    card.remove();
+    return { covered, pos, inView };
   });
   if (cover) {
-    ok('인폼 카드 열리면 본문 아래 여유 확보', cover.open && cover.pad >= cover.h, cover);
-    ok('카드 닫으면 여유 원복', cover.padAfter < cover.pad, cover);
+    ok('인폼이 버튼을 가리지 않음(떠 있지 않음)', cover.covered === 0 && cover.pos === 'static', cover);
+    ok('인폼이 지금 보고 있는 화면 안에 놓임', cover.inView, cover);
   }
 
   // 취소 확인 문구가 없는 복구 경로를 약속하면 안 된다
