@@ -8,6 +8,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import net from 'node:net';
 const _req = createRequire(import.meta.url);
 const { chromium } = _req(process.env.PLAYWRIGHT_PATH || 'playwright');
 const REPO = process.env.TB_REPO || process.cwd();
@@ -17,6 +18,13 @@ let P = 0, F = 0;
 const ok = (n, c, got) => { if (c) { P++; console.log(`  PASS  ${n}`); }
   else { F++; console.log(`  FAIL  ${n} -> ${JSON.stringify(got)}`); } };
 
+// 이전 실행이 남긴 서버가 같은 포트에 살아 있으면 '낡은 화면'을 재게 된다 — 조용한 통과를 막는다
+await new Promise((res, rej) => {
+  const s = net.createServer();
+  s.once('error', () => rej(new Error(`포트 ${PORT} 가 이미 쓰이고 있습니다. 이전 실행의 서버를 먼저 끄세요.`)));
+  s.once('listening', () => s.close(res));
+  s.listen(PORT, '127.0.0.1');
+});
 fs.copyFileSync(path.join(REPO, 'data.example.json'), path.join(TMP, 'data.json'));
 const srv = spawn('python3', ['-c', `
 import sys; sys.path.insert(0, ${JSON.stringify(REPO)})
@@ -53,6 +61,7 @@ for (const [w, h, label] of [[1366, 768, '1366×768 (노트북)'], [1920, 1080, 
     await p.waitForTimeout(450);
     const r = await p.evaluate(() => {
       const de = document.documentElement;
+      const vis = e => e.checkVisibility && e.checkVisibility();
       // 잘린 글자 — 넘치는데 말줄임도 스크롤도 없는 칸
       const clipped = [...document.querySelectorAll('td,th,label,.btn,h1,h2,.status,.nav a')]
         .filter(e => e.checkVisibility && e.checkVisibility())
@@ -74,9 +83,21 @@ for (const [w, h, label] of [[1366, 768, '1366×768 (노트북)'], [1920, 1080, 
         .filter(e => e.checkVisibility && e.checkVisibility())
         .filter(e => { const r = e.getBoundingClientRect(); return r.height > 0 && r.height < 24; })
         .map(e => `${e.className}:${Math.round(e.getBoundingClientRect().height)}px`);
-      return { over: de.scrollWidth - de.clientWidth, clipped: [...new Set(clipped)], overlap, tiny: [...new Set(tiny)] };
+      // 한 행 안의 입력칸들이 서로 다른 높이로 그려지면 줄이 우글거려 보인다
+      const jitter = [];
+      document.querySelectorAll('main tr, main .filter-row').forEach(row => {
+        const ctl = [...row.querySelectorAll('input:not([type=hidden]):not([type=checkbox]),select,button')]
+          .filter(vis);
+        if (ctl.length < 2) return;
+        const tops = ctl.map(e => Math.round(e.getBoundingClientRect().top));
+        const spread = Math.max(...tops) - Math.min(...tops);
+        if (spread > 1) jitter.push(`${row.className || row.tagName}:${spread}px`);
+      });
+      return { over: de.scrollWidth - de.clientWidth, clipped: [...new Set(clipped)], overlap,
+               tiny: [...new Set(tiny)], jitter: [...new Set(jitter)] };
     });
     ok(`${v} — 가로 스크롤 없음`, r.over <= 0, r.over);
+    ok(`${v} — 한 줄 안의 입력칸 눈높이 같음`, r.jitter.length === 0, r.jitter.slice(0, 3));
     ok(`${v} — 잘린 글자 없음`, r.clipped.length === 0, r.clipped.slice(0, 4));
     ok(`${v} — 카드 겹침 없음`, r.overlap === 0, r.overlap);
     ok(`${v} — 클릭 대상 24px 이상`, r.tiny.length === 0, r.tiny.slice(0, 4));

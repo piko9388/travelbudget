@@ -108,6 +108,10 @@ async function load(){
   qs.innerHTML = opts.map(q => `<option${q === YQ ? ' selected' : ''}>${q}</option>`).join('');
   const vEl = $('#appVer');
   if (vEl && data.version) vEl.textContent = `${data.version.v} · ${data.version.build}`;
+  // 이름표도 설정을 따라간다 — [시스템 설정]에서 이름을 바꾸면 좌측 상단도 같이 바뀐다
+  const nEl = $('#brandName');
+  const sysNm = data.settings && data.settings.system_name;
+  if (nEl && sysNm) { nEl.textContent = sysNm; document.title = sysNm; }
   qs.onchange = e => {
     const dirty = ($('#travBody')?.querySelector('.t-nm')?.value.trim()) || ACT_GID;
     if (dirty && !confirm('입력 중인 내용이 저장되지 않았습니다. 분기를 변경하면 사라집니다. 계속할까요?')) {
@@ -132,6 +136,16 @@ function nav(v){
   $('#v-' + v).classList.add('on');
   $('#pageTitle').textContent = TITLES[v];
   $('#pageSub').textContent = SUBS[v];
+}
+// 좌측 상단 이름표 — 어디서든 누르면 대시보드로. (메뉴에도 대시보드가 있지만,
+// 로고를 누르면 첫 화면으로 가는 것이 사람들이 가장 먼저 시도하는 동작이다)
+{
+  const brand = $('#brandHome');
+  if (brand) {
+    const home = () => nav('dash');
+    brand.onclick = home;
+    brand.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); home(); } };
+  }
 }
 $$('.nav a[data-view]').forEach(a => {          // href 를 가진 외부 링크(출장자용 안내)는 제외
   a.tabIndex = 0; a.setAttribute('role', 'link');   // 키보드 탭 이동·엔터 선택
@@ -654,19 +668,20 @@ function travRow(p = {}){
   const known = !!p.ccg && ST.ccg.some(t => t.ccg === p.ccg);
   const teams = ST.ccg.map(t => {
     const sel = p.ccg ? t.ccg === p.ccg : t.team === p.ccg_nm;
-    return `<option data-ccg="${esc(t.ccg)}"${sel ? ' selected' : ''}>${esc(t.team)}</option>`;
+    return `<option value="${esc(t.team)}" data-ccg="${esc(t.ccg)}"${sel ? ' selected' : ''}>`
+      + `${esc(t.team)} · ${esc(t.ccg)}</option>`;
   }).join('')
   // 목록에 없는 코드(폐지된 팀 등)는 저장된 값을 그대로 남긴다 — 열었다고 지워지면 안 된다
   + (p.ccg && !known
-     ? `<option data-ccg="${esc(p.ccg)}" selected>${esc(p.ccg_nm || p.ccg)} (목록에 없음)</option>` : '');
+     ? `<option value="${esc(p.ccg_nm || p.ccg)}" data-ccg="${esc(p.ccg)}" selected>`
+       + `${esc(p.ccg_nm || p.ccg)} · ${esc(p.ccg)} (목록에 없음)</option>` : '');
   const ranks = ST.meta.ranks.map(r => `<option${r === (p.rank || 'TL') ? ' selected' : ''}>${r}</option>`).join('');
   return `<tr data-tid="${TRAV_N}">
     <td><input class="w-nm t-nm" value="${esc(p.name || '')}" placeholder="성명"></td>
     <td><input class="w-no t-no" value="${esc(p.emp_no || '')}" placeholder="사번"></td>
     <td><select class="w-rk t-rk" aria-label="직책">${ranks}</select></td>
-    <td><select class="w-tm t-tm" aria-label="CCG팀" onchange="syncCcg(this)"><option value="">선택</option>${teams}</select>
-      <input class="t-cc" type="hidden" value="${esc(p.ccg || '')}">
-      <div class="ccgno">CCG <b class="t-cc-v">${esc(p.ccg || '–')}</b></div></td>
+    <td><select class="w-tm t-tm" aria-label="CCG팀(CCG 번호 포함)" onchange="syncCcg(this)"><option value="">선택</option>${teams}</select>
+      <input class="t-cc" type="hidden" value="${esc(p.ccg || '')}"></td>
     ${KEYS.map(k => `<td>${mfield('w-mn t-p-' + k, p['p_' + k], '0', 'planSum()')}</td>`).join('')}
     <td class="num t-sum" style="font-weight:700">0</td>
     <td><button class="btn sm" onclick="this.closest('tr').remove(); planSum()">삭제</button></td>
@@ -678,8 +693,6 @@ function syncCcg(sel){
   const code = (opt && opt.dataset.ccg) || (ST.ccg.find(x => x.team === sel.value) || {}).ccg || '';
   const tr = sel.closest('tr');
   tr.querySelector('.t-cc').value = code;
-  const v = tr.querySelector('.t-cc-v');
-  if (v) v.textContent = code || '–';
 }
 function planSum(){
   let tot = 0;
@@ -777,7 +790,7 @@ function rPlan(){
       <div class="scroll trav-table"><table>
         <thead>
           <tr><th rowspan="2">성명<span class="rq">*</span></th><th rowspan="2">사번<span class="rq">*</span></th>
-            <th rowspan="2">직책<span class="rq">*</span></th><th rowspan="2">CCG팀<span class="rq">*</span></th>
+            <th rowspan="2">직책<span class="rq">*</span></th><th rowspan="2">CCG팀 · No.<span class="rq">*</span></th>
             <th class="num grp" colspan="${m.cost.length}">계획 비용</th>
             <th class="num" rowspan="2">합계</th><th rowspan="2"></th></tr>
           <tr>${m.cost.map(c => `<th class="num sub2">${c.label}</th>`).join('')}</tr>

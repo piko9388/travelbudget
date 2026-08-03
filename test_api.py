@@ -1329,7 +1329,9 @@ for _hf in ('servera/travelbudget/templates/index.html',
 _ix = open('servera/travelbudget/templates/index.html', encoding='utf-8').read()
 ok('출장자 표에 sticky 첫 칸 없음',
    'trav-table th:first-child' not in _ix and 'trav-table td:first-child' not in _ix)
-ok('CCG No. 는 팀 칸 안 캡션', '.trav-table .ccgno' in _ix and 'w-cc' not in _ix)
+# CCG 번호는 선택지 라벨 안에 있다 — 칸 아래 캡션으로 두면 그 칸만 두 줄이 되어
+# 옆 칸들과 눈높이가 어긋난다(v10.20 에서 되돌린 이유).
+ok('CCG No. 는 선택지 안에', '.trav-table .ccgno' not in _ix and 'w-cc' not in _ix)
 
 # 단계 음영 팔레트 — 단계는 진하기로, 신호(좋다/나쁘다)는 색으로. 둘을 섞으면 안 된다.
 _gd2 = open('servera/travelbudget/templates/traveler_guide.html', encoding='utf-8').read()
@@ -1519,6 +1521,36 @@ ok('설정 보존 리허설 스크립트 있음', os.path.exists('tools/e2e/sett
 _sk = open('tools/e2e/settings_keep.py', encoding='utf-8').read()
 ok('리허설이 운영 데이터를 쓰지 않음', 'mkdtemp' in _sk and 'data.example.json' in _sk)
 ok('UPGRADE 에 설정 보존 절차', '설정 지문' in _ug and 'settings_keep.py' in _ug)
+
+# ── 이름표(로고) 와 한 줄 안의 눈높이 ──
+print('\n=== 35. 이름표 · 입력칸 눈높이 ===')
+ok('로고가 인라인 SVG (외부 파일·CDN 없음)',
+   '<svg' in _tpl.split('class="brand"')[1][:6000] and 'img src' not in _tpl)
+ok('로고에 대체 텍스트', 'aria-label="SK hynix"' in _tpl)
+ok('이름표를 누르면 대시보드로', "$('#brandHome')" in _appjs and "nav('dash')" in _appjs)
+ok('이름표가 키보드로도 눌린다', 'brand.onkeydown' in _appjs and 'tabindex="0"' in _tpl)
+ok('이름표에 영문 보조', 'class="bs"' in _tpl and 'Domestic Travel Expense' in _tpl)
+ok('이름표 제목은 16px — 메뉴(13px)와 다른 척도',
+   _re0.search(r'\.brand \.bt\{[^}]*font-size:16px', _tpl) is not None)
+ok('이름표 영문은 12px', _re0.search(r'\.brand \.bs\{[^}]*font-size:12px', _tpl) is not None)
+ok('시스템 이름은 설정을 따라간다', "$('#brandName')" in _appjs and 'system_name' in _appjs)
+# 입력칸 높이 — 크롬은 select 의 line-height 를 무시해 input 보다 3px 작게 그린다
+ok('입력칸 높이 토큰 정의', '--h-ctl:' in _tpl and '--h-ctl-sm:' in _tpl)
+ok('input 과 select 높이를 같게 못박음',
+   _re0.search(r'input,select\{height:var\(--h-ctl\)\}', _tpl) is not None)
+ok('체크박스·textarea 는 예외',
+   _re0.search(r'input\[type=checkbox\],input\[type=radio\],textarea\{height:auto\}', _tpl) is not None)
+ok('표 안 필터 줄은 작은 척도로 맞춤',
+   _re0.search(r'\.colf\{[^}]*height:var\(--h-ctl-sm\)', _tpl) is not None)
+# CCG 칸 — 두 줄이 되면서 옆 칸과 어긋나던 것
+ok('CCG 코드를 선택지 안에 표시 (칸이 두 줄이 되지 않게)',
+   '· ${esc(t.ccg)}' in _appjs and 'ccgno' not in _tpl and 'ccgno' not in _appjs)
+ok('선택지 value 는 팀 이름 그대로 (저장값이 라벨에 오염되지 않게)',
+   'value="${esc(t.team)}" data-ccg=' in _appjs)
+ok('목록에 없는 코드도 같은 규칙', 'value="${esc(p.ccg_nm || p.ccg)}" data-ccg=' in _appjs)
+ok('입력 표에서는 버튼도 입력칸과 같은 높이',
+   _re0.search(r'\.trav-table td \.btn\{height:var\(--h-ctl\)\}', _tpl) is not None)
+ok('머리글이 번호까지 보여줌을 알림', 'CCG팀 · No.' in _appjs)
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

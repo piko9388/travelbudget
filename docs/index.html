@@ -54,6 +54,10 @@
 --sh-2:0 4px 16px rgba(18,48,79,.16);     /* 살짝 뜬 것 (팝오버 · 인폼) */
 --sh-3:0 12px 32px rgba(16,24,40,.20);    /* 완전히 뜬 것 (모달) */
 --sh-cut:-2px 0 0 var(--white);           /* 뜬 것이 아니라 자르는 선 — 막대 조각 경계 */
+/* 입력칸 높이 — 크롬은 select 의 line-height 를 무시하고(−3px), date 는 달력 아이콘 때문에
+   +2px 로 그린다. 한 줄에 나란히 놓인 칸들이 어긋나 보이던 원인이라 높이를 못박는다. */
+--h-ctl:38px;       /* 본문 입력·선택·날짜 (13px + 여백 8) */
+--h-ctl-sm:28px;    /* 표 안 필터 줄 (12px + 여백 4) */
 /* 하위호환 — 기존 선언이 참조하던 이름 */
 --faint:#5C6878;--navy2:#17365D;--blue:#33608E;
 }
@@ -80,7 +84,16 @@ font-family:"Malgun Gothic","맑은 고딕",-apple-system,"Apple SD Gothic Neo",
 .app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}
 aside{position:sticky;top:0;height:100vh;background:var(--white);border-right:1px solid var(--line);
 padding:24px 16px;display:flex;flex-direction:column;overflow-y:auto}
-.brand{padding:0 8px 16px;border-bottom:1px solid var(--line);color:var(--navy);font-size:16px;line-height:24px;font-weight:700}
+/* 이름표 — 메뉴가 아니라 '이 시스템이 무엇인가'를 말하는 자리.
+   그래서 메뉴(13px 한 줄)와 다른 척도를 쓴다: 로고 + 16px 제목 + 12px 영문 + 아래 경계선 */
+.brand{display:block;padding:0 8px 16px;margin-bottom:0;border-bottom:1px solid var(--line);
+text-decoration:none;cursor:pointer;user-select:none}
+.brand .logo{display:block;width:88px;margin-bottom:12px}
+.brand .logo svg{display:block;width:100%;height:auto}
+.brand .bt{display:block;color:var(--navy);font-size:16px;line-height:24px;font-weight:700}
+.brand .bs{display:block;color:var(--mut);font-size:12px;line-height:18px}
+.brand:hover .bt{color:var(--s2)}
+.brand:focus-visible{outline:2px solid var(--s2);outline-offset:2px;border-radius:var(--r-ctl)}
 .nav-label{margin:16px 8px 4px;color:var(--mut);font-size:12px;line-height:18px;font-weight:700}
 .nav a{display:block;margin:1px 0;padding:8px 12px;color:var(--ink2);border:1px solid transparent;
 cursor:pointer;border-radius:var(--r-ctl);font-size:13px;line-height:20px;user-select:none}
@@ -165,6 +178,10 @@ label{display:block;margin-bottom:4px;color:var(--ink2);font-size:12px;line-heig
 label .rq{color:var(--red)}label .au{color:var(--mut);font-weight:400;font-size:12px;line-height:18px;margin-left:4px}
 input,select,textarea{width:100%;border:1px solid var(--line);background:var(--white);padding:8px 8px;color:var(--ink);
 font:inherit;font-size:13px;line-height:20px;border-radius:var(--r-ctl)}
+/* 높이를 같게 — input · select · date 가 한 줄에서 눈높이가 맞아야 한다.
+   선택자를 일부러 낮게 잡는다 — 표 안 필터(.colf) 처럼 자기 높이를 가진 칸이 이길 수 있게. */
+input,select{height:var(--h-ctl)}
+input[type=checkbox],input[type=radio],textarea{height:auto}
 button,.btn{font-family:inherit}          /* 버튼도 본문과 같은 글꼴로 — 윈도우 기본 UI 글꼴 방지 */
 input:focus,select:focus,textarea:focus{outline:2px solid rgba(37,99,168,.13);border-color:var(--s2)}
 input[readonly],.auto{background:var(--shade);color:var(--mut)}
@@ -295,13 +312,21 @@ border-radius:var(--r-box);font-size:12px;line-height:18px;color:var(--ink2)}
 .trav-table input,.trav-table select{min-width:0;padding:8px 8px;font-size:13px;line-height:20px}
 .trav-table td{padding:4px}
 .trav-table .w-nm{min-width:84px}.trav-table .w-no{min-width:82px}.trav-table .w-rk{min-width:72px}
-.trav-table .w-tm{min-width:128px}
+.trav-table .w-tm{min-width:148px}
+/* 데스크톱(1360px 이상 — 사내 표준 1366×768 포함)에서는 가장 긴 팀 이름 + CCG 번호가
+   닫힌 상태에서도 다 보이게 넓힌다. 그보다 좁으면 표가 가로로 밀리므로 좁게 두고,
+   번호는 목록을 펼치면 온전히 보인다. */
+@media(min-width:1360px){.trav-table .w-tm{min-width:240px}}
 /* 금액칸은 두 표(계획·실적)에서 같은 크기여야 한다.
    폭을 안 잡으면 열이 적은 실적 표에서 195px 까지 늘어나 계획 표와 리듬이 어긋난다.
    남는 폭은 칸을 늘리지 않고 여백으로 둔다 — 오른쪽 정렬이라 숫자 열은 그대로 맞는다. */
-.trav-table .w-mn{min-width:76px;max-width:110px;display:block;margin-left:auto}
-.trav-table .ccgno{margin-top:2px;font-size:12px;line-height:18px;color:var(--mut)}
-.trav-table .ccgno b{color:var(--ink2);font-weight:700}
+/* 금액칸은 '1,250,000' 이 들어가면 충분하다. 상한을 낮춰 남는 폭을 CCG 칸에 준다
+   (두 표가 같은 상한을 쓰므로 계획·실적 표의 금액칸 크기도 서로 같아진다) */
+.trav-table .w-mn{min-width:76px;max-width:88px;display:block;margin-left:auto}
+/* 한 행 안의 칸은 전부 한 줄이어야 옆 칸과 눈높이가 맞는다 (CCG 코드는 선택지 안에 있다).
+   입력 표에서는 버튼도 입력칸과 같은 높이 — 한 줄이 통째로 반듯해진다 */
+.trav-table td{vertical-align:middle}
+.trav-table td .btn{height:var(--h-ctl)}
 /* 비용 4열을 묶는 그룹 머리 — 열 폭이 '계획 식대&잡비' 같은 긴 머리글에 끌려다니지 않게 */
 .trav-table thead th{vertical-align:bottom}
 .trav-table th.grp{text-align:center;border-bottom:1px solid var(--line2);
@@ -357,7 +382,8 @@ th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
 th.sortable:hover{background:var(--tint2);color:var(--navy)}
 th .sic{color:var(--s2);font-size:12px;line-height:18px}
 tr.filt th{background:var(--surf);padding:4px 4px;border-bottom:1px solid var(--line)}
-.colf{width:100%;min-width:74px;padding:4px 8px;font-size:12px;line-height:18px;border:1px solid var(--line);border-radius:var(--r-ctl)}
+.colf{width:100%;min-width:74px;height:var(--h-ctl-sm);padding:4px 8px;font-size:12px;line-height:18px;
+border:1px solid var(--line);border-radius:var(--r-ctl)}
 .colf::placeholder{color:var(--mut);font-size:12px;line-height:18px;opacity:1}   /* 1.87:1 → 5.67:1 */
 @media(max-width:980px){.filter-row input,.filter-row select,.filter-row .btn{width:100%;min-width:0}}
 /* 여러 건 골라 한 번에 확정 — 고른 게 있을 때만 나타나는 띠 */
@@ -431,7 +457,12 @@ padding:12px 16px;margin-bottom:16px}
 </style></head><body>
 <div class="app">
 <aside>
-  <div class="brand">소재 국내 출장비 관리</div>
+  <!-- 회사 로고 — 외부 파일 없이 인라인 SVG. 눌러서 대시보드로 돌아온다 -->
+  <a class="brand" id="brandHome" role="link" tabindex="0" title="대시보드로 이동">
+    <span class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="5.29 1.46 102.15 53.51" role="img" aria-label="SK hynix"><g><g><path transform="matrix(1,0,0,-1,14.351,36.827)" d="M0 0C-1.712 .8-3.116 1.448-3.116 2.755-3.116 3.755-2.316 4.483-.736 4.483-.153 4.483 .322 4.414 .814 4.326 1.069 4.28 1.346 4.245 1.571 4.245 2.954 4.245 3.731 5.066 4.25 6.63L4.465 7.269C4.243 7.357 1.987 8.349-.955 8.349-5.635 8.349-8.11 5.346-8.104 2.232-8.104 .659-7.613-.477-6.845-1.374-5.85-2.529-4.435-3.283-3.114-3.93-1.186-4.876 .557-5.573 .557-6.979 .557-8.221-.731-8.929-2.449-8.929-4.805-8.929-6.863-7.585-7.127-7.419L-9.061-11.048C-8.717-11.24-6.225-12.823-2.128-12.823 2.242-12.818 5.552-10.315 5.552-6.461 5.552-2.626 2.484-1.205 0 0" fill="#ea002c"/><path transform="matrix(1,0,0,-1,31.44,38.618)" d="M0 0 7.921 9.716H2.276L-4.044 1.332H-4.139V9.716H-8.793L-8.791-10.864H-8.515C-6.503-10.864-4.108-9.934-4.108-6.575V-1.848H-4.012L2.431-10.609H8.353Z" fill="#ea002c"/><path transform="matrix(1,0,0,-1,39.626,6.854)" d="M0 0C-1.636-.31-4.065-1.797-4.058-4.425-4.053-6.815-2.1-8.261-2.094-11.389-2.084-13.746-3.382-15.331-4.786-16.21-4.219-16.161-3.595-16.128-2.913-16.128-1.481-16.122-.617-16.258-.562-16.27L6.788-7.247C4.747-4.191 2.364-1.821 0 0" fill="#ea002c"/><path transform="matrix(1,0,0,-1,45.799,31.213)" d="M0 0C.927 1.441 1.045 3.736 1.124 6.073 1.21 8.254 1.666 9.896 4.585 9.908 5.228 9.908 5.844 9.82 6.959 9.822 11.233 9.843 14.024 11.314 15.759 12.279 12.214 14.54 7.039 16.852 .615 17.112 .197 15.93-3.058 6.88-3.306 6.149-3.267 6.105-2.697 5.466-1.987 4.219-.937 2.51-.372 1.059 0 0" fill="#ea002c"/><path transform="matrix(1,0,0,-1,30.276,23.821)" d="M0 0C-.374-.002-.555 .245-.608 .675-.655 1.099-2.493 17.917-2.767 20.464-2.806 20.836-2.898 21.518-2.898 21.762-2.901 22.154-2.646 22.36-2.343 22.36-1.473 22.361 3.273 21.25 8.31 17.718 6.859 17.31 4.236 15.798 4.245 12.673 4.255 9.906 6.235 8.384 6.246 5.608 6.262 1.094 1.073 0 0 0" fill="#ff7a00"/><path transform="matrix(1,0,0,-1,46.222,32.413)" d="M0 0C.079-.211 .155-.388 .231-.509 .345-.705 .495-.796 .68-.796 .798-.796 .942-.756 1.101-.683 1.49-.504 16.837 6.64 19.154 7.71 19.487 7.87 20.124 8.155 20.334 8.277 20.55 8.4 20.651 8.582 20.651 8.765 20.651 8.87 20.619 8.973 20.563 9.068 20.274 9.535 18.787 11.111 16.304 12.834 14.333 11.749 11.255 10.07 6.676 10.052 5.554 10.051 5.3 10.126 4.534 10.123 2.3 10.116 1.74 9.158 1.659 7.199 1.645 6.829 1.638 6.332 1.617 5.783 1.546 4.032 1.34 1.617 0 0" fill="#ff7a00"/><path transform="matrix(1,0,0,-1,70.202,49.763)" d="M0 0C-1.703-4.606-3.896-5.203-5.781-5.203-7.111-5.203-8.088-4.728-8.191-4.675L-7.482-2.519C-7.424-2.55-6.704-2.936-5.904-2.936-4.409-2.936-3.472-2.103-2.64 .497-2.64 .497-7.726 11.565-7.784 11.705-7.692 11.731-7.081 11.918-6.39 11.918-4.744 11.918-4.382 10.891-3.958 9.862-3.6 9.004-1.258 3.35-1.258 3.35H-1.178L1.534 11.705H4.351Z" fill="#ff7a00"/><path transform="matrix(1,0,0,-1,107.433,49.21)" d="M0 0-3.935 5.718-.081 11.313H-3.401L-6.086 7.211C-6.806 8.342-7.486 9.413-7.696 9.746-8.236 10.572-8.719 11.403-9.943 11.379-10.107 11.375-10.278 11.361-10.461 11.322-11.145 11.199-11.71 10.905-11.795 10.859-11.75 10.792-9.908 8.178-8.143 5.637L-12.02 0H-8.703L-6.008 4.116-3.313 0Z" fill="#ff7a00"/><path transform="matrix(1,0,0,-1,76.837,41.732)" d="M0 0V-7.495H2.815V.294C2.968 .435 3.967 1.39 5.077 1.39 6.524 1.39 7.276 .342 7.276-1.023V-7.495H10.084V-.321C10.084 3.086 7.463 3.842 6.003 3.842 4.243 3.842 2.991 2.732 2.618 2.366 2.498 2.822 1.964 3.592 .736 3.592 .303 3.592-.264 3.463-.317 3.452-.231 3.028 0 2.024 0 0" fill="#ff7a00"/><path transform="matrix(1,0,0,-1,93.196,34.671)" d="M0 0C0-.928-.775-1.68-1.733-1.68-2.693-1.68-3.468-.928-3.468 0-3.468 .935-2.693 1.691-1.733 1.691-.775 1.691 0 .935 0 0" fill="#ff7a00"/><path transform="matrix(1,0,0,-1,0,56.693)" d="M92.854 7.482H90.066V18.642H92.854Z" fill="#ff7a00"/><path transform="matrix(1,0,0,-1,53.435,39.339)" d="M0 0C.197 .162 1.631 1.494 3.628 1.494 5.811 1.494 7.424 .356 7.424-2.418V-9.889H4.507V-3.218C4.507-1.99 3.829-1.037 2.549-1.037 1.326-1.037 .294-2.001 0-2.242V-9.889H-2.894V7.146H-2.279C-.891 7.146 0 6.139 0 4.795Z" fill="#ff7a00"/><g></g></g></g></svg></span>
+    <span class="bt" id="brandName">소재 국내 출장비 관리</span>
+    <span class="bs">Domestic Travel Expense</span>
+  </a>
   <nav class="nav" aria-label="주 메뉴">
     <div class="nav-label">출장 업무</div>
     <a class="on" data-view="dash">대시보드</a>
@@ -542,7 +573,7 @@ padding:12px 16px;margin-bottom:16px}
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.19', APP_BUILD = '2026-08-02';
+  var APP_VERSION = 'v10.20', APP_BUILD = '2026-08-03';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -1547,6 +1578,10 @@ async function load(){
   qs.innerHTML = opts.map(q => `<option${q === YQ ? ' selected' : ''}>${q}</option>`).join('');
   const vEl = $('#appVer');
   if (vEl && data.version) vEl.textContent = `${data.version.v} · ${data.version.build}`;
+  // 이름표도 설정을 따라간다 — [시스템 설정]에서 이름을 바꾸면 좌측 상단도 같이 바뀐다
+  const nEl = $('#brandName');
+  const sysNm = data.settings && data.settings.system_name;
+  if (nEl && sysNm) { nEl.textContent = sysNm; document.title = sysNm; }
   qs.onchange = e => {
     const dirty = ($('#travBody')?.querySelector('.t-nm')?.value.trim()) || ACT_GID;
     if (dirty && !confirm('입력 중인 내용이 저장되지 않았습니다. 분기를 변경하면 사라집니다. 계속할까요?')) {
@@ -1571,6 +1606,16 @@ function nav(v){
   $('#v-' + v).classList.add('on');
   $('#pageTitle').textContent = TITLES[v];
   $('#pageSub').textContent = SUBS[v];
+}
+// 좌측 상단 이름표 — 어디서든 누르면 대시보드로. (메뉴에도 대시보드가 있지만,
+// 로고를 누르면 첫 화면으로 가는 것이 사람들이 가장 먼저 시도하는 동작이다)
+{
+  const brand = $('#brandHome');
+  if (brand) {
+    const home = () => nav('dash');
+    brand.onclick = home;
+    brand.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); home(); } };
+  }
 }
 $$('.nav a[data-view]').forEach(a => {          // href 를 가진 외부 링크(출장자용 안내)는 제외
   a.tabIndex = 0; a.setAttribute('role', 'link');   // 키보드 탭 이동·엔터 선택
@@ -2093,19 +2138,20 @@ function travRow(p = {}){
   const known = !!p.ccg && ST.ccg.some(t => t.ccg === p.ccg);
   const teams = ST.ccg.map(t => {
     const sel = p.ccg ? t.ccg === p.ccg : t.team === p.ccg_nm;
-    return `<option data-ccg="${esc(t.ccg)}"${sel ? ' selected' : ''}>${esc(t.team)}</option>`;
+    return `<option value="${esc(t.team)}" data-ccg="${esc(t.ccg)}"${sel ? ' selected' : ''}>`
+      + `${esc(t.team)} · ${esc(t.ccg)}</option>`;
   }).join('')
   // 목록에 없는 코드(폐지된 팀 등)는 저장된 값을 그대로 남긴다 — 열었다고 지워지면 안 된다
   + (p.ccg && !known
-     ? `<option data-ccg="${esc(p.ccg)}" selected>${esc(p.ccg_nm || p.ccg)} (목록에 없음)</option>` : '');
+     ? `<option value="${esc(p.ccg_nm || p.ccg)}" data-ccg="${esc(p.ccg)}" selected>`
+       + `${esc(p.ccg_nm || p.ccg)} · ${esc(p.ccg)} (목록에 없음)</option>` : '');
   const ranks = ST.meta.ranks.map(r => `<option${r === (p.rank || 'TL') ? ' selected' : ''}>${r}</option>`).join('');
   return `<tr data-tid="${TRAV_N}">
     <td><input class="w-nm t-nm" value="${esc(p.name || '')}" placeholder="성명"></td>
     <td><input class="w-no t-no" value="${esc(p.emp_no || '')}" placeholder="사번"></td>
     <td><select class="w-rk t-rk" aria-label="직책">${ranks}</select></td>
-    <td><select class="w-tm t-tm" aria-label="CCG팀" onchange="syncCcg(this)"><option value="">선택</option>${teams}</select>
-      <input class="t-cc" type="hidden" value="${esc(p.ccg || '')}">
-      <div class="ccgno">CCG <b class="t-cc-v">${esc(p.ccg || '–')}</b></div></td>
+    <td><select class="w-tm t-tm" aria-label="CCG팀(CCG 번호 포함)" onchange="syncCcg(this)"><option value="">선택</option>${teams}</select>
+      <input class="t-cc" type="hidden" value="${esc(p.ccg || '')}"></td>
     ${KEYS.map(k => `<td>${mfield('w-mn t-p-' + k, p['p_' + k], '0', 'planSum()')}</td>`).join('')}
     <td class="num t-sum" style="font-weight:700">0</td>
     <td><button class="btn sm" onclick="this.closest('tr').remove(); planSum()">삭제</button></td>
@@ -2117,8 +2163,6 @@ function syncCcg(sel){
   const code = (opt && opt.dataset.ccg) || (ST.ccg.find(x => x.team === sel.value) || {}).ccg || '';
   const tr = sel.closest('tr');
   tr.querySelector('.t-cc').value = code;
-  const v = tr.querySelector('.t-cc-v');
-  if (v) v.textContent = code || '–';
 }
 function planSum(){
   let tot = 0;
@@ -2216,7 +2260,7 @@ function rPlan(){
       <div class="scroll trav-table"><table>
         <thead>
           <tr><th rowspan="2">성명<span class="rq">*</span></th><th rowspan="2">사번<span class="rq">*</span></th>
-            <th rowspan="2">직책<span class="rq">*</span></th><th rowspan="2">CCG팀<span class="rq">*</span></th>
+            <th rowspan="2">직책<span class="rq">*</span></th><th rowspan="2">CCG팀 · No.<span class="rq">*</span></th>
             <th class="num grp" colspan="${m.cost.length}">계획 비용</th>
             <th class="num" rowspan="2">합계</th><th rowspan="2"></th></tr>
           <tr>${m.cost.map(c => `<th class="num sub2">${c.label}</th>`).join('')}</tr>

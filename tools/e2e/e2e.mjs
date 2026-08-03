@@ -854,19 +854,43 @@ try {
     const ra = await overlapAt(1152, 'actual');
     ok('실적 입력 1152px — 칸 겹침 없음', ra && ra.hit.length === 0, ra && ra.hit.slice(0, 4));
   }
-  // CCG No. 는 팀을 고르면 자동으로 채워지는 읽기전용 값 — 열을 차지하지 않고 팀 칸 안에 표기
+  // CCG No. 는 선택지 라벨 안에 있다 — 칸 아래 캡션으로 두면 그 칸만 두 줄이 되어
+  // 옆 칸들과 눈높이가 어긋난다. 전용 열도 만들지 않는다(열이 하나 더 늘면 표가 밀린다).
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(() => nav('plan'));
   await page.waitForSelector('#travBody tr');
   await page.selectOption('#travBody tr:nth-child(1) .t-tm', 'EDTW소재기술');
   const ccg = await page.evaluate(() => {
     const tr = document.querySelector('#travBody tr');
-    return { hidden: tr.querySelector('.t-cc').value, shown: tr.querySelector('.t-cc-v').textContent.trim(),
-             cols: document.querySelectorAll('#v-plan thead tr:first-child th').length };
+    const sel = tr.querySelector('.t-tm');
+    const cs = getComputedStyle(sel);
+    const cv = document.createElement('canvas').getContext('2d');
+    cv.font = `${cs.fontSize} ${cs.fontFamily}`;
+    const longest = [...sel.options].reduce((a, o) => o.textContent.length > a.textContent.length ? o : a);
+    return { hidden: tr.querySelector('.t-cc').value, value: sel.value,
+             label: sel.selectedOptions[0].textContent,
+             caption: !!tr.querySelector('.ccgno'),
+             cells: tr.children.length,
+             room: Math.round(sel.clientWidth - parseFloat(cs.paddingLeft)
+                              - parseFloat(cs.paddingRight) - 20),
+             need: Math.round(cv.measureText(longest.textContent).width) };
   });
-  ok('CCG 코드 자동 채움 유지', ccg.hidden === '50119134' && ccg.shown === '50119134', ccg);
-  ok('CCG No. 전용 열 없음(팀 칸 안 표기)',
-     !(await page.textContent('#v-plan thead')).includes('CCG No.'), ccg.cols);
+  ok('CCG 코드 자동 채움 유지', ccg.hidden === '50119134', ccg);
+  ok('저장값은 팀 이름 그대로 (라벨에 오염되지 않음)', ccg.value === 'EDTW소재기술', ccg.value);
+  ok('선택지 라벨에 CCG 번호가 함께 보임', ccg.label.includes('50119134'), ccg.label);
+  ok('팀 칸 아래 캡션 없음 (한 줄 유지)', ccg.caption === false);
+  ok('데스크톱에서 가장 긴 팀 이름도 잘리지 않음', ccg.room >= ccg.need,
+     { room: ccg.room, need: ccg.need });
+  // 번호를 위해 열을 새로 만들지 않았다 — 열이 하나 늘면 좁은 화면에서 표가 밀린다
+  ok('CCG 번호 때문에 열이 늘지 않음 (한 행 10칸 유지)', ccg.cells === 10, ccg.cells);
+  // 한 줄 안의 칸들이 같은 눈높이인가 — select 는 크롬이 line-height 를 무시해 3px 작게 그린다
+  const rowTops = await page.evaluate(() => {
+    const tr = document.querySelector('#travBody tr');
+    const c = [...tr.querySelectorAll('input:not([type=hidden]),select,button')];
+    const tops = c.map(e => Math.round(e.getBoundingClientRect().top));
+    return Math.max(...tops) - Math.min(...tops);
+  });
+  ok('출장자 표 한 줄의 눈높이가 같음', rowTops === 0, rowTops);
 
   // 금액칸은 두 표에서 같은 크기 — 폭을 안 잡으면 열이 적은 실적 표에서 혼자 늘어난다
   const planMn = await page.evaluate(() =>
