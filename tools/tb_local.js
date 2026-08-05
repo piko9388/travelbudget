@@ -68,7 +68,7 @@
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.20', APP_BUILD = '2026-08-03';
+  var APP_VERSION = 'v10.21', APP_BUILD = '2026-08-03';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -420,11 +420,14 @@
   // ── CSV ──
   function csvCell(v) { var s = String(v == null ? '' : v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   function csvSafe(v) { var s = v == null ? '' : String(v); return (s.length && '=+-@\t\r'.indexOf(s.charAt(0)) >= 0) ? "'" + s : s; }
-  function ledgerRows(data, yq, internal) {
+  // gids 를 주면 그 출장건만 — 화면에서 걸러 놓은 것만 제출할 때 (서버 ledger_rows 와 같은 규칙)
+  function ledgerRows(data, yq, internal, gids) {
     var out = [];
+    var keep = (gids && gids.length) ? gids : null;
     var groups = (data.groups || []).slice().sort(function (a, b) { return String(a.dep_dt || '').localeCompare(String(b.dep_dt || '')); });
     groups.forEach(function (raw) {
       var g = normalizeGroup(raw); if (yq && g.yq !== yq) return;
+      if (keep && keep.indexOf(g.group_id) < 0) return;
       g.travelers.forEach(function (p) {
         var row = [g.plan_type, '소재', p.ccg || '', csvSafe(p.ccg_nm || ''),
           csvSafe(p.emp_no || ''), csvSafe(p.name || ''), p.rank || '',
@@ -440,27 +443,33 @@
     });
     return out;
   }
-  function makeCsv(data, yq, internal) {
+  function makeCsv(data, yq, internal, gids) {
     var heads = CSV_HEADERS.concat(internal ? CSV_EXTRA : []);
     var lines = [heads.map(csvCell).join(',')];
-    ledgerRows(data, yq, internal).forEach(function (r) { lines.push(r.map(csvCell).join(',')); });
+    ledgerRows(data, yq, internal, gids).forEach(function (r) { lines.push(r.map(csvCell).join(',')); });
     return '\ufeff' + lines.join('\r\n') + '\r\n';
   }
   // 엑셀 서식(맑은 고딕/Trebuchet MS) 포함 — CSV는 글꼴을 담을 수 없어 제출본은 이 파일
-  function makeXls(data, yq, internal) {
+  function makeXls(data, yq, internal, gids) {
     var heads = CSV_HEADERS.concat(internal ? CSV_EXTRA : []);
     var font = "'Trebuchet MS','Malgun Gothic','맑은 고딕',sans-serif";
     var th = 'font-family:' + font + ';font-size:10pt;font-weight:bold;background:#EEF2F8;border:1px solid #B7C0CE;padding:4px 6px;text-align:center';
     var td = 'font-family:' + font + ';font-size:10pt;border:1px solid #D8DEE8;padding:3px 6px';
     var tdn = td + ";mso-number-format:'#,##0';text-align:right";
-    var body = ledgerRows(data, yq, internal).map(function (r) {
+    var rows = ledgerRows(data, yq, internal, gids);
+    var body = rows.map(function (r) {
       return '<tr>' + r.map(function (v, i) {
         var isNum = typeof v === 'number' || heads[i].indexOf('계획_') === 0 || heads[i].indexOf('실적_') === 0
           || heads[i] === '출장일수' || heads[i] === '리드타임(일)';
         return '<td style="' + (isNum ? tdn : td) + '">' + escapeHtml(String(v)) + '</td>';
       }).join('') + '</tr>';
     }).join('');
+    // 걸러서 낸 제출본은 제목에 그 사실을 적는다 — 받는 쪽이 '전체인 줄' 알면 안 된다
     var title = '소재 국내 출장비 정산 대장 ' + (yq || '전체');
+    if (gids && gids.length) {
+      var uniq = gids.filter(function (v, i) { return gids.indexOf(v) === i; });
+      title += ' (선택 ' + uniq.length + '건 · 출장자 ' + rows.length + '명)';
+    }
     return '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">'
       + '<head><meta charset="utf-8"><style>body,table,td,th{font-family:' + font + '}</style></head><body>'
       + '<table border="1" cellspacing="0" cellpadding="0">'
@@ -944,19 +953,21 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   };
-  root.downloadXls = function (yq, internal) {
-    var text = makeXls(Store.load(), yq || null, !!internal);
+  root.downloadXls = function (yq, internal, gids) {
+    var text = makeXls(Store.load(), yq || null, !!internal, gids);
     var blob = new Blob(['\ufeff' + text], { type: 'application/vnd.ms-excel;charset=utf-8' });
     var url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = '소재국내출장비_' + (internal ? '내부관리' : '센터제출') + '_' + (yq || '전체') + '_' + todayISO().replace(/-/g, '') + '.xls';
+    a.href = url; a.download = '소재국내출장비_' + (internal ? '내부관리' : '센터제출') + '_' + (yq || '전체')
+      + ((gids && gids.length) ? '_선택' + gids.length + '건' : '') + '_' + todayISO().replace(/-/g, '') + '.xls';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   };
-  root.downloadCsv = function (yq, internal) {
-    var text = makeCsv(Store.load(), yq || null, !!internal);
+  root.downloadCsv = function (yq, internal, gids) {
+    var text = makeCsv(Store.load(), yq || null, !!internal, gids);
     var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
     var url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = '소재국내출장비_' + (internal ? '내부관리' : '센터제출') + '_' + (yq || '전체') + '_' + todayISO().replace(/-/g, '') + '.csv';
+    a.href = url; a.download = '소재국내출장비_' + (internal ? '내부관리' : '센터제출') + '_' + (yq || '전체')
+      + ((gids && gids.length) ? '_선택' + gids.length + '건' : '') + '_' + todayISO().replace(/-/g, '') + '.csv';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   };

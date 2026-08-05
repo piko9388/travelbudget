@@ -1012,7 +1012,7 @@ ok('아이패드용은 정적판(파이썬 불필요)', 'docs/index.html' in _bs
 
 # 화면 낭독기 — 눈으로는 열 제목이 보이지만 select 에는 이름이 없던 칸들
 for _sel, _need in (('w-rk t-rk', '직책'), ('w-tm t-tm', 'CCG팀'), ('id="copySel"', '불러오기'),
-                    ('id="actSel"', '출장 고르기'), ('class="colf" aria-label', '거르기'),
+                    ('id="actSel"', '출장 고르기'), ('class="colf colf-sel" aria-label', '거르기'),
                     ('cfg-mig', '옮길 팀')):
     _i = _appjs.find(_sel)
     _seg = _appjs[max(0, _i - 120):_i + 200] if _i >= 0 else ''
@@ -1551,6 +1551,55 @@ ok('목록에 없는 코드도 같은 규칙', 'value="${esc(p.ccg_nm || p.ccg)}
 ok('입력 표에서는 버튼도 입력칸과 같은 높이',
    _re0.search(r'\.trav-table td \.btn\{height:var\(--h-ctl\)\}', _tpl) is not None)
 ok('머리글이 번호까지 보여줌을 알림', 'CCG팀 · No.' in _appjs)
+
+# ── 걸러 놓은 건만 센터 제출 양식으로 내보내기 ──
+# 추가 예산 요청처럼 '확정 예정 건만' 을 센터에 낼 때가 있다. 화면에서 거른 것과
+# 파일에 담긴 것이 다르면 결재가 틀어진다.
+from urllib.parse import quote
+from servera.travelbudget import routes as _R
+print('\n=== 36. 걸러서 내보내기 (센터 제출 양식) ===')
+_st = c.get('/travelbudget/api/state').get_json()
+_gs = _st['groups']
+_pick = [g['group_id'] for g in _gs if g['status'] == '확정 예정'] or [_gs[0]['group_id']]
+_yq = _st['yq']
+_full = c.get(f'/travelbudget/api/export.csv?yq={_yq}').get_data(as_text=True).lstrip('\ufeff')
+_sub = c.get(f'/travelbudget/api/export.csv?yq={_yq}&gids={",".join(_pick)}'
+             ).get_data(as_text=True).lstrip('\ufeff')
+_fl, _sl = _full.strip().split('\r\n'), _sub.strip().split('\r\n')
+ok('머리글은 센터 양식 그대로 (27칸)', _sl[0] == _fl[0] and _sl[0].split(',') == _C.CSV_HEADERS,
+   _sl[0][:60])
+ok('고른 건만 담긴다', 0 < len(_sl) - 1 < len(_fl) - 1, (len(_sl) - 1, len(_fl) - 1))
+_want = sum(len(g['travelers']) for g in _gs if g['group_id'] in _pick)
+ok('행 수 = 고른 건의 출장자 수', len(_sl) - 1 == _want, (len(_sl) - 1, _want))
+_names = {p['name'] for g in _gs if g['group_id'] in _pick for p in g['travelers']}
+ok('다른 건의 사람은 섞이지 않음',
+   all(any(n in l for n in _names) for l in _sl[1:]), _sl[1][:60] if len(_sl) > 1 else '')
+# 모르는 id 는 조용히 무시 (없어진 건을 고른 채 눌러도 오류로 막지 않는다)
+_mix = c.get(f'/travelbudget/api/export.csv?yq={_yq}&gids={",".join(_pick)},TB-9999'
+             ).get_data(as_text=True).lstrip('\ufeff')
+ok('없는 출장 id 는 무시', _mix.strip().split('\r\n')[1:] == _sl[1:])
+# 상한을 넘으면 조용히 자르지 않고 전체로 되돌린다 — 일부만 빠진 제출본이 더 위험하다
+_many = ','.join(f'TB-{i:04d}' for i in range(_R.GIDS_MAX + 1))
+ok('상한 초과 시 전체로 되돌림',
+   c.get(f'/travelbudget/api/export.csv?yq={_yq}&gids={_many}').get_data(as_text=True
+         ).lstrip('\ufeff').strip().split('\r\n')[1:] == _fl[1:])
+# 엑셀 제출본 — 제목에 '걸렀다'는 사실이 남아야 한다
+_x = c.get(f'/travelbudget/api/export.xls?yq={_yq}&gids={",".join(_pick)}').get_data(as_text=True)
+ok('엑셀 제목에 선택 건수 표시', f'(선택 {len(set(_pick))}건' in _x, _x[_x.find('12pt'):][:90])
+from html import escape as _esc
+ok('엑셀도 같은 27칸 머리글', all(f'>{_esc(h)}</th>' in _x for h in _C.CSV_HEADERS),
+   [h for h in _C.CSV_HEADERS if f'>{_esc(h)}</th>' not in _x][:3])
+_cd = c.get(f'/travelbudget/api/export.xls?yq={_yq}&gids={",".join(_pick)}'
+            ).headers.get('Content-Disposition', '')
+ok('파일명에 선택 건수 표시', quote('선택', safe='') in _cd, _cd[-70:])
+# 화면 — 무엇이 나갈지 누르기 전에 보인다
+ok('목록 화면에 센터 제출 버튼', 'id="lsXls"' in _appjs and '센터 제출 양식' in _appjs)
+ok('CSV 버튼도 같은 대상', 'id="lsCsv"' in _appjs)
+ok('선택이 있으면 선택 건만', 'SEL.has(g.group_id)' in _appjs.split('function exportTargets')[1][:300])
+ok('건수·인원·금액을 미리 알려줌', '나갑니다' in _appjs)
+ok('분기 전체면 gids 를 붙이지 않음', 'rows.length === all.length' in _appjs)
+ok('정적판도 같은 규칙', 'function ledgerRows(data, yq, internal, gids)' in
+   open('tools/tb_local.js', encoding='utf-8').read())
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

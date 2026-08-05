@@ -379,10 +379,12 @@ try {
   await page.fill('#v-list tr.filt th:nth-child(3) input', '');
   await sleep(300);
   // 상태 컬럼 드롭다운 — 실제 존재하는 상태로 필터
-  const someStatus = await page.evaluate(() =>
-    document.querySelector('#listBody tr.grp-head .status')?.textContent.trim());
-  const rawStatus = someStatus === '계획(잠정)' ? '계획 등록' : someStatus;
-  await page.selectOption('#v-list tr.filt th:nth-child(2) select', rawStatus);
+  // 화면 라벨이 아니라 실제 값으로 고른다 — 라벨은 좁은 칸에 맞춰 짧게 쓸 수 있다
+  const rawStatus = await page.evaluate(() => {
+    const here = ST.groups.filter(g => g.yq === YQ);
+    return here.length ? here[0].roll : ST.meta.statuses[0];
+  });
+  await page.selectOption('#v-list tr.filt th:nth-child(2) select', { value: rawStatus });
   await sleep(300);
   const stFiltered = await page.evaluate(() => [...document.querySelectorAll('#listBody tr:not(.grp-head):not(.empty)')].length);
   ok('상태 컬럼 필터 동작', stFiltered >= 1 && stFiltered <= stageInfo.stages, {rawStatus, stFiltered});
@@ -1416,6 +1418,63 @@ try {
   ok('선택 항목 테두리도 남색 계열', look.navOnLine === 'rgb(184, 204, 226)', look.navOnLine);
   ok('강조 막대(그림자)를 쓰지 않음', look.navOn === '' || look.navOn === 'none', look.navOn.slice(0, 50));
   ok('그림자 종류 4개 이하', look.shadows <= 4, look.shadows);
+
+  // ── §28 걸러 놓은 건만 센터 제출 양식으로 ──
+  console.log('\n== 28. 걸러서 내보내기 ==');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => { LQ.q = ''; LQ.col = {}; SEL.clear(); nav('list'); rList(); });
+  await page.waitForTimeout(500);
+  const expAll = await page.evaluate(() => ({
+    href: document.querySelector('#lsXls').getAttribute('href'),
+    label: document.querySelector('#lsXls').textContent.trim(),
+    note: document.querySelector('#lsExpNote').textContent.trim(),
+  }));
+  ok('필터가 없으면 분기 전체 (gids 없음)', !/gids=/.test(expAll.href), expAll.href);
+  ok('버튼에 건수 표시', /· \d+건$/.test(expAll.label), expAll.label);
+  // 상태를 '확정 예정' 으로 걸러 본다 — 추가 예산 요청에 쓰는 조합
+  await page.evaluate(() => { setCol('stage', '확정 예정'); });
+  await page.waitForTimeout(400);
+  const expOne = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#listBody tr')]
+      .filter(tr => !tr.classList.contains('grp-head') && !tr.classList.contains('empty'));
+    const href = document.querySelector('#lsXls').getAttribute('href');
+    const gids = (href.match(/gids=([^&]*)/) || [, ''])[1];
+    return { n: rows.length, gids: decodeURIComponent(gids).split(',').filter(Boolean),
+             csv: document.querySelector('#lsCsv').getAttribute('href'),
+             label: document.querySelector('#lsXls').textContent.trim(),
+             note: document.querySelector('#lsExpNote').textContent.trim() };
+  });
+  ok('걸러진 건수만큼 gids 가 붙음', expOne.gids.length === expOne.n && expOne.n > 0, expOne);
+  ok('CSV 버튼도 같은 대상', /gids=/.test(expOne.csv) &&
+     decodeURIComponent((expOne.csv.match(/gids=([^&]*)/) || [, ''])[1]).split(',').length === expOne.n,
+     expOne.csv);
+  ok('버튼·안내에 같은 건수', expOne.label.includes(`${expOne.n}건`)
+     && expOne.note.includes(`${expOne.n}건`), [expOne.label, expOne.note]);
+  // 실제로 받아 보면 그 건만 들어 있다
+  const got = await page.evaluate(async href => {
+    const r = await fetch(href.replace('export.xls', 'export.csv'));
+    const txt = (await r.text()).replace(/^\ufeff/, '');
+    const lines = txt.trim().split('\r\n');
+    return { head: lines[0], rows: lines.length - 1 };
+  }, await page.getAttribute('#lsXls', 'href'));
+  ok('내려받은 파일이 센터 양식 머리글', got.head.startsWith('구분,LV2,CCG,CCG명'), got.head.slice(0, 40));
+  ok('내려받은 행이 걸러진 건의 출장자 수', got.rows > 0 && got.rows >= expOne.n, got);
+  // 체크박스로 고른 것이 있으면 그 건만
+  await page.evaluate(() => { LQ.col = {}; renderListBody(); });
+  await page.waitForTimeout(300);
+  const pickedGid = await page.evaluate(() => {
+    const g = ST.groups.find(x => x.yq === YQ);
+    SEL.add(g.group_id); renderListBody();
+    return g.group_id;
+  });
+  await page.waitForTimeout(300);
+  const expSel = await page.evaluate(() => ({
+    href: document.querySelector('#lsXls').getAttribute('href'),
+    note: document.querySelector('#lsExpNote').textContent.trim() }));
+  ok('고른 것이 있으면 그것만 나간다',
+     decodeURIComponent((expSel.href.match(/gids=([^&]*)/) || [, ''])[1]) === pickedGid, expSel.href);
+  ok('안내가 \'고른\' 이라고 말함', expSel.note.startsWith('고른'), expSel.note);
+  await page.evaluate(() => { SEL.clear(); renderListBody(); });
 
   // ignore external-CDN load failures (sandbox blocks them); we only care about code errors
   const codeErrs = errs.filter(e => !/ERR_TUNNEL_CONNECTION_FAILED|Failed to load resource/.test(e));

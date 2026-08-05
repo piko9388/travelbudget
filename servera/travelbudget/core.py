@@ -75,7 +75,7 @@ def ccg_by_cd(data=None):
     """CCG 코드 → 팀 이름. 표시용 이름은 항상 코드에서 파생한다."""
     return {t["ccg"]: t["team"] for t in ccg_teams(data)}
 
-APP_VERSION = "v10.20"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_VERSION = "v10.21"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-08-03"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -720,13 +720,19 @@ def make_budget_csv(data, yq=None):
     return "﻿" + buf.getvalue()
 
 
-def ledger_rows(data, yq=None, internal=False):
-    """센터 관리 양식(정산 대장) 행 — 출장자 개인별 1행."""
+def ledger_rows(data, yq=None, internal=False, gids=None):
+    """센터 관리 양식(정산 대장) 행 — 출장자 개인별 1행.
+
+    gids 를 주면 그 출장건만 담는다. 화면에서 걸러 놓은 것만 제출할 때 쓴다
+    (예: 확정 예정 건만 뽑아 추가 예산 요청). None 이면 전부."""
     out = []
+    keep = set(gids) if gids is not None else None
     by_cd = ccg_by_cd(data)                  # 제출본 CCG명도 설정 기준으로 통일
     for raw in sorted(data.get("groups", []), key=lambda g: _txt(g.get("dep_dt"))):
         g = normalize_group(raw, by_cd=by_cd)
         if yq and g["yq"] != yq:
+            continue
+        if keep is not None and g.get("group_id") not in keep:
             continue
         for p in g["travelers"]:
             row = [g["plan_type"], "소재", p.get("ccg", ""), _csv_safe(p.get("ccg_nm", "")),
@@ -744,12 +750,12 @@ def ledger_rows(data, yq=None, internal=False):
     return out
 
 
-def make_xls(data, yq=None, internal=False):
+def make_xls(data, yq=None, internal=False, gids=None):
     """엑셀 서식 포함 내보내기 — 한글 맑은 고딕 / 영문·숫자 Trebuchet MS.
     CSV는 순수 텍스트라 글꼴을 담을 수 없어, 서식이 필요한 제출본은 이 파일을 쓴다.
     (외부 라이브러리 없이 Excel이 그대로 여는 HTML 표 형식)"""
     heads = CSV_HEADERS + (CSV_EXTRA if internal else [])
-    rows = ledger_rows(data, yq, internal)
+    rows = ledger_rows(data, yq, internal, gids)
     # 영문·숫자는 Trebuchet MS, 한글은 맑은 고딕으로 떨어지도록 순서를 둔다
     font = "'Trebuchet MS','Malgun Gothic','맑은 고딕',sans-serif"
     th = (f"font-family:{font};font-size:10pt;font-weight:bold;background:#EEF2F8;"
@@ -760,7 +766,10 @@ def make_xls(data, yq=None, internal=False):
         num_col = isinstance(v, int) or (heads[i].startswith(("계획_", "실적_")) or heads[i] in ("출장일수", "리드타임(일)"))
         return f'<td style="{tdn if num_col else td}">{escape(str(v))}</td>'
     body = "".join("<tr>" + "".join(cell(v, i) for i, v in enumerate(r)) + "</tr>" for r in rows)
+    # 걸러서 낸 제출본은 제목에 그 사실을 적는다 — 받는 쪽이 '전체인 줄' 알면 안 된다
     title = f"소재 국내 출장비 정산 대장 {yq or '전체'}"
+    if gids is not None:
+        title += f" (선택 {len(set(gids))}건 · 출장자 {len(rows)}명)"
     return ('<html xmlns:o="urn:schemas-microsoft-com:office:office" '
             'xmlns:x="urn:schemas-microsoft-com:office:excel">'
             '<head><meta charset="utf-8">'
@@ -771,8 +780,8 @@ def make_xls(data, yq=None, internal=False):
             f"{body}</table></body></html>")
 
 
-def make_csv(data, yq=None, internal=False):
-    rows = ledger_rows(data, yq, internal)
+def make_csv(data, yq=None, internal=False, gids=None):
+    rows = ledger_rows(data, yq, internal, gids)
     b = io.StringIO()
     w = csv.writer(b, lineterminator="\r\n")
     w.writerow(CSV_HEADERS + (CSV_EXTRA if internal else []))

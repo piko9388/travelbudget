@@ -83,6 +83,25 @@ for (const [w, h, label] of [[1366, 768, '1366×768 (노트북)'], [1920, 1080, 
         .filter(e => e.checkVisibility && e.checkVisibility())
         .filter(e => { const r = e.getBoundingClientRect(); return r.height > 0 && r.height < 24; })
         .map(e => `${e.className}:${Math.round(e.getBoundingClientRect().height)}px`);
+      // select 는 넘쳐도 scrollWidth 가 늘지 않아 위 '잘린 글자' 검사에 안 걸린다 — 따로 잰다
+      const cv = document.createElement('canvas').getContext('2d');
+      const cutSel = [...document.querySelectorAll('main select, aside select')].filter(vis)
+        .filter(e => {
+          const cs = getComputedStyle(e);
+          cv.font = `${cs.fontSize} ${cs.fontFamily}`;
+          const room = e.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 20;
+          // 지금 고른 것만이 아니라 '고를 수 있는 것 중 가장 긴 것'이 들어가야 한다
+          const longest = [...e.options].reduce((a, o) =>
+            cv.measureText(o.textContent).width > cv.measureText(a).width ? o.textContent : a, '');
+          return cv.measureText(longest).width > room + 1;
+        })
+        .map(e => {
+          const cs = getComputedStyle(e);
+          cv.font = `${cs.fontSize} ${cs.fontFamily}`;
+          const longest = [...e.options].reduce((a, o) =>
+            cv.measureText(o.textContent).width > cv.measureText(a).width ? o.textContent : a, '');
+          return `${e.className}:${longest}`.slice(0, 48);
+        });
       // 한 행 안의 입력칸들이 서로 다른 높이로 그려지면 줄이 우글거려 보인다
       const jitter = [];
       document.querySelectorAll('main tr, main .filter-row').forEach(row => {
@@ -94,10 +113,12 @@ for (const [w, h, label] of [[1366, 768, '1366×768 (노트북)'], [1920, 1080, 
         if (spread > 1) jitter.push(`${row.className || row.tagName}:${spread}px`);
       });
       return { over: de.scrollWidth - de.clientWidth, clipped: [...new Set(clipped)], overlap,
-               tiny: [...new Set(tiny)], jitter: [...new Set(jitter)] };
+               tiny: [...new Set(tiny)], jitter: [...new Set(jitter)],
+               cutSel: [...new Set(cutSel)] };
     });
     ok(`${v} — 가로 스크롤 없음`, r.over <= 0, r.over);
     ok(`${v} — 한 줄 안의 입력칸 눈높이 같음`, r.jitter.length === 0, r.jitter.slice(0, 3));
+    ok(`${v} — 선택칸 글자 안 잘림`, r.cutSel.length === 0, r.cutSel.slice(0, 3));
     ok(`${v} — 잘린 글자 없음`, r.clipped.length === 0, r.clipped.slice(0, 4));
     ok(`${v} — 카드 겹침 없음`, r.overlap === 0, r.overlap);
     ok(`${v} — 클릭 대상 24px 이상`, r.tiny.length === 0, r.tiny.slice(0, 4));

@@ -13,8 +13,16 @@ app = s1(app, """  const r = await fetch(API + path, opt);
   const b = await r.json().catch(() => ({}));
   return {ok: r.ok, status: r.status, data: b};""",
 """  return __localApi(path, opt);   // 정적(GitHub Pages) — 서버 대신 브라우저에서 동일 로직 처리""", "api")
-app = s1(app, '<a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">CSV 다운로드</a></div>',
-              '<button class="btn" onclick="downloadCsv(YQ)">CSV 다운로드</button></div>', "list-csv")
+# 정적판에는 서버가 없다 — 주소는 쓰지 않고 dataset.gids 만 넘긴다
+app = s1(app,
+    "  xls.href = `${API}/export.xls?${q}`;\n  csv.href = `${API}/export.csv?${q}`;",
+    "  void q;   // 정적판: 주소 대신 아래 dataset.gids 로 넘긴다", "list-export-href")
+_G = "(this.dataset.gids||'').split(',').filter(Boolean)"
+app = s1(app,
+    '<a class="btn pri" id="lsXls" href="${API}/export.xls?yq=${encodeURIComponent(YQ)}">센터 제출 양식 (Excel)</a>\n'
+    '          <a class="btn" id="lsCsv" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">CSV</a>',
+    f'<button class="btn pri" id="lsXls" onclick="downloadXls(YQ,false,{_G})">센터 제출 양식 (Excel)</button>\n'
+    f'          <button class="btn" id="lsCsv" onclick="downloadCsv(YQ,false,{_G})">CSV</button>', "list-csv")
 app = s1(app, """        <a class="btn pri" href="${API}/export.xls?yq=${encodeURIComponent(YQ)}">${YQ} 센터 제출 (Excel)</a>
         <a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">${YQ} 출장 CSV</a>
         <a class="btn" href="${API}/export.csv">전체 출장 CSV</a>

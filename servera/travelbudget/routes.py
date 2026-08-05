@@ -718,13 +718,30 @@ def admin_verify():
 
 
 # ── CSV / 백업 ────────────────────────────────────────────
+# 화면에서 걸러 놓은 건만 내보낼 때 쓰는 목록. 주소줄 길이를 생각해 상한을 둔다
+# (넘치면 조용히 자르지 않고 전체로 되돌린다 — 일부만 빠진 제출본이 더 위험하다).
+GIDS_MAX = 800
+
+
+def _gids_arg():
+    """?gids=TB-0001,TB-0002 → ['TB-0001', ...]  (없으면 None = 전체)"""
+    raw = (request.args.get("gids") or "").strip()
+    if not raw:
+        return None, ""
+    ids = [x.strip() for x in raw.split(",") if x.strip()]
+    if not ids or len(ids) > GIDS_MAX:
+        return None, ""
+    return ids, f"_선택{len(set(ids))}건"
+
+
 @travelbudget.get("/api/export.csv")
 def export_csv():
     yq = request.args.get("yq") or None
     internal = request.args.get("mode") == "internal"
-    content = C.make_csv(load_data(), yq, internal)
+    gids, tag = _gids_arg()
+    content = C.make_csv(load_data(), yq, internal, gids)
     kind = "내부관리" if internal else "센터제출"
-    fn = f"소재국내출장비_{kind}_{yq or '전체'}_{datetime.now().strftime('%Y%m%d')}.csv"
+    fn = f"소재국내출장비_{kind}_{yq or '전체'}{tag}_{datetime.now().strftime('%Y%m%d')}.csv"
     # RFC 5987: 헤더는 latin-1만 허용 — 한글 파일명을 percent-encoding 해야 실서버에서 안 죽는다.
     return Response(content, mimetype="text/csv; charset=utf-8",
                     headers={"Content-Disposition":
@@ -737,9 +754,10 @@ def export_xls():
     """엑셀 서식(맑은 고딕/Trebuchet MS) 포함 제출본."""
     yq = request.args.get("yq") or None
     internal = request.args.get("mode") == "internal"
-    content = C.make_xls(load_data(), yq, internal)
+    gids, tag = _gids_arg()
+    content = C.make_xls(load_data(), yq, internal, gids)
     kind = "내부관리" if internal else "센터제출"
-    fn = f"소재국내출장비_{kind}_{yq or '전체'}_{datetime.now().strftime('%Y%m%d')}.xls"
+    fn = f"소재국내출장비_{kind}_{yq or '전체'}{tag}_{datetime.now().strftime('%Y%m%d')}.xls"
     return Response(content, mimetype="application/vnd.ms-excel; charset=utf-8",
                     headers={"Content-Disposition":
                              "attachment; filename=travelbudget.xls; "

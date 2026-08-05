@@ -82,7 +82,10 @@ function stClass(s){ return s === '처리 완료' ? 'done' : s === '취소' ? 'c
   : (s === '실적 입력·인폼' || s === '소재 이관') ? 'wip' : ''; }
 // 화면 표기만 바꾼다 — data.json·CSV·센터 양식의 저장값은 그대로여야 하므로 여기서만 치환
 const ST_LABEL = {'계획 등록': '계획(잠정)', '확정 예정': '출장 확정 · 예산 반영'};
+// 좁은 칸(표 머리 필터)에서는 짧은 쪽을 쓴다 — 긴 이름은 잘려서 오히려 못 읽는다
+const ST_SHORT = {'계획 등록': '계획(잠정)', '확정 예정': '출장 확정', '실적 입력·인폼': '실적·인폼'};
 function dispSt(s){ return ST_LABEL[s] || s; }
+function shortSt(s){ return ST_SHORT[s] || s; }
 function gname(g){ return [g.city, g.org].filter(Boolean).join(' '); }
 function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); }
 function procTag(g){   // 부분 처리(개인별 상태 분리) 표시 — 섞여 있을 때만
@@ -753,8 +756,12 @@ function cancelEdit(){ EDIT_GID = null; rPlan(); nav('plan'); }
 function rPlan(){
   const m = ST.meta;
   const ed = EDIT_GID ? ST.groups.find(x => x.group_id === EDIT_GID) : null;
+  // 목록이 길어지면 닫힌 칸에서 잘려 오히려 못 읽는다 — 보이는 길이를 정해 두고 끊되,
+  // 전체 문구는 title 로 남겨 마우스를 올리면 보이게 한다
+  const cut = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
   const copyOpts = ST.groups.filter(g => g.status !== '취소').slice(0, 30)
-    .map(g => `<option value="${g.group_id}">${esc(gname(g))} · ${names(g)} · ${fmtD(g.dep_dt)}</option>`).join('');
+    .map(g => { const full = `${gname(g)} · ${names(g)} · ${fmtD(g.dep_dt)}`;
+      return `<option value="${g.group_id}" title="${esc(full)}">${esc(cut(full, 16))}</option>`; }).join('');
   $('#v-plan').innerHTML = justPanel() + `
     <div class="card">
       <div class="card-head"><h2>${ed ? '출장 계획 수정' : '출장 계획 등록'}</h2>
@@ -1527,6 +1534,37 @@ function listRowHtml(g, grouped){
       ${g.remark ? `<div class="dtl-rm"><b>비고</b> ${esc(g.remark)}</div>` : ''}
     </td></tr>` : ''}`;
 }
+/* 내보내기 대상 — 고른 것이 있으면 그것만, 없으면 지금 화면에 걸러진 것만.
+   버튼에 건수를 찍어, 무엇이 나갈지 누르기 전에 보이게 한다. */
+const EXPORT_MAX = 800;                     // 주소줄 길이 한계 (서버도 같은 값으로 막는다)
+function exportTargets(G){
+  const pick = G.filter(g => SEL.has(g.group_id));
+  const rows = pick.length ? pick : G;
+  return { rows, bySel: pick.length > 0 };
+}
+function syncExport(G, all){
+  const xls = $('#lsXls'), csv = $('#lsCsv'), note = $('#lsExpNote');
+  if (!xls || !csv) return;
+  const { rows, bySel } = exportTargets(G);
+  const whole = !bySel && rows.length === all.length;      // 분기 전체면 gids 를 붙이지 않는다
+  const ids = rows.map(g => g.group_id);
+  const q = `yq=${encodeURIComponent(YQ)}`
+    + (whole || !ids.length || ids.length > EXPORT_MAX ? '' : `&gids=${encodeURIComponent(ids.join(','))}`);
+  xls.href = `${API}/export.xls?${q}`;
+  csv.href = `${API}/export.csv?${q}`;
+  // 정적판(아이패드)에는 서버가 없어 주소 대신 이 값을 읽어 파일을 만든다
+  const tag = (whole || !ids.length || ids.length > EXPORT_MAX) ? '' : ids.join(',');
+  xls.dataset.gids = tag; csv.dataset.gids = tag;
+  const pax = rows.reduce((s, g) => s + (g.travelers || []).length, 0);
+  const money = rows.reduce((s, g) => s + (g.plan_tot || 0), 0);
+  xls.textContent = `센터 제출 양식 (Excel) · ${rows.length}건`;
+  if (note) {
+    note.textContent = !rows.length ? '내보낼 건이 없습니다.'
+      : ids.length > EXPORT_MAX
+        ? `${rows.length}건은 한 번에 내보낼 수 있는 ${EXPORT_MAX}건을 넘어 분기 전체가 나갑니다. 조건을 더 좁혀 주세요.`
+        : `${bySel ? '고른' : whole ? '이번 분기 전체' : '지금 걸러진'} ${rows.length}건 · 출장자 ${pax}명 · 계획 ${won(money)}원 이 나갑니다.`;
+  }
+}
 function renderListBody(){
   const {all, G} = listRows();
   let body = '', last = null;
@@ -1556,6 +1594,7 @@ function renderListBody(){
   const cnt = $('#listCount');
   if (cnt) cnt.textContent = `${G.length}/${all.length}건 · 잠정 ${ST.dash.nPlan || 0} · 확정 ${ST.dash.nConfirm || 0}`;
   drawSelBar(G);
+  syncExport(G, all);
   const eff = effSort();
   $$('#v-list .sic').forEach(el => {            // 정렬 표시(▲▼) — 실제로 뒤집히는 열에만
     el.textContent = el.dataset.k === eff ? (LQ.dir === 'asc' ? ' ▲' : ' ▼')
@@ -1573,8 +1612,8 @@ function rList(){
     + `${esc(c.th)}<span class="sic" data-k="${c.k}"></span></th>`).join('');
   // 컬럼별 검색창 — 상태는 선택, 금액은 '이상', 나머지는 포함 검색
   const filts = LCOLS.map(c => {
-    if (c.f === 'sel') return `<th><select class="colf" aria-label="상태로 거르기" onchange="setCol('stage',this.value)">`
-      + [''].concat(ST.meta.statuses).map(x => opt(x, LQ.col.stage || '', x ? dispSt(x) : '전체')).join('')
+    if (c.f === 'sel') return `<th><select class="colf colf-sel" aria-label="상태로 거르기" onchange="setCol('stage',this.value)">`
+      + [''].concat(ST.meta.statuses).map(x => opt(x, LQ.col.stage || '', x ? shortSt(x) : '전체')).join('')
       + `</select></th>`;
     return `<th class="${c.num ? 'num' : ''}"><input class="colf" value="${esc(LQ.col[c.k] || '')}"`
       + ` placeholder="${esc(c.ph || '')}" oninput="setCol('${c.k}',this.value)"></th>`;
@@ -1584,7 +1623,11 @@ function rList(){
       실제로 가는 건만 <b>출장 확정</b>을 누르면 계획 금액만큼 예산이 확보됩니다.</div>
     <div class="card">
       <div class="card-head"><h2>${YQ} 출장 내역 <span class="sub" id="listCount" style="font-weight:600"></span></h2>
-        <a class="btn" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">CSV 다운로드</a></div>
+        <div class="btns" style="margin:0">
+          <a class="btn pri" id="lsXls" href="${API}/export.xls?yq=${encodeURIComponent(YQ)}">센터 제출 양식 (Excel)</a>
+          <a class="btn" id="lsCsv" href="${API}/export.csv?yq=${encodeURIComponent(YQ)}">CSV</a>
+        </div></div>
+      <p class="cap" id="lsExpNote" style="margin:4px 0 0"></p>
       <div class="filter-row" style="margin-top:12px">
         <input id="listFilter" value="${esc(LQ.q)}" placeholder="전체 검색 (성명·사번·업체·도시·목적)"
           oninput="LQ.q=this.value; renderListBody()">
