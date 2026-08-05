@@ -1592,6 +1592,39 @@ ok('엑셀도 같은 27칸 머리글', all(f'>{_esc(h)}</th>' in _x for h in _C.
 _cd = c.get(f'/travelbudget/api/export.xls?yq={_yq}&gids={",".join(_pick)}'
             ).headers.get('Content-Disposition', '')
 ok('파일명에 선택 건수 표시', quote('선택', safe='') in _cd, _cd[-70:])
+# 확정 건은 대개 여러 건이다 — 인원이 제각각인 여러 건을 한 번에 내보내 본다
+_mk = []
+for _i, (_city, _org, _pax) in enumerate((('청주', '원익머트리얼즈', 3), ('이천', '동우화인켐', 1),
+                                          ('천안', '천안화학', 2), ('구미', 'SK실트론', 4))):
+    _tr = [dict(name=f'다건{_i}{_j}', emp_no=f'88{_i}{_j}', rank='TL', ccg_nm='소재전략',
+                p_trans=100000, p_meal=20000) for _j in range(_pax)]
+    _rr = c.post('/travelbudget/api/groups',
+                 json=dict(g3, city=_city, org=_org, purpose=f'추가예산 대상 {_i}',
+                           travelers=_tr, confirmed=True)).get_json()
+    _mk.append((_rr['group']['group_id'], _pax))
+_ids = [x[0] for x in _mk]
+_want = sum(x[1] for x in _mk)
+_multi = c.get(f'/travelbudget/api/export.csv?yq={_yq}&gids={",".join(_ids)}'
+               ).get_data(as_text=True).lstrip('\ufeff').strip().split('\r\n')
+ok('여러 건을 한 번에 — 등록한 건 수만큼', len(_ids) == 4, len(_ids))
+ok('여러 건 합산 행 수 = 각 건의 출장자 합', len(_multi) - 1 == _want, (len(_multi) - 1, _want))
+_st2 = c.get('/travelbudget/api/state').get_json()
+_conf = [g for g in _st2['groups'] if g['status'] == '확정 예정']
+ok('만든 건이 모두 확정 예정', all(gid in [g['group_id'] for g in _conf] for gid in _ids),
+   [g['group_id'] for g in _conf])
+# 확정 예정 '전체'를 걸러 내보내는 실제 사용 흐름
+_cids = [g['group_id'] for g in _conf]
+_cpax = sum(len(g['travelers']) for g in _conf)
+_cout = c.get(f'/travelbudget/api/export.csv?yq={_yq}&gids={",".join(_cids)}'
+              ).get_data(as_text=True).lstrip('\ufeff').strip().split('\r\n')
+ok('확정 예정 전체를 한 번에 내보냄', len(_cout) - 1 == _cpax, (len(_cout) - 1, _cpax))
+_ok_names = {p['name'] for g in _conf for p in g['travelers']}
+_bad = [l.split(',')[5] for l in _cout[1:] if l.split(',')[5] not in _ok_names]
+ok('확정이 아닌 건의 사람은 한 명도 없음', not _bad, _bad[:4])
+_cx = c.get(f'/travelbudget/api/export.xls?yq={_yq}&gids={",".join(_cids)}').get_data(as_text=True)
+ok('엑셀 제목에 건수·인원이 함께', f'(선택 {len(set(_cids))}건 · 출장자 {_cpax}명)' in _cx,
+   _cx[_cx.find('12pt'):][:100])
+
 # 화면 — 무엇이 나갈지 누르기 전에 보인다
 ok('목록 화면에 센터 제출 버튼', 'id="lsXls"' in _appjs and '센터 제출 양식' in _appjs)
 ok('CSV 버튼도 같은 대상', 'id="lsCsv"' in _appjs)
