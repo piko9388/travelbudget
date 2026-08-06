@@ -402,7 +402,9 @@ print('\n=== 15. 센터 양식 Excel · 안내 문구 · 버전 ===')
 r = c.get('/travelbudget/api/export.xls?yq=' + yq)
 ok('센터 Excel 200', r.status_code==200, r.status_code)
 xls = r.get_data(as_text=True)
-ok('Excel 글꼴 맑은고딕/Trebuchet', 'Malgun Gothic' in xls and 'Trebuchet MS' in xls)
+# 엑셀은 받는 PC 에 화면 글꼴(Pretendard)이 없다 — 맑은 고딕으로 고정한다
+ok('Excel 글꼴은 맑은 고딕 고정', 'Malgun Gothic' in xls
+   and 'Trebuchet' not in xls and 'Pretendard' not in xls and 'TB UI' not in xls)
 ok('Excel 센터양식 27열', xls.count('<th ')==27, xls.count('<th '))
 ok('Excel 헤더 latin-1 안전', all(ord(ch)<256 for ch in r.headers.get('Content-Disposition','')))
 ri = c.get('/travelbudget/api/export.xls?yq=' + yq + '&mode=internal')
@@ -801,8 +803,11 @@ for _hf in ('servera/travelbudget/templates/index.html',
            _fams.index('-apple-system') < _fams.index('Apple SD Gothic Neo'), _fams)
     ok(f'{_hf.split("/")[-1]} 외부 글꼴 URL 없음',
        'fonts.googleapis' not in _h and 'cdn.jsdelivr' not in _h and '//fonts.' not in _h)
-    ok(f'{_hf.split("/")[-1]} Pretendard 를 스택에 직접 넣지 않음(주석 제외)',
-       not any('Pretendard' in l for l in _decl), [l for l in _decl if 'Pretendard' in l])
+    # 글꼴 이름(font-family)에 Pretendard 를 직접 쓰면, 파일이 없는 PC 에서 이름만 남아
+    # 아무 일도 안 한다. 파일은 "TB UI" 라는 이름으로 싣고, @font-face 의 url 은 예외다.
+    ok(f'{_hf.split("/")[-1]} 글꼴 스택에 Pretendard 이름을 쓰지 않음',
+       not any('Pretendard' in l for l in _decl if 'font-family' in l and 'src:url' not in l),
+       [l for l in _decl if 'Pretendard' in l and 'font-family' in l][:2])
 
 # 텍스트 길이 상한 — 금액엔 상한이 있는데 텍스트엔 없어 5,000자가 그대로 저장됐다
 print('\n=== 27. 붙여넣기 사고 방어선 (텍스트·동행 수) ===')
@@ -974,7 +979,7 @@ _mails = _re0.search(r"mail_recipients:\s*\[(.*?)\]", _blk, _re0.S).group(1)
 _local = {
     'system_name': _grab('system_name'), 'notice': _grab('notice'),
     'notice_sub': _grab('notice_sub'), 'admin_pw': _grab('admin_pw'),
-    'reference_url': _grab('reference_url'),
+    'reference_url': _grab('reference_url'), 'approval_url': _grab('approval_url'),
     'mail_recipients': _re0.findall(r"'([^']+)'", _mails),
 }
 _srv = _store._settings()
@@ -1298,7 +1303,9 @@ ok('배수 줄높이 없음 (전부 px 정수)', not _unitless, _unitless[:5])
 _lh = set(_re0.findall(r'line-height:(\d+)px', _ix2))
 ok('줄높이가 전부 정수', all(x.isdigit() for x in _lh), sorted(_lh))
 # 2) 맑은 고딕은 400·700 뿐 — 선언과 렌더가 일치해야 위계가 실제로 보인다
-_w = set(_re0.findall(r'font-weight:(\d+)', _ix2))
+# @font-face 의 font-weight 는 '가변 폰트가 낼 수 있는 범위'라 UI 굵기가 아니다 — 빼고 센다
+_ix2_ui = _re0.sub(r'@font-face\{[^}]*\}', '', _ix2)
+_w = set(_re0.findall(r'font-weight:(\d+)', _ix2_ui))
 ok('굵기는 400·700 두 종만', _w <= {'400', '700'}, sorted(_w))
 # 3) 11px 한글은 맑은 고딕에서 획이 붙는다
 _sz = sorted({int(x) for x in _re0.findall(r'font-size:(\d+)px', _ix2)})
@@ -1445,7 +1452,8 @@ for _name, _body in (('화면', _tpl_body), ('안내문', _guide_body)):
              _re0.finditer(r'font-size:\s*(\d+px);\s*line-height:\s*([\d.]+px?)', _body)
              if _SCALE.get(m.group(1)) and m.group(2) != _SCALE[m.group(1)]]
     ok(f'{_name}: 크기↔줄높이 짝이 맞음', not _pair, _pair[:4])
-    _w = sorted(set(_re0.findall(r'font-weight:\s*(\d+)', _body)))
+    _w = sorted(set(_re0.findall(r'font-weight:\s*(\d+)',
+                                 _re0.sub(r'@font-face\{[^}]*\}', '', _body))))
     ok(f'{_name}: 굵기는 400·700 둘뿐 (맑은 고딕이 가진 것)',
        set(_w) <= {'400', '700'}, _w)
     ok(f'{_name}: letter-spacing 미사용 (한글은 기본 자간이 맞다)',
@@ -1633,6 +1641,62 @@ ok('건수·인원·금액을 미리 알려줌', '나갑니다' in _appjs)
 ok('분기 전체면 gids 를 붙이지 않음', 'rows.length === all.length' in _appjs)
 ok('정적판도 같은 규칙', 'function ledgerRows(data, yq, internal, gids)' in
    open('tools/tb_local.js', encoding='utf-8').read())
+
+# ── 글꼴 · JSON 입력 · 결재 링크 ──
+print('\n=== 37. 글꼴 · JSON 입력 · 결재 링크 ===')
+_fd = 'servera/travelbudget/static/fonts'
+ok('화면 글꼴 파일 있음', os.path.exists(f'{_fd}/PretendardVariable.woff2'))
+ok('폰트 라이선스 동봉 (SIL OFL)', os.path.exists(f'{_fd}/Pretendard-LICENSE.txt')
+   and 'SIL OPEN FONT LICENSE' in open(f'{_fd}/Pretendard-LICENSE.txt', encoding='utf-8').read())
+ok('가변 폰트 한 개로 400·700', 'font-weight:45 930' in _tpl
+   and 'PretendardVariable.woff2' in _tpl)
+ok('폰트가 없으면 조용히 맑은 고딕', '{% elif ui_font %}' in _tpl and 'Malgun Gothic' in _tpl)
+ok('폰트 감지가 가변 파일을 본다', 'PretendardVariable.woff2' in
+   open('servera/travelbudget/routes.py', encoding='utf-8').read())
+ok('정적판에도 글꼴 서브셋', os.path.exists(f'{_fd}/ui-subset.woff2'))
+_docs = open('docs/index.html', encoding='utf-8').read()
+ok('정적판은 글꼴을 파일이 아니라 안에 심는다',
+   'data:font/woff2;base64' in _docs and 'url("/travelbudget/static/fonts' not in _docs)
+# 엑셀은 받는 PC 기준 — 화면 글꼴이 새어 들어가면 안 된다
+_x2 = c.get('/travelbudget/api/export.xls').get_data(as_text=True)
+ok('엑셀에 화면 글꼴이 새지 않음',
+   'Pretendard' not in _x2 and 'TB UI' not in _x2 and 'Malgun Gothic' in _x2)
+ok('일괄 등록 양식도 맑은 고딕',
+   'Malgun Gothic' in c.get('/travelbudget/api/bulk_template.xls').get_data(as_text=True))
+
+# JSON 붙여넣기 — 사내 LLM 이 만든 결과를 그대로 넣는 길
+ok('JSON 파서 있음', 'function bParseJson' in _appjs)
+ok('배열·단일 객체·{groups:[]} 모두 허용',
+   'Array.isArray(raw.groups)' in _appjs and 'raw = [raw]' in _appjs)
+ok('필수 항목 검사', "travelers 가 비어 있습니다" in _appjs
+   and 'dep_dt(출발일자)가 없습니다' in _appjs and 'city·org·purpose 는 필수' in _appjs)
+ok('CCG 는 이름·코드 둘 다 인식', 'bTeam(p.ccg_nm || p.ccg' in _appjs)
+ok('실적은 JSON 으로 받지 않고 화면에서', '실적 금액은 넣지 않습니다' in _appjs)
+ok('화면에 형식 안내와 복사 버튼', 'JSON 형식 보기' in _appjs and 'jsonSpec()' in _appjs)
+ok('형식 안내에 현재 CCG 목록을 채움', "replace('{{CCG}}'" in _appjs)
+ok('JSON 예시 버튼', 'function bSampleJson' in _appjs)
+ok('문서에도 같은 형식', os.path.exists('JSON_INPUT.md')
+   and 'travelers' in open('JSON_INPUT.md', encoding='utf-8').read())
+
+# 결재 — 사내 사이트 링크 + 결재 창에 넣을 값 꺼내기
+_st3 = c.post('/travelbudget/api/settings',
+              json={'approval_url': 'https://approval.example.com/t'}, headers=ADM)
+ok('결재 사이트 주소 저장', _st3.status_code == 200, _st3.get_json())
+ok('상태에 결재 주소가 실려 나옴',
+   c.get('/travelbudget/api/state').get_json()['settings'].get('approval_url')
+   == 'https://approval.example.com/t')
+_bad = c.post('/travelbudget/api/settings',
+              json={'approval_url': 'javascript:alert(1)'}, headers=ADM)
+ok('http(s) 아닌 주소는 거부', _bad.status_code == 400, _bad.get_json())
+ok('거부돼도 기존 주소가 남아 있음',
+   c.get('/travelbudget/api/state').get_json()['settings'].get('approval_url')
+   == 'https://approval.example.com/t')
+ok('설정 화면에 결재 주소 칸', 'cfgApv' in _appjs)
+ok('행 메뉴에 결재 작성 도우미', "['결재 작성 도우미'" in _appjs and 'function openApproval' in _appjs)
+ok('도우미가 결재 항목을 표로 꺼냄', 'function apvRows' in _appjs and '전체 복사' in _appjs)
+ok('실적이 있으면 실적 금액, 없으면 계획 금액',
+   "const isAct = (g.act_tot || 0) > 0" in _appjs and "const pre = isAct ? 'a_' : 'p_'" in _appjs)
+ok('링크는 새 창 + noopener', 'rel="noopener"' in _appjs.split('function openApproval')[1][:2000])
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

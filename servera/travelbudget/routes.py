@@ -23,8 +23,14 @@ _FONT_DIR = Path(__file__).resolve().parent / "static" / "fonts"
 
 
 def _has_ui_font():
-    """static/fonts/ 에 ui-400.woff2 · ui-700.woff2 가 둘 다 있으면 True."""
-    return all((_FONT_DIR / f"ui-{w}.woff2").exists() for w in (400, 700))
+    """화면 글꼴 파일이 있으면 True.
+    가변 폰트(PretendardVariable.woff2) 한 개면 굵기 두 종이 다 나온다.
+    예전 방식(ui-400/ui-700 두 파일)도 그대로 인정한다."""
+    if (_FONT_DIR / "PretendardVariable.woff2").exists():
+        return "var"
+    if all((_FONT_DIR / f"ui-{w}.woff2").exists() for w in (400, 700)):
+        return "pair"
+    return ""
 
 
 def _is_admin(data):
@@ -154,6 +160,14 @@ def _clean_settings(body, cur, data):
     out["system_name"] = nm[:60]
     out["reference_url"] = (C._txt(body.get("reference_url"))
                             if "reference_url" in body else cur.get("reference_url", ""))[:200]
+    # 사내 전자결재 주소 — 사람이 눌러서 여는 링크라 http(s) 만 허용한다
+    # (javascript: 같은 스킴이 들어가면 링크가 클릭 즉시 코드가 되는 자리다)
+    au = (C._txt(body.get("approval_url")) if "approval_url" in body
+          else cur.get("approval_url", ""))[:300]
+    if au and not au.lower().startswith(("http://", "https://")):
+        e.append("결재 사이트 주소는 http:// 또는 https:// 로 시작해야 합니다.")
+        au = ""
+    out["approval_url"] = au
     return e, out
 
 
@@ -578,6 +592,7 @@ def get_settings():
     return jsonify({"ok": True, "settings": {
         "system_name": s.get("system_name", ""),
         "reference_url": s.get("reference_url", ""),
+        "approval_url": s.get("approval_url", ""),
         "admin_pw": s.get("admin_pw", ""),
         "mail_recipients": list(s.get("mail_recipients") or []),
         "ccg_teams": C.ccg_teams(data),
@@ -751,7 +766,7 @@ def export_csv():
 
 @travelbudget.get("/api/export.xls")
 def export_xls():
-    """엑셀 서식(맑은 고딕/Trebuchet MS) 포함 제출본."""
+    """엑셀 서식(맑은 고딕) 포함 제출본 — 받는 PC 어디서나 같은 모양."""
     yq = request.args.get("yq") or None
     internal = request.args.get("mode") == "internal"
     gids, tag = _gids_arg()

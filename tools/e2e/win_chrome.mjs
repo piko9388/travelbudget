@@ -139,7 +139,7 @@ for (const [w, h, label] of [[1366, 768, '1366×768 (노트북)'], [1920, 1080, 
     ok('Esc 로 메뉴 닫힘', await p.evaluate(() => !document.querySelector('details.rowmenu[open]')));
 
     await p.click('.nav a[data-view="bulk"]'); await p.waitForTimeout(400);
-    await p.click('button:has-text("예시 넣어보기")'); await p.waitForTimeout(600);
+    await p.click('button:text-is("예시 넣어보기")'); await p.waitForTimeout(600);
     const prev = await p.evaluate(() => (document.querySelector('#bkOut')?.innerText || '').length);
     ok('붙여넣기 미리보기 뜸', prev > 20, prev);
     const mono = await p.evaluate(() => getComputedStyle(document.querySelector('#bkText')).fontFamily);

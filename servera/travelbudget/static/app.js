@@ -1031,6 +1031,45 @@ const CENTER_ORDER = ['구분','LV2','CCG','CCG명','사번','성명','직책','
   '계획_총합계','계획_교통비','계획_숙박비','계획_식대&잡비','계획_기타',
   '실적_총합계','실적_교통비','실적_숙박비','실적_식대&잡비','실적_기타','비고'];
 let BULK_ROWS = null;
+/* 사내 LLM 에게 그대로 건네는 사양. 화면([JSON 형식 보기])과 문서(JSON_INPUT.md)가 같은 글을 쓴다. */
+function jsonSpec(){ return JSON_SPEC.replace('{{CCG}}', ST.ccg.map(x => x.team).join(' · ')); }
+const JSON_SPEC = `출장 계획을 아래 JSON 형식으로만 출력하세요. 설명·주석·코드펜스 없이 JSON 배열만 출력합니다.
+
+[
+  {
+    "plan_type": "계획",                 // 계획 | 변경 | 긴급  (기본 계획)
+    "city": "청주",                       // 필수 — 출장 도시
+    "org": "원익머트리얼즈",               // 필수 — 출장 기관&업체
+    "purpose": "NF3 순도 관리 정기 Audit", // 필수 — 출장 목적&사유 (소재명 포함 권장)
+    "kind": "정기 Audit",                 // 기술교류(Live Demo, Data 분석) | 실사&사양 개선,협의 |
+                                          //  정기 Audit | 비정기 Audit(Issue/Theme) | 기타
+    "dep_dt": "2026-08-04",               // 필수 — 출발일자 YYYY-MM-DD
+    "ret_dt": "2026-08-05",               // 복귀일자. 없으면 출발일과 같은 날(당일)
+    "car": "미사용",                       // 미사용 | 자차사용
+    "remark": "",                          // 비고 (긴급 출장 실적 입력 시 필수)
+    "travelers": [                         // 필수 — 1명 이상. 같이 가면 여기에 사람을 늘립니다
+      {
+        "name": "박영희",                  // 필수 — 성명
+        "emp_no": "20140508",              // 필수 — 사번 (한 출장 안에서 중복 불가)
+        "rank": "TL",                      // TL | 팀장
+        "ccg_nm": "EDTW소재기술",           // 필수 — CCG팀명(정확히) 또는 CCG 코드 8자리
+        "p_trans": 120000,                 // 계획 교통비 (숫자, 원)
+        "p_lodg": 100000,                  // 계획 숙박비
+        "p_meal": 70000,                   // 계획 식대&잡비
+        "p_etc": 0                         // 계획 기타
+      }
+    ]
+  }
+]
+
+규칙
+· 한 번의 출장에 여러 명이 가면 travelers 에 사람을 추가합니다(출장 1건 = 객체 1개).
+· 서로 다른 출장은 배열에 객체를 늘립니다.
+· 금액은 숫자만 씁니다(콤마·"원" 없이). 모르면 0 을 넣습니다.
+· 실적 금액은 넣지 않습니다 — 다녀온 뒤 화면에서 입력합니다.
+· CCG팀명은 아래 목록의 이름을 정확히 씁니다: {{CCG}}
+· 날짜는 반드시 YYYY-MM-DD 입니다.`;
+
 
 const bnorm = t => String(t || '').replace(/\s+/g, '').replace(/[·・]/g, '·').trim();
 function bTeam(v){                          // 'EDTW소재기술' 'EDTW소재개발' 'CCG번호' 모두 인식
@@ -1065,7 +1104,49 @@ function bKind(v){
       || ST.meta.kinds.find(k => bnorm(k).toLowerCase().includes(q) || q.includes(bnorm(k).toLowerCase().slice(0,4)))
       || '기타';
 }
+/* JSON 으로 붙여넣는 경우 — 사내 LLM 에게 형식을 주고 받아 그대로 붙이는 길.
+   엑셀 붙여넣기와 같은 화면·같은 미리보기·같은 등록 버튼을 쓴다(경로를 둘로 만들지 않는다). */
+function bParseJson(text){
+  let raw;
+  try { raw = JSON.parse(text); }
+  catch (e) { return {groups: [], errs: ['JSON 형식이 아닙니다 — ' + e.message]}; }
+  if (raw && !Array.isArray(raw) && Array.isArray(raw.groups)) raw = raw.groups;   // {"groups":[...]} 도 허용
+  if (!Array.isArray(raw)) raw = [raw];                                            // 한 건만 준 경우
+  const errs = [], groups = [];
+  raw.forEach((g, i) => {
+    const n = i + 1;
+    if (!g || typeof g !== 'object') { errs.push(`${n}번째 항목이 객체가 아닙니다.`); return; }
+    const trav = Array.isArray(g.travelers) ? g.travelers : [];
+    if (!trav.length) { errs.push(`${n}번째 — travelers 가 비어 있습니다.`); return; }
+    const dep = bDate(g.dep_dt) || String(g.dep_dt || '').trim();
+    const ret = bDate(g.ret_dt) || String(g.ret_dt || '').trim() || dep;
+    if (!dep) { errs.push(`${n}번째 — dep_dt(출발일자)가 없습니다.`); return; }
+    const T = trav.map((p, j) => {
+      const team = bTeam(p.ccg_nm || p.ccg || '');
+      if (!team) errs.push(`${n}번째 ${j + 1}번 출장자 — CCG팀을 알 수 없습니다: ${p.ccg_nm || p.ccg || '(비어 있음)'}`);
+      const num = v => Math.max(0, Math.round(Number(String(v ?? 0).replace(/[^0-9.-]/g, '')) || 0));
+      const row = {name: String(p.name || '').trim(), emp_no: String(p.emp_no || '').trim(),
+                   rank: p.rank === '팀장' ? '팀장' : 'TL', ccg_nm: team};
+      KEYS.forEach(k => { row['p_' + k] = num(p['p_' + k]); row['a_' + k] = num(p['a_' + k]); });
+      if (!row.name || !row.emp_no) errs.push(`${n}번째 ${j + 1}번 출장자 — 성명·사번은 필수입니다.`);
+      return row;
+    });
+    groups.push({plan_type: ['계획', '변경', '긴급'].includes(g.plan_type) ? g.plan_type : '계획',
+                 city: String(g.city || '').trim(), org: String(g.org || '').trim(),
+                 purpose: String(g.purpose || '').trim(), kind: bKind(g.kind),
+                 dep_dt: dep, ret_dt: ret,
+                 car: g.car === '자차사용' ? '자차사용' : '미사용',
+                 remark: String(g.remark || '').trim(), travelers: T, _rows: [`JSON ${n}`]});
+  });
+  groups.forEach((g, i) => {
+    if (!g.city || !g.org || !g.purpose)
+      errs.push(`${i + 1}번째 — city·org·purpose 는 필수입니다.`);
+  });
+  return {groups, errs};
+}
 function bParse(text){
+  const raw = String(text || '').trim();
+  if (raw.startsWith('[') || raw.startsWith('{')) return bParseJson(raw);
   const lines = String(text || '').replace(/\r/g, '').split('\n').filter(l => l.trim());
   if (!lines.length) return {groups: [], errs: ['붙여넣은 내용이 없습니다.']};
   const cut = l => l.split('\t').length > 1 ? l.split('\t') : l.split(',');
@@ -1172,14 +1253,23 @@ async function bSubmit(){
 function rBulk(){
   $('#v-bulk').innerHTML = `
     <div class="card">
-      <h2>엑셀에서 붙여넣어 한 번에 등록</h2>
+      <h2>엑셀 · JSON 으로 한 번에 등록</h2>
       <p class="cap">센터 관리 시트에서 <b>행을 선택해 복사(Ctrl+C)</b> 하고 아래 칸에 <b>붙여넣기(Ctrl+V)</b> 하세요.
-        머리글이 있어도 되고, 없으면 센터 27필드 순서로 읽습니다.</p>
+        머리글이 있어도 되고, 없으면 센터 27필드 순서로 읽습니다.
+        <b>JSON</b> 을 붙여넣어도 같은 방식으로 등록됩니다(사내 LLM 이 만든 결과를 그대로).</p>
       <div class="note">
         <b>꼭 있어야 하는 열</b> · 출장도시 · 출장기관&amp;업체 · 출장목적&amp;사유 · 출발일자 · 성명 · 사번 · CCG명<br>
         <span class="sub">복귀일자가 없으면 출발일과 같은 날(당일)로, 자차·출장구분·비고가 없으면 기본값으로 넣습니다.
         같은 도시·업체·일자·목적 행은 <b>동행자</b>로 보고 한 건으로 묶습니다. 금액은 콤마·"원"이 있어도 됩니다.</span>
       </div>
+      <details class="fold" style="margin-top:12px">
+        <summary>JSON 형식 보기 — 사내 LLM 에게 이 형식을 그대로 주세요</summary>
+        <div class="promptbox" id="jsonSpec">${esc(jsonSpec())}</div>
+        <div class="btns" style="margin-top:8px">
+          <button class="btn sm" onclick="copyText(jsonSpec(),'JSON 형식 안내를 복사했습니다')">형식 복사</button>
+          <button class="btn sm" onclick="bSampleJson()">JSON 예시 넣어보기</button>
+        </div>
+      </details>
       <label for="bkText">붙여넣기</label>
       <textarea id="bkText" class="mono" style="min-height:152px;font-size:13px;line-height:20px"
         placeholder="예)  계획  소재  50119134  EDTW소재기술  20140508  박영희  팀장  청주  원익머트리얼즈  NF3 정기 Audit  2026-08-04  2026-08-05 ..."
@@ -1193,6 +1283,25 @@ function rBulk(){
       <div id="bkOut"></div>
     </div>`;
 }
+function bSampleJson(){
+  const yy = YQ.split('-')[0], mm = String(parseInt(YQ.split('-')[1]) * 3).padStart(2, '0');
+  const teams = ST.ccg.map(x => x.team);
+  $('#bkText').value = JSON.stringify([
+    {plan_type: '계획', city: '청주', org: '원익머트리얼즈', purpose: 'NF3 순도 관리 정기 Audit',
+     kind: '정기 Audit', dep_dt: `${yy}-${mm}-04`, ret_dt: `${yy}-${mm}-05`, car: '자차사용', remark: '',
+     travelers: [
+       {name: '박영희', emp_no: '20140508', rank: '팀장', ccg_nm: teams[0],
+        p_trans: 70000, p_lodg: 95000, p_meal: 65000, p_etc: 0},
+       {name: '이정훈', emp_no: '2071478', rank: 'TL', ccg_nm: teams[Math.min(1, teams.length - 1)],
+        p_trans: 70000, p_lodg: 95000, p_meal: 65000, p_etc: 0}]},
+    {plan_type: '계획', city: '이천', org: '동우화인켐', purpose: 'ArF PR 품질 실사',
+     kind: '실사&사양 개선,협의', dep_dt: `${yy}-${mm}-11`, ret_dt: `${yy}-${mm}-11`, car: '미사용', remark: '',
+     travelers: [
+       {name: '김철수', emp_no: '20150322', rank: '팀장', ccg_nm: teams[Math.min(2, teams.length - 1)],
+        p_trans: 80000, p_lodg: 0, p_meal: 30000, p_etc: 0}]},
+  ], null, 2);
+  bPreview();
+}
 function bSample(){
   const yy = YQ.split('-')[0], mm = String(parseInt(YQ.split('-')[1]) * 3).padStart(2, '0');
   $('#bkText').value =
@@ -1201,6 +1310,70 @@ function bSample(){
      `계획\tC&C소재기술\t2071478\t이정훈\tTL\t청주\t원익머트리얼즈\tNF3 순도 정기 Audit\t${yy}-${mm}-04\t${yy}-${mm}-05\t자차사용\t정기 Audit\t70,000\t95,000\t65,000`,
      `계획\tPatterning소재기술\t20150322\t김철수\t팀장\t이천\t동우화인켐\tArF PR 품질 실사\t${yy}-${mm}-11\t${yy}-${mm}-11\t미사용\t실사&사양 개선,협의\t80,000\t0\t30,000`].join('\n');
   bPreview();
+}
+
+/* ═══ 결재 작성 도우미 ═══
+   결재는 사내 전자결재 사이트에서 올린다. 이 시스템은 '그 창에 넣을 값'을 화면과 같은
+   순서로 꺼내 주고, 한 줄씩·통째로 복사할 수 있게만 한다(값을 대신 써 넣지 않는다). */
+function apvRows(g){
+  const T = g.travelers || [];
+  const sum = k => T.reduce((a, p) => a + (Number(p[k]) || 0), 0);
+  const rows = [
+    ['출장 구분', g.plan_type || '계획'],
+    ['출장 도시', g.city || ''],
+    ['출장 기관&업체', g.org || ''],
+    ['출장 목적&사유', g.purpose || ''],
+    ['출장 유형', g.kind || ''],
+    ['출발일자', g.dep_dt || ''],
+    ['복귀일자', g.ret_dt || ''],
+    ['출장일수', `${g.days || ''}일`],
+    ['자차사용여부', g.car || '미사용'],
+    ['출장자', T.map(p => `${p.name}(${p.emp_no}·${p.rank})`).join(', ')],
+    ['소속 CCG', [...new Set(T.map(p => `${p.ccg_nm}(${p.ccg})`))].join(', ')],
+    ['인원', `${T.length}명`],
+  ];
+  const isAct = (g.act_tot || 0) > 0;
+  const pre = isAct ? 'a_' : 'p_';
+  rows.push([isAct ? '실적 교통비' : '계획 교통비', won(sum(pre + 'trans')) + '원']);
+  rows.push([isAct ? '실적 숙박비' : '계획 숙박비', won(sum(pre + 'lodg')) + '원']);
+  rows.push([isAct ? '실적 식대&잡비' : '계획 식대&잡비', won(sum(pre + 'meal')) + '원']);
+  rows.push([isAct ? '실적 기타' : '계획 기타', won(sum(pre + 'etc')) + '원']);
+  rows.push([isAct ? '실적 합계' : '계획 합계', won(isAct ? g.act_tot : g.plan_tot) + '원']);
+  if (g.remark) rows.push(['비고', g.remark]);
+  return rows;
+}
+function apvText(g){
+  return apvRows(g).map(([k, v]) => `${k}\t${v}`).join('\n');
+}
+function openApproval(gid){
+  const g = ST.groups.find(x => x.group_id === gid);
+  if (!g) return;
+  const url = (ST.settings && ST.settings.approval_url) || '';
+  const rows = apvRows(g);
+  const isAct = (g.act_tot || 0) > 0;
+  document.getElementById('apvCard')?.remove();
+  const el = document.createElement('section');
+  el.className = 'mailcard'; el.id = 'apvCard';
+  el.innerHTML = `
+    <div class="mh"><span>결재 작성 도우미 · ${esc(gname(g))} ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</span>
+      <span class="mhb"><button title="닫기" onclick="this.closest('.mailcard').remove()">×</button></span></div>
+    <div class="how">사내 결재 창의 각 칸에 아래 값을 그대로 넣으시면 됩니다.
+      <span class="sub">${isAct ? '실적이 입력된 건이라 <b>실적 금액</b>을 보여줍니다.' : '아직 실적 전이라 <b>계획 금액</b>을 보여줍니다.'}</span></div>
+    <div style="padding:0 16px 12px">
+      <div class="btns" style="margin:12px 0">
+        ${url ? `<a class="btn pri" href="${esc(url)}" target="_blank" rel="noopener">사내 결재 사이트 열기 ↗</a>`
+              : `<span class="sub">결재 사이트 주소가 없습니다 — <b>시스템 설정</b>에서 넣으면 여기에 바로가기가 생깁니다.</span>`}
+        <button class="btn" onclick="copyText(apvText(ST.groups.find(x=>x.group_id==='${gid}')),'결재 항목을 전부 복사했습니다')">전체 복사</button>
+      </div>
+      <div class="scroll"><table class="apv-tbl">
+        <thead><tr><th>결재 항목</th><th>넣을 값</th><th></th></tr></thead>
+        <tbody>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td><b>${esc(v)}</b></td>
+          <td class="num"><button class="btn sm" onclick="copyText(${JSON.stringify(String(v))},'복사했습니다')">복사</button></td></tr>`).join('')}
+        </tbody></table></div>
+      <p class="cap" style="margin:12px 0 0">출장자별 금액이 필요하면 목록에서 <b>내역 ▼</b> 를 펼쳐 보세요.</p>
+    </div>`;
+  mailHost().appendChild(el);
+  el.scrollIntoView({behavior: 'smooth', block: 'center'});
 }
 
 /* ═══ 인폼 카드 ═══ */
@@ -1502,6 +1675,8 @@ function listRowHtml(g, grouped){
   }
   if (g.act_tot > 0 && !more.some(m => m[0] === '인폼 보기')
       && !main.some(x => x.includes('인폼'))) more.push(['인폼 보기', `reopenMail('${gid}')`, '']);
+  // 결재는 사내 사이트에서 올린다 — 여기서는 '결재 창에 넣을 값'을 그대로 꺼내 준다
+  if (g.status !== '취소') more.push(['결재 작성 도우미', `openApproval('${gid}')`, '']);
   const open = DTL.has(gid);
   const detail = `<button class="btn sm${open ? ' pri' : ''}" onclick="toggleDetail('${gid}')"
     title="출장자별 교통비·숙박비·식대·기타 내역">내역 ${open ? '▲' : '▼'}</button>`;
@@ -1975,6 +2150,9 @@ function drawConfig(){
           <input id="cfgName" value="${esc(c.system_name || '')}" maxlength="60"></div>
         <div><label for="cfgUrl">참조 주소 <span class="au">인폼 하단에 표기</span></label>
           <input id="cfgUrl" value="${esc(c.reference_url || '')}" maxlength="200"></div>
+        <div><label for="cfgApv">사내 결재 사이트 <span class="au">https:// 로 시작</span></label>
+          <input id="cfgApv" value="${esc(c.approval_url || '')}" maxlength="300"
+            placeholder="https://approval.skhynix.com/..."></div>
         <div><label for="cfgPw">담당자 비밀번호 <span class="au">공백 없이 4자 이상</span></label>
           <input id="cfgPw" value="${esc(c.admin_pw || '')}"></div>
       </div>
@@ -1996,6 +2174,7 @@ function cfgRead(){
     })).filter(t => t.team || t.ccg),
     system_name: $('#cfgName').value.trim(),
     reference_url: $('#cfgUrl').value.trim(),
+    approval_url: $('#cfgApv').value.trim(),
     admin_pw: $('#cfgPw').value.trim(),
   };
 }

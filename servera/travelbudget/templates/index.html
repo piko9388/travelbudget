@@ -64,22 +64,24 @@
 *{box-sizing:border-box}
 /* 여백 — 4 · 8 · 12 · 16 · 24 다섯 단계만 쓴다.
    4=라벨과 입력 사이, 8=한 덩어리 안, 12=칸과 칸 사이, 16=블록과 블록 사이, 24=큰 구획 */
-/* 글꼴 — 사내 윈도우 데스크톱 전용.
-   맑은 고딕은 굵기가 Regular(400)·Bold(700) 둘뿐이다. 500·600·800 을 선언하면
-   화면에는 400 또는 700 으로만 나오므로, CSS 도 두 종류만 쓴다(선언과 렌더를 일치).
+/* 글꼴 — 화면은 Pretendard(가변), 없으면 맑은 고딕으로 조용히 내려간다.
+   굵기는 400·700 두 종만 쓴다 — 맑은 고딕이 그 둘뿐이라, 폰트가 없는 PC 에서도
+   화면이 같아 보이려면 선언을 그 둘에 맞춰야 한다.
    letter-spacing 은 양수·음수 모두 쓰지 않는다 — 한글은 기본 자간이 이미 맞다.
    줄높이는 배수(1.55)가 아니라 px 정수로 못박는다. 12px×1.55=18.6px 처럼 소수가 되면
    베이스라인이 서브픽셀에 걸려 줄마다 다르게 뭉개진다(윈도우에서 "글자가 우그러짐").
 
-   ── 더 나은 글꼴을 쓰고 싶다면 (선택) ────────────────────────────
-   static/fonts/ 에 woff2 파일 2개를 넣기만 하면 자동으로 적용된다.
+   ── 글꼴 파일 ────────────────────────────────────────────────
+   static/fonts/PretendardVariable.woff2   (가변 — 이 한 개면 400·700 이 다 나온다)
+   static/fonts/Pretendard-LICENSE.txt     (SIL OFL — 배포 시 함께 두어야 한다)
    파일이 없으면 아래 @font-face 는 조용히 무시되고 맑은 고딕으로 렌더된다.
    외부 CDN 을 부르지 않으므로 사내망 차단 환경에서도 안전하다.
-       static/fonts/ui-400.woff2   (Regular)
-       static/fonts/ui-700.woff2   (Bold)
-   예: Pretendard(OFL) · 프리텐다드 한글 서브셋 — 배포 전 사내 폰트 정책 확인할 것.
+   ※ 엑셀 내보내기(.xls)는 받는 PC 에 Pretendard 가 없으므로 맑은 고딕으로 고정한다.
    ─────────────────────────────────────────────────────────── */
-{% if ui_font %}@font-face{font-family:"TB UI";src:url("/travelbudget/static/fonts/ui-400.woff2") format("woff2");
+{% if ui_font == "var" %}/* 가변 폰트 한 개로 400·700 을 다 낸다 (Pretendard, SIL OFL — 라이선스 동봉) */
+@font-face{font-family:"TB UI";src:url("/travelbudget/static/fonts/PretendardVariable.woff2") format("woff2-variations");
+font-weight:45 930;font-style:normal;font-display:swap}
+{% elif ui_font %}@font-face{font-family:"TB UI";src:url("/travelbudget/static/fonts/ui-400.woff2") format("woff2");
 font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:"TB UI";src:url("/travelbudget/static/fonts/ui-700.woff2") format("woff2");
 font-weight:700;font-style:normal;font-display:swap}
@@ -356,6 +358,11 @@ font-size:12px;line-height:18px;color:var(--ink2)}
 transition:border-color .12s,background .12s,box-shadow .12s}
 .mailcard .dragzone:hover{border-color:var(--s2);background:var(--tint2);box-shadow:var(--sh-1)}
 .mailcard .dragzone.dragging{border-color:var(--s1);background:var(--tint2);box-shadow:var(--sh-2)}
+.apv-tbl{width:100%;border-collapse:collapse;font-size:13px;line-height:20px;background:var(--white)}
+.apv-tbl th{background:var(--surf);color:var(--ink2);font-size:12px;line-height:18px;text-align:left;
+padding:8px;border-bottom:2px solid var(--line)}
+.apv-tbl td{padding:8px;border-bottom:1px solid var(--line2)}
+.apv-tbl td:first-child{color:var(--mut);white-space:nowrap;width:1%}
 .mailcard .draghint{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px dashed var(--s4ln);
 font-size:12px;line-height:18px;color:var(--s2);font-weight:700;cursor:grab;user-select:none}
 .mailcard .draghint b{color:var(--navy)}

@@ -68,7 +68,7 @@
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.21', APP_BUILD = '2026-08-03';
+  var APP_VERSION = 'v10.22', APP_BUILD = '2026-08-03';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -449,10 +449,10 @@
     ledgerRows(data, yq, internal, gids).forEach(function (r) { lines.push(r.map(csvCell).join(',')); });
     return '\ufeff' + lines.join('\r\n') + '\r\n';
   }
-  // 엑셀 서식(맑은 고딕/Trebuchet MS) 포함 — CSV는 글꼴을 담을 수 없어 제출본은 이 파일
+  // 엑셀 서식(맑은 고딕) 포함 — CSV는 글꼴을 담을 수 없어 제출본은 이 파일
   function makeXls(data, yq, internal, gids) {
     var heads = CSV_HEADERS.concat(internal ? CSV_EXTRA : []);
-    var font = "'Trebuchet MS','Malgun Gothic','맑은 고딕',sans-serif";
+    var font = "'Malgun Gothic','맑은 고딕',sans-serif";   // 엑셀 제출본은 맑은 고딕 고정
     var th = 'font-family:' + font + ';font-size:10pt;font-weight:bold;background:#EEF2F8;border:1px solid #B7C0CE;padding:4px 6px;text-align:center';
     var td = 'font-family:' + font + ';font-size:10pt;border:1px solid #D8DEE8;padding:3px 6px';
     var tdn = td + ";mso-number-format:'#,##0';text-align:right";
@@ -562,7 +562,8 @@
         // 소재 담당자 2 + 센터 담당자 2 — store._settings() 와 반드시 같아야 한다
         mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong5.kim@sk.com',
                           'Jeewoung.Chun@sk.com', 'geonyoung.kim@sk.com'],
-        reference_url: 'material.skhynix.com/travelbudget'
+        reference_url: 'material.skhynix.com/travelbudget',
+        approval_url: ''
       },
       budget: budget, groups: groups.map(normalizeGroup), audit_log: []
     };
@@ -834,6 +835,7 @@
       var u = ccgUsage(data), st = data.settings;
       return okr({ settings: {
         system_name: st.system_name || '', reference_url: st.reference_url || '',
+        approval_url: st.approval_url || '',
         admin_pw: st.admin_pw || '', mail_recipients: (st.mail_recipients || []).slice(),
         ccg_teams: ccgTeams(data), ccg_from_settings: Array.isArray(st.ccg_teams)
       }, ccgUsed: u.used, ccgStale: u.stale });
@@ -897,13 +899,18 @@
       var pw = txt(body.admin_pw) || String(cur.admin_pw || '');
       if (pw.length < 4 || pw.indexOf(' ') >= 0) e.push('비밀번호는 공백 없이 4자 이상이어야 합니다.');
       if (e.length) return err(e);
-      var before = JSON.stringify([cur.mail_recipients, cur.ccg_teams, cur.admin_pw, cur.system_name, cur.reference_url]);
+      var before = JSON.stringify([cur.mail_recipients, cur.ccg_teams, cur.admin_pw, cur.system_name, cur.reference_url, cur.approval_url]);
       cur.mail_recipients = mails.slice(0, 10);
       cur.ccg_teams = clean;
       cur.admin_pw = pw;
       cur.system_name = (txt(body.system_name) || cur.system_name || '').slice(0, 60);
       if ('reference_url' in body) cur.reference_url = txt(body.reference_url).slice(0, 200);
-      var chg = before === JSON.stringify([cur.mail_recipients, cur.ccg_teams, cur.admin_pw, cur.system_name, cur.reference_url]) ? [] : ['settings'];
+      if ('approval_url' in body) {                       // 사람이 누르는 링크라 http(s) 만
+        var au = txt(body.approval_url).slice(0, 300);
+        if (au && !/^https?:\/\//i.test(au)) return err(['결재 사이트 주소는 http:// 또는 https:// 로 시작해야 합니다.']);
+        cur.approval_url = au;
+      }
+      var chg = before === JSON.stringify([cur.mail_recipients, cur.ccg_teams, cur.admin_pw, cur.system_name, cur.reference_url, cur.approval_url]) ? [] : ['settings'];
       appendAudit(data, '시스템 설정 변경', chg.length ? '변경됨' : '변경 없음', 'admin');
       Store.save(data);
       return okr({ settings: publicSettings(cur), changed: chg, ccg: ccgTeams(data) });

@@ -668,7 +668,7 @@ try {
   // 엑셀 일괄 등록
   await page.click('.nav a[data-view="bulk"]');
   await page.waitForSelector('#bkText');
-  await page.click('button:has-text("예시 넣어보기")');
+  await page.click('button:text-is("예시 넣어보기")');
   await sleep(400);
   const bkPrev = await page.textContent('#bkOut');
   ok('붙여넣기 → 동행자 묶어 미리보기', bkPrev.includes('2건') && bkPrev.includes('3명'), bkPrev.slice(0, 50));

@@ -51,8 +51,20 @@ assert 'export_budget.csv' not in app and 'export.csv' not in app, "정적판에
 
 # 정적판에는 Flask 라우트가 없다 — 같은 폴더의 파일로 연결
 # 정적 사본에는 글꼴 파일을 넣지 않으므로 Jinja 조건부 블록을 통째로 걷어낸다
-tpl = re.sub(r'\{% if ui_font %\}.*?\{% endif %\}', '', tpl, flags=re.S)
-tpl = tpl.replace('{% if ui_font %}"TB UI",{% endif %}', '')
+# 글꼴 — 정적판은 파일을 따로 받을 수 없으므로 서브셋을 base64 로 심는다.
+# (전체 2.0MB 대신 화면 문구·흔한 성씨 이름을 덮는 150KB 서브셋. 없는 글자는 맑은 고딕으로)
+_font = REPO / 'servera/travelbudget/static/fonts/ui-subset.woff2'
+if _font.exists():
+    import base64
+    _b64 = base64.b64encode(_font.read_bytes()).decode()
+    _face = ('@font-face{font-family:"TB UI";'
+             f'src:url("data:font/woff2;base64,{_b64}") format("woff2-variations");'
+             'font-weight:45 930;font-style:normal;font-display:swap}')
+    tpl = re.sub(r'\{% if ui_font == "var" %\}.*?\{% endif %\}', _face, tpl, flags=re.S)
+    tpl = tpl.replace('{% if ui_font %}"TB UI",{% endif %}', '"TB UI",')
+else:
+    tpl = re.sub(r'\{% if ui_font == "var" %\}.*?\{% endif %\}', '', tpl, flags=re.S)
+    tpl = tpl.replace('{% if ui_font %}"TB UI",{% endif %}', '')
 tpl = tpl.replace('href="/travelbudget/guide"', 'href="traveler_guide.html"')
 app = app.replace('href="/travelbudget/guide"', 'href="traveler_guide.html"')
 assert '/travelbudget/guide' not in tpl and '/travelbudget/guide' not in app, "정적판에 남은 서버 경로"

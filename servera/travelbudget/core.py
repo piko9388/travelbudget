@@ -75,7 +75,7 @@ def ccg_by_cd(data=None):
     """CCG 코드 → 팀 이름. 표시용 이름은 항상 코드에서 파생한다."""
     return {t["ccg"]: t["team"] for t in ccg_teams(data)}
 
-APP_VERSION = "v10.21"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_VERSION = "v10.22"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-08-03"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -505,7 +505,7 @@ BULK_REQUIRED = ("출장도시", "출장기관&업체", "출장목적&사유", "
 
 def bulk_template_xls():
     """의존성 없이 HTML 표로 만든 .xls 양식. 채워서 복사 → 화면에 붙여넣기."""
-    font = "'Trebuchet MS','Malgun Gothic','맑은 고딕',sans-serif"
+    font = "'Malgun Gothic','맑은 고딕',sans-serif"     # 엑셀 파일은 맑은 고딕 고정
     req_mark = "<br><span style='font-size:8pt;color:#C00'>필수</span>"
     th = []
     for h in CSV_HEADERS:
@@ -751,13 +751,13 @@ def ledger_rows(data, yq=None, internal=False, gids=None):
 
 
 def make_xls(data, yq=None, internal=False, gids=None):
-    """엑셀 서식 포함 내보내기 — 한글 맑은 고딕 / 영문·숫자 Trebuchet MS.
+    """엑셀 서식 포함 내보내기 — 맑은 고딕(받는 PC 어디서나 같은 모양).
     CSV는 순수 텍스트라 글꼴을 담을 수 없어, 서식이 필요한 제출본은 이 파일을 쓴다.
     (외부 라이브러리 없이 Excel이 그대로 여는 HTML 표 형식)"""
     heads = CSV_HEADERS + (CSV_EXTRA if internal else [])
     rows = ledger_rows(data, yq, internal, gids)
-    # 영문·숫자는 Trebuchet MS, 한글은 맑은 고딕으로 떨어지도록 순서를 둔다
-    font = "'Trebuchet MS','Malgun Gothic','맑은 고딕',sans-serif"
+    # 받는 PC 에는 화면 글꼴(Pretendard)이 없다 — 엑셀 제출본은 어디서 열어도 같도록 맑은 고딕 고정
+    font = "'Malgun Gothic','맑은 고딕',sans-serif"
     th = (f"font-family:{font};font-size:10pt;font-weight:bold;background:#EEF2F8;"
           "border:1px solid #B7C0CE;padding:4px 6px;text-align:center")
     td = f"font-family:{font};font-size:10pt;border:1px solid #D8DEE8;padding:3px 6px"

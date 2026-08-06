@@ -34,6 +34,8 @@ def _settings():
         "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong5.kim@sk.com",
                             "Jeewoung.Chun@sk.com", "geonyoung.kim@sk.com"],
         "reference_url": "material.skhynix.com/travelbudget",
+        # 사내 전자결재 사이트 주소 — [시스템 설정]에서 넣는다(비워 두면 링크가 안 뜬다)
+        "approval_url": "",
     }
 
 
