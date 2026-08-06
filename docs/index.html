@@ -602,7 +602,7 @@ padding:12px 16px;margin-bottom:16px}
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.24', APP_BUILD = '2026-08-03';
+  var APP_VERSION = 'v10.25', APP_BUILD = '2026-08-03';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -2900,62 +2900,61 @@ async function editTags(gid){
 /* ═══ 결재 작성 도우미 (국내 출장 정산서) ═══
    결재는 사내 전자결재 사이트에서 사람이 올린다. 이 화면은 그 창의 칸 순서 그대로
    '넣을 값'을 꺼내 주고, 한 줄씩·통째로 복사하게만 한다. 값을 대신 써 넣지 않는다.
-   정산서는 사번이 한 개라 사람별로 올린다 — 동행이 있으면 위에서 사람을 고른다. */
+   정산서는 인원을 추가할 수 있어 한 출장을 한 장으로 올린다 — 공통 값 + 인원별 값. */
 const APV_TRANS = ['타인 차량 동승', '공용차량', '개인차량(고속도로이용)', '개인차량(국도이용)',
                    '대중교통', '셔틀버스', '의전차량', '항공기', '고속철도', '렌트차량'];
 const APV_FROM = ['근무지 사업장 — 분당캠퍼스', '근무지 사업장 — 센터원오피스',
                   '근무지 사업장 — 이천캠퍼스', '근무지 사업장 — 청주캠퍼스', '거주지(주소 입력)'];
-let APV_P = 0;                                   // 지금 보고 있는 출장자 순번
 
-/* 정산서 칸 = [라벨, 값, 도움말].  값이 빈 문자열이면 '시스템에 없는 값' 으로 표시한다 */
-function apvRows(g, p){
-  const isAct = (g.act_tot || 0) > 0;
-  const pre = isAct ? 'a_' : 'p_';
-  const won0 = v => won(Number(v) || 0) + '원';
+/* 출장 한 건에 한 번만 넣는 값 = [라벨, 값, 도움말]. 값이 비면 '시스템에 없는 값'으로 표시 */
+function apvCommon(g){
   const car = g.car === '자차사용' ? '개인차량(고속도로이용)' : '대중교통';
-  const days = `${g.dep_dt} ~ ${g.ret_dt || g.dep_dt}`;
-  const plan = `${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} ${g.city} ${g.org} · ${g.purpose}`;
   return [
     ['출장 목적', g.purpose || '', ''],
-    ['세부일정', plan, '일자 · 방문처 · 목적을 한 줄로'],
+    ['세부일정', `${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} ${g.city} ${g.org} · ${g.purpose}`,
+     '일자 · 방문처 · 목적을 한 줄로'],
     ['방문회사', g.org || '', ''],
     ['방문자', names(g).replace(/<[^>]*>/g, ''), '우리 쪽 출장자입니다. 상대측 담당자는 결재 창에서 직접'],
     ['목적지 주소 및 전화번호', '', '시스템에 없는 값 — 결재 창에서 직접'],
-    ['사번', p ? p.emp_no : '', ''],
-    ['성명', p ? p.name : '', ''],
-    ['출장일시', days, '시작 ~ 종료'],
+    ['출장일시', `${g.dep_dt} ~ ${g.ret_dt || g.dep_dt}`, '시작 ~ 종료'],
     ['교통편', car, '자차 여부로 미리 골라 둔 것 — 실제와 다르면 결재 창에서 바꾸세요'],
     ['출발지', '', '근무지 사업장 또는 거주지 — 결재 창에서 고르세요'],
     ['출장지', [g.city, g.org].filter(Boolean).join(' '), '주소는 결재 창에서 [추가]'],
-    [isAct ? '실적 교통비' : '계획 교통비', won0(p ? p[pre + 'trans'] : 0), ''],
-    [isAct ? '실적 숙박비' : '계획 숙박비', won0(p ? p[pre + 'lodg'] : 0), ''],
-    [isAct ? '실적 식대&잡비' : '계획 식대&잡비', won0(p ? p[pre + 'meal'] : 0), ''],
-    [isAct ? '실적 기타' : '계획 기타', won0(p ? p[pre + 'etc'] : 0), ''],
-    [isAct ? '실적 합계' : '계획 합계',
-     won0(p ? ['trans', 'lodg', 'meal', 'etc'].reduce((a, k) => a + (Number(p[pre + k]) || 0), 0) : 0),
-     '증빙(카드) 금액과 대조할 값'],
     ['비고', g.remark || '', ''],
-    ['태그', (g.tags || []).map(x => '#' + x).join(' '), '분류용 — 결재 창에는 넣지 않아도 됩니다'],
   ];
 }
-function apvText(g, p){
-  return apvRows(g, p).filter(([, v]) => v).map(([k, v]) => `${k}\t${v}`).join('\n');
+/* 인원 — 정산서에서 [추가]로 늘리는 부분. 사람마다 사번·소속·금액이 붙는다 */
+function apvPeopleHead(isAct){
+  return ['성명', '사번', '소속 CCG',
+          `${isAct ? '실적' : '계획'} 교통비`, '숙박비', '식대&잡비', '기타', '합계'];
 }
-function openApproval(gid){
-  const g = ST.groups.find(x => x.group_id === gid);
-  if (!g) return;
-  APV_P = 0;
-  drawApproval(gid);
+function apvPeopleRows(g){
+  const isAct = (g.act_tot || 0) > 0, pre = isAct ? 'a_' : 'p_';
+  return (g.travelers || []).map(p => {
+    const v = k => Number(p[pre + k]) || 0;
+    const sum = ['trans', 'lodg', 'meal', 'etc'].reduce((a, k) => a + v(k), 0);
+    return [p.name || '', p.emp_no || '', `${p.ccg_nm || ''}${p.ccg ? ` (${p.ccg})` : ''}`,
+            won(v('trans')), won(v('lodg')), won(v('meal')), won(v('etc')), won(sum)];
+  });
 }
-function apvPick(gid, i){ APV_P = i; drawApproval(gid); }
+/* 통째로 복사 — 탭으로 나눠 결재 창·엑셀 어디에 붙여도 칸이 맞는다 */
+function apvText(g){
+  const isAct = (g.act_tot || 0) > 0;
+  const L = apvCommon(g).filter(([, v]) => v).map(([k, v]) => `${k}\t${v}`);
+  L.push('', `인원 ${(g.travelers || []).length}명`);
+  L.push(apvPeopleHead(isAct).join('\t'));
+  apvPeopleRows(g).forEach(r => L.push(r.join('\t')));
+  L.push(`${isAct ? '실적' : '계획'} 총합계\t${won(isAct ? g.act_tot : g.plan_tot)}원`);
+  return L.join('\n');
+}
+function openApproval(gid){ drawApproval(gid); }
 function drawApproval(gid){
   const g = ST.groups.find(x => x.group_id === gid);
   if (!g) return;
   const T = g.travelers || [];
-  const p = T[Math.min(APV_P, T.length - 1)] || null;
   const url = (ST.settings && ST.settings.approval_url) || '';
-  const rows = apvRows(g, p);
   const isAct = (g.act_tot || 0) > 0;
+  const head = apvPeopleHead(isAct);
   document.getElementById('apvCard')?.remove();
   const el = document.createElement('section');
   el.className = 'mailcard'; el.id = 'apvCard';
@@ -2964,29 +2963,39 @@ function drawApproval(gid){
       <span class="mhb"><button title="닫기" onclick="this.closest('.mailcard').remove()">×</button></span></div>
     <div class="how">사내 결재 창의 칸 순서대로 정리했습니다. 줄마다 <b>복사</b>, 위에 <b>전체 복사</b>.
       <span class="sub">${isAct ? '실적이 입력된 건이라 <b>실적 금액</b>' : '아직 실적 전이라 <b>계획 금액</b>'}을
-      보여줍니다. 정산서는 <b>사번이 한 개</b>라 사람별로 올립니다.</span></div>
+      보여줍니다. 정산서는 <b>인원을 추가</b>할 수 있어 이 출장 <b>${T.length}명을 한 장</b>에 올립니다.</span></div>
     <div style="padding:0 16px 16px">
-      ${T.length > 1 ? `<div class="tagbar" style="margin-top:12px">
-        <span class="sub">출장자 ${T.length}명 — 정산서를 올릴 사람</span>
-        ${T.map((x, i) => `<button class="tag${i === Math.min(APV_P, T.length - 1) ? ' on' : ''}"
-          onclick="apvPick('${gid}',${i})">${esc(x.name)} ${esc(x.emp_no)}</button>`).join('')}
-      </div>` : ''}
       <div class="btns" style="margin:12px 0">
         ${url ? `<a class="btn pri" href="${esc(url)}" target="_blank" rel="noopener">국내 출장 정산서 열기 ↗</a>`
               : `<span class="sub">결재 사이트 주소가 없습니다 — <b>시스템 설정</b>에서 넣으면 여기에 바로가기가 생깁니다.</span>`}
-        <button class="btn" onclick="copyText(apvText(ST.groups.find(x=>x.group_id==='${gid}'),
-          (ST.groups.find(x=>x.group_id==='${gid}').travelers||[])[${Math.min(APV_P, Math.max(T.length - 1, 0))}]),
-          '정산서 항목을 전부 복사했습니다')">전체 복사</button>
+        <button class="btn" onclick="copyText(apvText(ST.groups.find(x=>x.group_id==='${gid}')),
+          '정산서 항목을 전부 복사했습니다 (공통 + 인원)')">전체 복사</button>
       </div>
+
       <div class="scroll"><table class="apv-tbl">
-        <thead><tr><th>정산서 칸</th><th>넣을 값</th><th></th></tr></thead>
-        <tbody>${rows.map(([k, v, hint]) => `<tr>
+        <thead><tr><th>정산서 칸 — 한 번만</th><th>넣을 값</th><th></th></tr></thead>
+        <tbody>${apvCommon(g).map(([k, v, hint]) => `<tr>
           <td>${esc(k)}</td>
           <td>${v ? `<b>${esc(v)}</b>${hint ? `<div class="sub">${esc(hint)}</div>` : ''}`
             : `<span class="sub">${esc(hint || '시스템에 없는 값')}</span>`}</td>
           <td class="num">${v ? `<button class="btn sm"
             onclick="copyText(${JSON.stringify(String(v))},'복사했습니다')">복사</button>` : ''}</td></tr>`).join('')}
         </tbody></table></div>
+
+      <h2 style="margin:16px 0 4px;color:var(--navy);font-size:16px;line-height:24px">인원 ${T.length}명 — 정산서에서 [추가]</h2>
+      <p class="cap" style="margin:0 0 8px">사람 줄의 <b>복사</b>는 그 한 명의 값을 탭으로 나눠 담습니다.</p>
+      <div class="scroll"><table class="apv-tbl">
+        <thead><tr>${head.map((h, i) => `<th${i >= 3 ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}<th></th></tr></thead>
+        <tbody>${apvPeopleRows(g).map((r, i) => `<tr>
+          ${r.map((v, j) => `<td${j >= 3 ? ' class="num"' : ''}>${j === 7 ? `<b>${esc(v)}</b>` : esc(v)}</td>`).join('')}
+          <td class="num"><button class="btn sm"
+            onclick="copyText(${JSON.stringify(apvPeopleRows(g)[i].join('\t'))},'${esc(r[0])} 줄을 복사했습니다')">복사</button></td>
+        </tr>`).join('')}
+        </tbody>
+        <tfoot><tr><td colspan="7">${isAct ? '실적' : '계획'} 총합계</td>
+          <td class="num"><b>${won(isAct ? g.act_tot : g.plan_tot)}원</b></td><td></td></tr></tfoot>
+      </table></div>
+
       <details class="fold" style="margin-top:12px">
         <summary>교통편 · 출발지 선택지 — 결재 창에서 고르는 것</summary>
         <div class="note" style="margin-top:8px">
@@ -2998,7 +3007,7 @@ function drawApproval(gid){
         </div>
       </details>
       <p class="cap" style="margin:12px 0 0">증빙(카드 지불 정보)은 결재 창이 직접 불러옵니다.
-        위 <b>${isAct ? '실적' : '계획'} 합계</b>와 대조하세요.</p>
+        위 <b>${isAct ? '실적' : '계획'} 총합계</b>와 대조하세요.</p>
     </div>`;
   mailHost().appendChild(el);
   el.scrollIntoView({behavior: 'smooth', block: 'center'});

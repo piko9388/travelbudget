@@ -1695,9 +1695,9 @@ ok('거부돼도 기존 주소가 남아 있음',
    == 'https://approval.example.com/t')
 ok('설정 화면에 결재 주소 칸', 'cfgApv' in _appjs)
 ok('행 메뉴에 정산서 작성 도우미', "['정산서 작성 도우미'" in _appjs and 'function openApproval' in _appjs)
-ok('도우미가 결재 항목을 표로 꺼냄', 'function apvRows' in _appjs and '전체 복사' in _appjs)
+ok('도우미가 결재 항목을 표로 꺼냄', 'function apvCommon' in _appjs and '전체 복사' in _appjs)
 ok('실적이 있으면 실적 금액, 없으면 계획 금액',
-   "const isAct = (g.act_tot || 0) > 0" in _appjs and "const pre = isAct ? 'a_' : 'p_'" in _appjs)
+   "isAct = (g.act_tot || 0) > 0" in _appjs and "pre = isAct ? 'a_' : 'p_'" in _appjs)
 ok('링크는 새 창 + noopener', 'rel="noopener"' in _appjs.split('function openApproval')[1][:2000])
 
 # ── 표 잘림 · 태그 · 정산서 도우미 ──
@@ -1742,11 +1742,17 @@ ok('정적판도 같은 규칙', 'function cleanTags' in _tbl and "/tags$/" in _
 # 정산서(국내 출장 정산서) 작성 도우미 — 사내 결재 창의 칸 순서 그대로
 ok('결재 주소 기본값이 사내 정산서', 'apv.skhynix.com' in _store._settings()['approval_url'])
 for _f in ('출장 목적', '세부일정', '방문회사', '방문자', '목적지 주소 및 전화번호',
-           '사번', '출장일시', '교통편', '출발지', '출장지'):
+           '출장일시', '교통편', '출발지', '출장지'):
     ok(f'정산서 칸 — {_f}', f"['{_f}'" in _appjs)
 ok('교통편 선택지 10종', _appjs.count("APV_TRANS = [") == 1 and '고속철도' in _appjs)
 ok('출발지 선택지 (사업장·거주지)', 'APV_FROM' in _appjs and '분당캠퍼스' in _appjs)
-ok('사람별로 올린다 (사번이 한 개)', 'function apvPick' in _appjs and '사번이 한 개' in _appjs)
+# 정산서는 인원을 [추가]할 수 있다 — 한 출장을 한 장으로 올린다(사람별로 쪼개지 않는다)
+ok('한 장에 인원을 담는다', '인원을 추가' in _appjs and 'function apvPeopleRows' in _appjs)
+ok('공통 값과 인원 값을 나눠 보여줌', 'function apvCommon' in _appjs and 'apvPeopleHead' in _appjs)
+ok('사람별로 쪼개지 않는다', 'function apvPick' not in _appjs and '사번이 한 개' not in _appjs)
+ok('통째로 복사는 탭으로 나눔 (결재창·엑셀에 붙여도 칸이 맞게)',
+   "r.join('\\t')" in _appjs and '총합계' in _appjs)
+ok('인원 표에 사번·소속·금액', "'성명', '사번', '소속 CCG'" in _appjs)
 ok('없는 값은 없다고 말한다', '시스템에 없는 값' in _appjs)
 ok('증빙은 결재 창이 불러온다고 안내', '증빙(카드 지불 정보)은' in _appjs)
 
