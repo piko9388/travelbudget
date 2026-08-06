@@ -602,7 +602,7 @@ padding:12px 16px;margin-bottom:16px}
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.25', APP_BUILD = '2026-08-03';
+  var APP_VERSION = 'v10.26', APP_BUILD = '2026-08-06';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -1056,7 +1056,8 @@ padding:12px 16px;margin-bottom:16px}
   }
 
   // ── 시드 (store.py default_data와 동일) ──
-  function seedData() {
+  // 예시 원장 — 데모용. 첫 실행 경로에서는 호출되지 않는다(store.example_data() 와 짝).
+  function exampleData() {
     var t = today(), yq = yearQuarter(), qm = Math.floor(t.getMonth() / 3) * 3;
     function dd(day, off) {
       off = off || 0; var d = new Date(t.getFullYear(), qm, Math.min(day, 28));
@@ -1126,6 +1127,16 @@ padding:12px 16px;margin-bottom:16px}
     };
   }
 
+  // 첫 실행 원장 — **빈 원장**. Flask 의 store.default_data() 와 같아야 한다.
+  // (예시 8건이 실데이터처럼 보여 혼동되던 문제. 예시는 exampleData() 에만 둔다)
+  function defaultData() {
+    var d = exampleData();
+    d.budget = [];
+    d.groups = [];
+    d.audit_log = [];
+    return d;
+  }
+
   // ── 저장소 (localStorage) ──
   function LS() { return root.localStorage || globalThis.localStorage; }
   function appendAudit(data, action, detail, actor) {
@@ -1138,7 +1149,7 @@ padding:12px 16px;margin-bottom:16px}
   var Store = {
     load: function () {
       var raw = LS().getItem(LS_DATA);
-      if (!raw) { var d = seedData(); LS().setItem(LS_DATA, JSON.stringify(d)); return d; }
+      if (!raw) { var d = defaultData(); LS().setItem(LS_DATA, JSON.stringify(d)); return d; }
       return JSON.parse(raw);
     },
     save: function (data, makeBackup) {
@@ -1516,11 +1527,13 @@ padding:12px 16px;margin-bottom:16px}
     makeBudgetCsv: makeBudgetCsv, makeXls: makeXls,
     _: { num: num, won: won, tripDays: tripDays, quarter: quarter, yearQuarter: yearQuarter, yqList: yqList,
       normalizeGroup: normalizeGroup, validateGroup: validateGroup, validateBudget: validateBudget,
-      dash: dash, makeMail: makeMail, seedData: seedData, CCG_TEAMS: CCG_TEAMS, CSV_HEADERS: CSV_HEADERS,
+      dash: dash, makeMail: makeMail, defaultData: defaultData, exampleData: exampleData,
+      CCG_TEAMS: CCG_TEAMS, CSV_HEADERS: CSV_HEADERS,
       effStatus: effStatus, groupRoll: groupRoll, procCounts: procCounts }
   };
   root.__localApi = localApi;
   root.__tbStore = Store;
+  root.__tbExample = exampleData;   // 예시 원장 — 테스트 픽스처·데모용. 첫 실행에는 쓰이지 않는다.
   root.downloadBudgetCsv = function (yq) {
     var text = makeBudgetCsv(Store.load(), yq || null);
     var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
@@ -2617,6 +2630,7 @@ const JSON_SPEC = `출장 계획을 아래 JSON 형식으로만 출력하세요.
     "dep_dt": "2026-08-04",               // 필수 — 출발일자 YYYY-MM-DD
     "ret_dt": "2026-08-05",               // 복귀일자. 없으면 출발일과 같은 날(당일)
     "car": "미사용",                       // 미사용 | 자차사용
+    "tags": ["CMP", "정기 Audit"],         // 선택 — 분류·검색용 (최대 8개, 각 20자)
     "remark": "",                          // 비고 (긴급 출장 실적 입력 시 필수)
     "travelers": [                         // 필수 — 1명 이상. 같이 가면 여기에 사람을 늘립니다
       {
@@ -2707,7 +2721,9 @@ function bParseJson(text){
                  purpose: String(g.purpose || '').trim(), kind: bKind(g.kind),
                  dep_dt: dep, ret_dt: ret,
                  car: g.car === '자차사용' ? '자차사용' : '미사용',
-                 remark: String(g.remark || '').trim(), travelers: T, _rows: [`JSON ${n}`]});
+                 remark: String(g.remark || '').trim(),
+                 tags: g.tags ?? '',   // 정리는 서버 clean_tags 가 한다 (계획 폼과 같은 경로)
+                 travelers: T, _rows: [`JSON ${n}`]});
   });
   groups.forEach((g, i) => {
     if (!g.city || !g.org || !g.purpose)

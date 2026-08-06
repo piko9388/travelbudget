@@ -1065,6 +1065,7 @@ const JSON_SPEC = `출장 계획을 아래 JSON 형식으로만 출력하세요.
     "dep_dt": "2026-08-04",               // 필수 — 출발일자 YYYY-MM-DD
     "ret_dt": "2026-08-05",               // 복귀일자. 없으면 출발일과 같은 날(당일)
     "car": "미사용",                       // 미사용 | 자차사용
+    "tags": ["CMP", "정기 Audit"],         // 선택 — 분류·검색용 (최대 8개, 각 20자)
     "remark": "",                          // 비고 (긴급 출장 실적 입력 시 필수)
     "travelers": [                         // 필수 — 1명 이상. 같이 가면 여기에 사람을 늘립니다
       {
@@ -1155,7 +1156,9 @@ function bParseJson(text){
                  purpose: String(g.purpose || '').trim(), kind: bKind(g.kind),
                  dep_dt: dep, ret_dt: ret,
                  car: g.car === '자차사용' ? '자차사용' : '미사용',
-                 remark: String(g.remark || '').trim(), travelers: T, _rows: [`JSON ${n}`]});
+                 remark: String(g.remark || '').trim(),
+                 tags: g.tags ?? '',   // 정리는 서버 clean_tags 가 한다 (계획 폼과 같은 경로)
+                 travelers: T, _rows: [`JSON ${n}`]});
   });
   groups.forEach((g, i) => {
     if (!g.city || !g.org || !g.purpose)

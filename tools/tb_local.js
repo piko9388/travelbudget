@@ -68,7 +68,7 @@
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.25', APP_BUILD = '2026-08-03';
+  var APP_VERSION = 'v10.26', APP_BUILD = '2026-08-06';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -522,7 +522,8 @@
   }
 
   // ── 시드 (store.py default_data와 동일) ──
-  function seedData() {
+  // 예시 원장 — 데모용. 첫 실행 경로에서는 호출되지 않는다(store.example_data() 와 짝).
+  function exampleData() {
     var t = today(), yq = yearQuarter(), qm = Math.floor(t.getMonth() / 3) * 3;
     function dd(day, off) {
       off = off || 0; var d = new Date(t.getFullYear(), qm, Math.min(day, 28));
@@ -592,6 +593,16 @@
     };
   }
 
+  // 첫 실행 원장 — **빈 원장**. Flask 의 store.default_data() 와 같아야 한다.
+  // (예시 8건이 실데이터처럼 보여 혼동되던 문제. 예시는 exampleData() 에만 둔다)
+  function defaultData() {
+    var d = exampleData();
+    d.budget = [];
+    d.groups = [];
+    d.audit_log = [];
+    return d;
+  }
+
   // ── 저장소 (localStorage) ──
   function LS() { return root.localStorage || globalThis.localStorage; }
   function appendAudit(data, action, detail, actor) {
@@ -604,7 +615,7 @@
   var Store = {
     load: function () {
       var raw = LS().getItem(LS_DATA);
-      if (!raw) { var d = seedData(); LS().setItem(LS_DATA, JSON.stringify(d)); return d; }
+      if (!raw) { var d = defaultData(); LS().setItem(LS_DATA, JSON.stringify(d)); return d; }
       return JSON.parse(raw);
     },
     save: function (data, makeBackup) {
@@ -982,11 +993,13 @@
     makeBudgetCsv: makeBudgetCsv, makeXls: makeXls,
     _: { num: num, won: won, tripDays: tripDays, quarter: quarter, yearQuarter: yearQuarter, yqList: yqList,
       normalizeGroup: normalizeGroup, validateGroup: validateGroup, validateBudget: validateBudget,
-      dash: dash, makeMail: makeMail, seedData: seedData, CCG_TEAMS: CCG_TEAMS, CSV_HEADERS: CSV_HEADERS,
+      dash: dash, makeMail: makeMail, defaultData: defaultData, exampleData: exampleData,
+      CCG_TEAMS: CCG_TEAMS, CSV_HEADERS: CSV_HEADERS,
       effStatus: effStatus, groupRoll: groupRoll, procCounts: procCounts }
   };
   root.__localApi = localApi;
   root.__tbStore = Store;
+  root.__tbExample = exampleData;   // 예시 원장 — 테스트 픽스처·데모용. 첫 실행에는 쓰이지 않는다.
   root.downloadBudgetCsv = function (yq) {
     var text = makeBudgetCsv(Store.load(), yq || null);
     var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });

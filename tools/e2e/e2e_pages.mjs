@@ -30,9 +30,17 @@ try {
   await page.goto(FILE);
   await page.waitForFunction(() => document.querySelector('#v-dash .hero'), { timeout: 8000 });
 
-  // seed + formula
+  // 첫 실행은 빈 원장이어야 한다 — 예시를 자동으로 깔면 가짜 출장이 실데이터처럼 보인다
+  const fresh = await page.evaluate(() => ({ groups: ST.groups.length, budget: (ST.budget || []).length }));
+  ok('첫 실행 빈 원장 (예시 자동 생성 금지)', fresh.groups === 0 && fresh.budget === 0, fresh);
+
+  // 이 뒤 검사는 데이터가 있어야 한다 — 픽스처를 직접 깔고 새로 고친다(자동 시드에 기대지 않는다)
+  await page.evaluate(() => { localStorage.setItem('tb_data', JSON.stringify(window.__tbExample())); });
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('#v-dash .hero'), { timeout: 8000 });
+
   const nums = await page.evaluate(() => ({ alloc: ST.dash.alloc, done: ST.dash.done, wip: ST.dash.wip, remain: ST.dash.remain, groups: ST.groups.length }));
-  ok('시드 8건 로드', nums.groups === 8, nums.groups);
+  ok('예시 픽스처 8건 로드', nums.groups === 8, nums.groups);
   ok('잔여 = 총예산−완료−처리중', nums.remain === nums.alloc - nums.done - nums.wip, nums);
   const heroLabel = await page.textContent('#v-dash .hright');
   ok('소진율(%) 노출', /소진율\s*\d+%/.test(heroLabel), heroLabel);

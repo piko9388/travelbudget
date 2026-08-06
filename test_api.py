@@ -527,6 +527,10 @@ _dd = _store.default_data()
 ok('신규 설치 빈 원장 — 출장 0건', _dd['groups'] == [], len(_dd['groups']))
 ok('신규 설치 빈 원장 — 예산 0건', _dd['budget'] == [], len(_dd['budget']))
 ok('예시 데이터는 example_data() 에만', len(_store.example_data()['groups']) > 0)
+# 정적판(맥·아이패드·Pages)도 같아야 한다 — 여기만 예시를 깔아서 첫 화면에 가짜 출장 8건이 떴었다
+ok('정적판도 첫 실행은 빈 원장', 'function defaultData' in _tbl and 'd.groups = []' in _tbl)
+ok('정적판이 예시를 자동으로 깔지 않음',
+   'if (!raw) { var d = defaultData();' in _tbl and 'seedData' not in _tbl)
 ok('검증 안 하는 admin_id 설정 제거', 'admin_id' not in _dd['settings'], list(_dd['settings']))
 ok('실적 인폼 기본 수신자 4명', len(_dd['settings']['mail_recipients']) == 4, _dd['settings']['mail_recipients'])
 # 테스트 격리 — 운영 디렉터리를 쓰지 않는다
@@ -1737,6 +1741,8 @@ ok('화면: 쓰인 태그를 눌러 넣을 수 있음', 'function addPlanTag' in
 ok('화면: 목록에서 태그로 거르기', 'function setTagFilter' in _appjs and 'LQ.tag' in _appjs)
 ok('화면: 검색어에도 태그가 걸림', '...(g.tags || [])' in _appjs)
 ok('화면: 목록에서 태그 편집', 'function editTags' in _appjs)
+# JSON 일괄 등록도 태그를 실어 보낸다 — 여기서 떨어뜨리면 대량 적재분만 분류가 안 된다
+ok('JSON 일괄 등록이 태그를 흘려보냄', 'tags: g.tags ??' in _appjs)
 ok('정적판도 같은 규칙', 'function cleanTags' in _tbl and "/tags$/" in _tbl)
 
 # 정산서(국내 출장 정산서) 작성 도우미 — 사내 결재 창의 칸 순서 그대로
