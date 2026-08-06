@@ -1741,6 +1741,11 @@ ok('정적판도 같은 규칙', 'function cleanTags' in _tbl and "/tags$/" in _
 
 # 정산서(국내 출장 정산서) 작성 도우미 — 사내 결재 창의 칸 순서 그대로
 ok('결재 주소 기본값이 사내 정산서', 'apv.skhynix.com' in _store._settings()['approval_url'])
+# 새로 까는 사람은 data.example.json 을 정본으로 복사한다 — 거기에도 주소가 있어야 한다
+# (_settings() 는 '파일이 없을 때'만 심는다. 예시 파일로 시작하면 심는 단계를 건너뛴다)
+ok('예시 정본에도 결재 주소',
+   'apv.skhynix.com' in _json.load(
+       open('data.example.json', encoding='utf-8'))['settings'].get('approval_url', ''))
 for _f in ('출장 목적', '세부일정', '방문회사', '방문자', '목적지 주소 및 전화번호',
            '출장일시', '교통편', '출발지', '출장지'):
     ok(f'정산서 칸 — {_f}', f"['{_f}'" in _appjs)
