@@ -1408,8 +1408,8 @@ try {
              soft: getComputedStyle(document.documentElement).getPropertyValue('--soft').trim() };
   });
   ok('렌더된 모서리 값이 4종 이하', look.radii.length <= 4, look.radii);
-  ok('버튼 3px · 카드 4px (컨테이너가 한 단계 큼)',
-     look.btn === '3px' && look.card === '4px', {btn: look.btn, card: look.card});
+  ok('버튼 6px · 카드 10px (컨테이너가 한 단계 큼)',
+     look.btn === '6px' && look.card === '10px', {btn: look.btn, card: look.card});
   ok('상태 배지는 알약', parseFloat(look.badge) >= 99, look.badge);
   ok('표 머리글 경계가 본문보다 두꺼움', parseFloat(look.th) >= 2, look.th);
   // 지금 보고 있는 메뉴 — 막대가 아니라 면(옅은 남색)으로 표시한다

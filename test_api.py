@@ -1320,7 +1320,7 @@ ok('크기↔줄높이 짝 고정', len(_pairs) >= 5, _pairs)
 # 여백 척도 — 4·8·12·16·24 다섯 단계만. (1·2px 은 선·미세보정, 48px 은 본문 하단 여유)
 # 값이 늘어나면 "여기는 왜 14px 이지" 를 매번 판단해야 하고 화면마다 리듬이 어긋난다.
 import re as _re
-_SPACE_OK = {0, 1, 2, 4, 8, 12, 16, 24, 48}
+_SPACE_OK = {0, 1, 2, 4, 8, 12, 16, 24, 32, 48}   # 32 = 본문 바깥 여백 (v10.23)
 _PROPS = r'(?:margin|padding|gap|row-gap|column-gap)(?:-(?:top|bottom|left|right))?'
 for _hf in ('servera/travelbudget/templates/index.html',
             'servera/travelbudget/templates/traveler_guide.html'):
@@ -1440,7 +1440,7 @@ for _name, _body in (('화면', _tpl_body), ('안내문', _guide_body)):
 
 # 글씨 척도 — 크기 6단계, 줄높이는 px 정수(윈도우에서 소수 줄높이는 글자가 뭉개진다)
 _SCALE = {'12px': '18px', '13px': '20px', '14px': '22px',
-          '16px': '24px', '20px': '28px', '32px': '38px'}
+          '16px': '24px', '20px': '28px', '24px': '32px', '32px': '38px'}
 for _name, _body in (('화면', _tpl_body), ('안내문', _guide_body)):
     _fs = [v for v in _re0.findall(r'font-size:\s*([^;}]+)', _body)]
     _off = [v for v in _fs if v.strip() not in _SCALE and not v.strip().endswith('pt')]
