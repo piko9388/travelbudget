@@ -67,6 +67,15 @@ def _norm(g, data):
     return C.normalize_group(g, by_nm=C.ccg_by_nm(data), by_cd=C.ccg_by_cd(data))
 
 
+def _tags_used(data):
+    """원장에 실제로 쓰인 태그 — 많이 쓴 순. 선택형 입력·필터 목록이 된다."""
+    n = {}
+    for g in data.get("groups", []):
+        for x in C.clean_tags(g.get("tags")):
+            n[x] = n.get(x, 0) + 1
+    return [{"tag": k, "n": v} for k, v in sorted(n.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+
 def _ccg_usage(data):
     """원장에 실제로 쓰인 CCG 코드별 인원 수와, 그중 현재 목록에 없는 코드.
     (조직 개편으로 목록을 갈아끼우면 옛 코드가 원장에 남는다 — 화면에서 보여야 옮길 수 있다)"""
@@ -263,6 +272,7 @@ def api_state():
         "budget": sorted([b for b in data["budget"] if b.get("yq") == yq],
                          key=lambda b: b.get("rev_dt") or ""),
         "version": {"v": C.APP_VERSION, "build": C.APP_BUILD},
+        "tags": _tags_used(data),
         "meta": {"planTypes": C.PLAN_TYPES, "ranks": C.RANKS, "kinds": C.KINDS,
                  "cars": C.CARS, "revTypes": C.REV_TYPES, "statuses": C.STATUSES,
                  "cost": [{"k": k, "label": l} for k, l in C.COST]},
@@ -326,6 +336,27 @@ def update_group(gid):
                      actor="admin" if _is_admin(data) else "user")
         save_data(data)
     return jsonify({"ok": True, "group": g})
+
+
+# ── 태그(#) 고치기 ────────────────────────────────────────
+# 태그는 분류·검색에만 쓰이고 금액·상태·예산에 관여하지 않는다.
+# 그래서 이관·완료된 건도 나중에 붙이거나 뗄 수 있게 잠금을 걸지 않는다(감사 로그에는 남는다).
+@travelbudget.post("/api/groups/<gid>/tags")
+def set_tags(gid):
+    with LOCK:
+        data = load_data()
+        cur = _find(data, gid)
+        if cur is None:
+            return _err("출장건을 찾을 수 없습니다.", 404)
+        before = C.clean_tags(cur.get("tags"))
+        tags = C.clean_tags(_body().get("tags"))
+        cur["tags"] = tags
+        cur["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        if before != tags:
+            append_audit(data, "태그 변경",
+                         f"{gid} {'·'.join(before) or '(없음)'} → {'·'.join(tags) or '(없음)'}")
+            save_data(data)
+    return jsonify({"ok": True, "tags": tags, "tagsUsed": _tags_used(data)})
 
 
 # ── 실적 입력 → 인폼 (상태 자동 전환) ─────────────────────

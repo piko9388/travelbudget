@@ -31,6 +31,7 @@ _store.DATA_DIR.mkdir(parents=True, exist_ok=True)
 app.config['TESTING'] = True
 c = app.test_client()
 ADM = {'X-Admin-PW': '2071478'}
+_tbl = open('tools/tb_local.js', encoding='utf-8').read()   # 정적판 대조용
 P=[0];F=[0]
 def ok(n, cond, got=None):
     if cond: P[0]+=1; print(f'  PASS  {n}')
@@ -345,7 +346,6 @@ c.post(f'/travelbudget/api/groups/{_cg}/status', json={'status': '확정 예정'
 ok('확정 예정 무인증 취소 허용',
    c.post(f'/travelbudget/api/groups/{_cg}/status', json={'status': '취소'}).status_code == 200)
 # 정적 미러도 같은 규칙이어야 한다 (한쪽만 고치면 서로 다른 권한을 갖는다)
-_tbl = open('tools/tb_local.js', encoding='utf-8').read()
 ok('정적 미러도 취소 게이트 보유',
    'want === ST_CANCEL' in _tbl and 'PRE.indexOf(cur4.status) < 0' in _tbl)
 
@@ -1258,8 +1258,10 @@ _st = open('servera/travelbudget/store.py', encoding='utf-8').read()
 ok('저장 위치를 TB_DATA_DIR 로 옮길 수 있음', 'TB_DATA_DIR' in _st)
 ok('기본 저장 위치가 앱 폴더 안임을 경고로 명시', '덮어쓰면 데이터가 날아간다' in _st)
 # data.json 에 저장되는 필드가 늘면 이전 버전으로 되돌릴 때 읽지 못할 수 있다
+# tags 는 v10.24 에서 새로 생긴 '분류용' 칸이다. 옛 버전으로 되돌려도 원장은 그대로 읽히고,
+# 그 버전에서 저장한 건의 태그만 사라진다(금액·상태에는 관여하지 않음) — UPGRADE.md 에 적어 뒀다.
 _PERSIST = {'act_tot', 'days', 'lead_days', 'lv2', 'plan_tot', 'plan_type', 'proc', 'quarter',
-            'remark', 'roll', 'sap_doc', 'stage', 'status', 'travelers', 'yq'}
+            'remark', 'roll', 'sap_doc', 'stage', 'status', 'tags', 'travelers', 'yq'}
 _ng = _re0.search(r'def normalize_group\([^)]*\):(.*?)\ndef ',
                   open('servera/travelbudget/core.py', encoding='utf-8').read(), _re0.S).group(1)
 _got = set(_re0.findall(r'g\["(\w+)"\]\s*=', _ng)) | set(_re0.findall(r'g\.setdefault\("(\w+)"', _ng))
@@ -1692,11 +1694,61 @@ ok('거부돼도 기존 주소가 남아 있음',
    c.get('/travelbudget/api/state').get_json()['settings'].get('approval_url')
    == 'https://approval.example.com/t')
 ok('설정 화면에 결재 주소 칸', 'cfgApv' in _appjs)
-ok('행 메뉴에 결재 작성 도우미', "['결재 작성 도우미'" in _appjs and 'function openApproval' in _appjs)
+ok('행 메뉴에 정산서 작성 도우미', "['정산서 작성 도우미'" in _appjs and 'function openApproval' in _appjs)
 ok('도우미가 결재 항목을 표로 꺼냄', 'function apvRows' in _appjs and '전체 복사' in _appjs)
 ok('실적이 있으면 실적 금액, 없으면 계획 금액',
    "const isAct = (g.act_tot || 0) > 0" in _appjs and "const pre = isAct ? 'a_' : 'p_'" in _appjs)
 ok('링크는 새 창 + noopener', 'rel="noopener"' in _appjs.split('function openApproval')[1][:2000])
+
+# ── 표 잘림 · 태그 · 정산서 도우미 ──
+print('\n=== 38. 표 잘림 · 태그(#) · 정산서 도우미 ===')
+# 출장 칸이 길어 뒤 칸이 밀리던 것 — 여기서만 말줄임하고 행을 누르면 전부 보인다
+ok('출장 칸만 말줄임', 'td.trip{max-width' in _tpl and 'text-overflow:ellipsis' in _tpl)
+ok('행을 누르면 내역이 열림', 'function rowClick' in _appjs and "onclick=\"rowClick(event" in _appjs)
+ok('버튼·체크박스 위에서는 행 클릭이 안 먹음',
+   "ev.target.closest('button,a,input,select,label,details,.rowmenu')" in _appjs)
+ok('내역 토글 버튼 제거 (중복)', '내역 ${open' not in _appjs and "toggleDetail('${gid}')\"" not in _appjs)
+ok('무엇을 누르면 되는지 화면에 적혀 있음', '<b>행을 누르면</b>' in _appjs)
+
+# 태그 — 선택 입력. 금액·상태에 관여하지 않는다
+ok('태그 정리 규칙 (# 제거·중복 제거·상한)', hasattr(_C, 'clean_tags')
+   and _C.clean_tags('#CMP, 정기 Audit, CMP') == ['CMP', '정기 Audit'])
+ok('태그 개수·길이 상한', len(_C.clean_tags([f't{i}' for i in range(20)])) == _C.TAG_MAX
+   and len(_C.clean_tags(['x' * 50])[0]) == _C.TAG_LEN)
+_tg = c.post('/travelbudget/api/groups', json=dict(g3, tags='#CMP, 정기 Audit')).get_json()
+_tgid = _tg['group']['group_id']
+ok('등록할 때 태그가 붙는다', _tg['group']['tags'] == ['CMP', '정기 Audit'], _tg['group'].get('tags'))
+ok('상태에 쓰인 태그 목록', any(x['tag'] == 'CMP'
+   for x in c.get('/travelbudget/api/state').get_json().get('tags', [])))
+_r2 = c.post(f'/travelbudget/api/groups/{_tgid}/tags', json={'tags': 'CMP'})
+ok('태그만 따로 고칠 수 있다', _r2.status_code == 200 and _r2.get_json()['tags'] == ['CMP'],
+   _r2.get_json())
+_r3 = c.post(f'/travelbudget/api/groups/{_tgid}/tags', json={'tags': ''})
+ok('태그를 비우면 전부 지워진다', _r3.get_json()['tags'] == [])
+ok('태그 변경이 감사 로그에 남음',
+   any('태그' in a.get('action', '') for a in _store.load_data().get('audit_log', [])))
+# 이관·완료된 건도 분류는 고칠 수 있어야 한다 (금액·상태를 건드리지 않으므로)
+_done = [g for g in _store.load_data()['groups'] if g.get('status') == _C.ST_DONE]
+if _done:
+    _rd = c.post(f"/travelbudget/api/groups/{_done[0]['group_id']}/tags", json={'tags': '사후분류'})
+    ok('완료된 건도 태그는 붙는다', _rd.status_code == 200, _rd.get_json())
+ok('화면: 계획 등록에 태그 칸', 'pl_tags' in _appjs and 'datalist' in _appjs)
+ok('화면: 쓰인 태그를 눌러 넣을 수 있음', 'function addPlanTag' in _appjs)
+ok('화면: 목록에서 태그로 거르기', 'function setTagFilter' in _appjs and 'LQ.tag' in _appjs)
+ok('화면: 검색어에도 태그가 걸림', '...(g.tags || [])' in _appjs)
+ok('화면: 목록에서 태그 편집', 'function editTags' in _appjs)
+ok('정적판도 같은 규칙', 'function cleanTags' in _tbl and "/tags$/" in _tbl)
+
+# 정산서(국내 출장 정산서) 작성 도우미 — 사내 결재 창의 칸 순서 그대로
+ok('결재 주소 기본값이 사내 정산서', 'apv.skhynix.com' in _store._settings()['approval_url'])
+for _f in ('출장 목적', '세부일정', '방문회사', '방문자', '목적지 주소 및 전화번호',
+           '사번', '출장일시', '교통편', '출발지', '출장지'):
+    ok(f'정산서 칸 — {_f}', f"['{_f}'" in _appjs)
+ok('교통편 선택지 10종', _appjs.count("APV_TRANS = [") == 1 and '고속철도' in _appjs)
+ok('출발지 선택지 (사업장·거주지)', 'APV_FROM' in _appjs and '분당캠퍼스' in _appjs)
+ok('사람별로 올린다 (사번이 한 개)', 'function apvPick' in _appjs and '사번이 한 개' in _appjs)
+ok('없는 값은 없다고 말한다', '시스템에 없는 값' in _appjs)
+ok('증빙은 결재 창이 불러온다고 안내', '증빙(카드 지불 정보)은' in _appjs)
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

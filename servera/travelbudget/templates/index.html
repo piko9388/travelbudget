@@ -224,6 +224,23 @@ th,td{padding:12px 8px;border-bottom:1px solid var(--line2);text-align:left;whit
 /* 머리글은 배경을 깔지 않고 선 하나로 가른다 — 회색 띠가 화면을 무겁게 만들었다 */
 th{background:transparent;color:var(--mut);font-size:12px;line-height:18px;font-weight:700;
 padding-top:8px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+/* 출장 칸이 길면 뒤 칸들이 밀려 나간다 — 여기서만 말줄임하고, 행을 누르면 전부 보인다 */
+td.trip{max-width:300px;position:relative;padding-right:16px}
+td.trip>b,td.trip>.sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.trip .tw{position:absolute;right:2px;top:50%;transform:translateY(-50%);
+color:var(--s4);font-size:12px;line-height:18px}
+/* 태그(#) — 분류·검색용. 상태 배지(색으로 단계)와 섞이지 않게 회색 계열 한 톤만 쓴다 */
+.tag{display:inline-block;margin:4px 4px 0 0;padding:1px 8px;border:1px solid var(--line);
+background:var(--surf);color:var(--ink2);border-radius:var(--r-pill);
+font-size:12px;line-height:18px;font-family:inherit;cursor:pointer}
+.tag:hover{border-color:var(--s4ln);background:var(--tint);color:var(--navy)}
+.tag.on{background:var(--s3bg);border-color:var(--s4ln);color:var(--navy);font-weight:700}
+td.trip .tags{margin-top:2px}
+.tagpick{display:flex;flex-wrap:wrap;gap:0 4px;margin-top:4px}
+.tagbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+tr.lrow{cursor:pointer}
+tr.lrow.open{background:var(--tint)}
+tr.lrow.open td.trip .tw{color:var(--s2)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 tbody tr:hover{background:var(--surf)}
 tfoot td{background:var(--shade);font-weight:700;color:var(--navy)}

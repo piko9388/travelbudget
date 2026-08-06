@@ -4,7 +4,7 @@
 잔여 = 총예산 − 처리완료 − 처리중. 예측 기능 없음.
 """
 from __future__ import annotations
-import csv, io
+import csv, io, re
 from copy import deepcopy
 from datetime import date
 from html import escape
@@ -75,7 +75,7 @@ def ccg_by_cd(data=None):
     """CCG 코드 → 팀 이름. 표시용 이름은 항상 코드에서 파생한다."""
     return {t["ccg"]: t["team"] for t in ccg_teams(data)}
 
-APP_VERSION = "v10.23"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_VERSION = "v10.24"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-08-03"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -98,6 +98,28 @@ TEXT_MAX = (("city", "출장도시", 40), ("org", "출장기관&업체", 100),
             ("purpose", "출장목적&사유", 300), ("remark", "비고", 500))
 PERSON_MAX = (("name", "성명", 40), ("emp_no", "사번", 30))
 TRAVELERS_MAX = 30                       # 한 출장의 동행 상한 (센터 양식·인폼 표가 견디는 선)
+# 태그(#) — 선택 입력. 분류·검색에만 쓰이고 금액·상태에는 관여하지 않는다.
+TAG_MAX = 8                              # 한 건에 붙일 수 있는 수
+TAG_LEN = 20                             # 한 개 길이
+
+
+def clean_tags(v):
+    """'#CMP 정기 Audit' · ['CMP','정기Audit'] · 'CMP, 정기 Audit' 을 모두 같은 목록으로.
+    앞의 # 는 표기용이라 저장할 때 뗀다(검색·비교가 한 가지 형태여야 한다)."""
+    if isinstance(v, str):
+        raw = [x for x in re.split(r"[#,\n\t]", v)]
+    elif isinstance(v, (list, tuple)):
+        raw = []
+        for x in v:
+            raw += re.split(r"[#,\n\t]", str(x))
+    else:
+        return []
+    out = []
+    for x in raw:
+        s = _txt(x).lstrip("#").strip()[:TAG_LEN]
+        if s and s not in out:
+            out.append(s)
+    return out[:TAG_MAX]
 
 
 # ── 유틸 ──────────────────────────────────────────────────
@@ -240,6 +262,7 @@ def normalize_group(g, by_nm=None, by_cd=None):
     T = g.get("travelers")
     g["travelers"] = [p for p in T if isinstance(p, dict)] if isinstance(T, list) else []
     g.setdefault("remark", "")
+    g["tags"] = clean_tags(g.get("tags"))
     for k in ("plan_type", "status", "lv2", "city", "org", "purpose",
               "kind", "car", "remark", "group_id", "sap_doc"):
         g[k] = _txt(g.get(k))

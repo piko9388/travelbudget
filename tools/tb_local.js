@@ -68,7 +68,7 @@
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.23', APP_BUILD = '2026-08-03';
+  var APP_VERSION = 'v10.24', APP_BUILD = '2026-08-03';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -160,6 +160,28 @@
     if (v == null || typeof v === 'boolean' || typeof v === 'object') return '';
     return String(v).trim();
   }
+  // 태그(#) — 서버 core.clean_tags 와 같은 규칙: # 를 떼고, 중복 제거, 8개·20자 상한
+  var TAG_MAX = 8, TAG_LEN = 20;
+  function cleanTags(v) {
+    var raw = [];
+    if (typeof v === 'string') raw = v.split(/[#,\n\t]/);
+    else if (Array.isArray(v)) v.forEach(function (x) { raw = raw.concat(String(x).split(/[#,\n\t]/)); });
+    else return [];
+    var out = [];
+    raw.forEach(function (x) {
+      var s = String(x == null ? '' : x).replace(/^#+/, '').trim().slice(0, TAG_LEN);
+      if (s && out.indexOf(s) < 0) out.push(s);
+    });
+    return out.slice(0, TAG_MAX);
+  }
+  function tagsUsed(data) {
+    var n = {};
+    (data.groups || []).forEach(function (g) {
+      cleanTags(g.tags).forEach(function (x) { n[x] = (n[x] || 0) + 1; });
+    });
+    return Object.keys(n).map(function (k) { return { tag: k, n: n[k] }; })
+      .sort(function (a, b) { return b.n - a.n || (a.tag < b.tag ? -1 : 1); });
+  }
   function normalizeGroup(gin) {
     var g = clone(gin);
     if (g.plan_type == null) g.plan_type = '계획';
@@ -167,6 +189,7 @@
     if (g.lv2 == null) g.lv2 = '소재';
     g.travelers = Array.isArray(g.travelers) ? g.travelers.filter(function (p) { return p && typeof p === 'object'; }) : [];
     if (g.remark == null) g.remark = '';
+    g.tags = cleanTags(g.tags);
     ['plan_type','status','lv2','city','org','purpose','kind','car','remark','group_id','sap_doc']
       .forEach(function (k) { g[k] = txt(g[k]); });
     ['dep_dt','ret_dt'].forEach(function (k) { var d = parseD(g[k]); g[k] = d ? iso(d) : ''; });
@@ -563,7 +586,7 @@
         mail_recipients: ['junghoon12.lee@sk.com', 'eunjeong5.kim@sk.com',
                           'Jeewoung.Chun@sk.com', 'geonyoung.kim@sk.com'],
         reference_url: 'material.skhynix.com/travelbudget',
-        approval_url: ''
+        approval_url: 'http://apv.skhynix.com/Website/Approval/Forms/Form_SRC.aspx?fmid=ef282431-0b98-9551-e66f8bc74cd2&mode=DRAFT&CFN_OpenWindowName=96845'
       },
       budget: budget, groups: groups.map(normalizeGroup), audit_log: []
     };
@@ -643,6 +666,7 @@
       var groups = (data.groups || []).map(normalizeGroup).sort(function (a, b) { return (b.dep_dt || '') < (a.dep_dt || '') ? -1 : (b.dep_dt || '') > (a.dep_dt || '') ? 1 : 0; });
       return okr({
         yq: yq, yqList: yqList(), settings: publicSettings(data.settings), ccg: ccgTeams(data),
+        tags: tagsUsed(data),
         version: { v: APP_VERSION, build: APP_BUILD },
         dash: dash(data, yq), groups: groups,
         budget: (data.budget || []).filter(function (b) { return b.yq === yq; }).sort(function (a, b) { return (a.rev_dt || '') < (b.rev_dt || '') ? -1 : 1; }),
@@ -669,6 +693,17 @@
       if (e2.length) return err(e2);
       g2.updated_at = nowISO(); data.groups[data.groups.indexOf(cur)] = g2;
       appendAudit(data, '출장 수정', m[1]); Store.save(data); return okr({ group: g2 });
+    }
+    // 태그는 분류·검색용이라 잠긴 건도 고칠 수 있다 (서버 /groups/<gid>/tags 와 같은 규칙)
+    if ((m = path.match(/^\/groups\/([^/]+)\/tags$/)) && method === 'POST') {
+      var curT = find(data, m[1]); if (!curT) return err('출장건을 찾을 수 없습니다.', 404);
+      var before = cleanTags(curT.tags), tg = cleanTags(body.tags);
+      curT.tags = tg; curT.updated_at = nowISO();
+      if (before.join('|') !== tg.join('|')) {
+        appendAudit(data, '태그 변경', m[1] + ' ' + (before.join('·') || '(없음)') + ' → ' + (tg.join('·') || '(없음)'));
+        Store.save(data);
+      }
+      return okr({ tags: tg, tagsUsed: tagsUsed(data) });
     }
     if ((m = path.match(/^\/groups\/([^/]+)\/actual$/)) && method === 'POST') {
       var cur3 = find(data, m[1]); if (!cur3) return err('출장건을 찾을 수 없습니다.', 404);

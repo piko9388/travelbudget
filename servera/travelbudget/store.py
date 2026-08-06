@@ -34,8 +34,8 @@ def _settings():
         "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong5.kim@sk.com",
                             "Jeewoung.Chun@sk.com", "geonyoung.kim@sk.com"],
         "reference_url": "material.skhynix.com/travelbudget",
-        # 사내 전자결재 사이트 주소 — [시스템 설정]에서 넣는다(비워 두면 링크가 안 뜬다)
-        "approval_url": "",
+        # 국내 출장 정산서(전자결재) 주소 — 바뀌면 [시스템 설정]에서 고친다
+        "approval_url": "http://apv.skhynix.com/Website/Approval/Forms/Form_SRC.aspx?fmid=ef282431-0b98-9551-e66f8bc74cd2&mode=DRAFT&CFN_OpenWindowName=96845",
     }
 
 

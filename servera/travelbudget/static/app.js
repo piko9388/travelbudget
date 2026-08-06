@@ -746,6 +746,7 @@ function editGroup(gid){
   $('#pl_type').value = g.plan_type; $('#pl_city').value = g.city; $('#pl_org').value = g.org;
   $('#pl_kind').value = g.kind; $('#pl_car').value = g.car || '미사용';
   $('#pl_purpose').value = g.purpose; $('#pl_remark').value = g.remark || '';
+  if ($('#pl_tags')) $('#pl_tags').value = (g.tags || []).join(', ');
   $('#pl_dep').value = g.dep_dt; $('#pl_ret').value = g.ret_dt;
   $('#travBody').innerHTML = '';
   (g.travelers || []).forEach(t => addTrav(t));
@@ -808,8 +809,15 @@ function rPlan(){
         <button class="btn" onclick="addTrav()">+ 동행자 추가</button>
         <span style="margin-left:auto;font-weight:700;color:var(--navy)">계획 총합계 <span id="planTot">0원</span></span>
       </div>
-      <div class="form-grid" style="margin-top:12px">
+      <div class="form-grid c2" style="margin-top:12px">
         <div><label for="pl_remark">비고</label><input id="pl_remark" placeholder="특이사항이 있으면 적어주세요"></div>
+        <div><label for="pl_tags">태그 <span class="au">선택 · 쉼표로 여러 개</span></label>
+          <input id="pl_tags" list="tagList" placeholder="예: CMP, 정기 Audit">
+          <datalist id="tagList">${(ST.tags || []).map(x => `<option value="${esc(x.tag)}">`).join('')}</datalist>
+          <div class="tagpick" id="plTagPick">${(ST.tags || []).slice(0, 12).map(x =>
+            `<button type="button" class="tag" onclick="addPlanTag('${esc(x.tag).replace(/'/g, "\\'")}')"
+               title="${x.n}건에 쓰임">#${esc(x.tag)}</button>`).join('')}</div>
+        </div>
       </div>
       ${ed ? '' : `<label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-top:4px">
         <input type="checkbox" id="pl_confirm" style="width:auto;margin:0">
@@ -830,6 +838,7 @@ function copyPlan(gid){
   $('#pl_type').value = g.plan_type; $('#pl_city').value = g.city; $('#pl_org').value = g.org;
   $('#pl_kind').value = g.kind; $('#pl_car').value = g.car || '미사용';
   $('#pl_purpose').value = g.purpose; $('#pl_remark').value = '';
+  if ($('#pl_tags')) $('#pl_tags').value = (g.tags || []).join(', ');
   $('#pl_dep').value = ''; $('#pl_ret').value = '';
   $('#travBody').innerHTML = '';
   (g.travelers || []).forEach(p => addTrav(p));
@@ -847,12 +856,22 @@ function collectTravelers(){
     return p;
   });
 }
+/* 태그는 주관식이 기본이고, 이미 쓰인 것은 눌러서 넣을 수 있게 한다
+   (선택형만 두면 새 분류를 못 만들고, 주관식만 두면 같은 뜻이 여러 철자로 갈린다) */
+function addPlanTag(tag){
+  const el = $('#pl_tags'); if (!el) return;
+  const cur = el.value.split(',').map(s => s.trim()).filter(Boolean);
+  if (!cur.includes(tag)) cur.push(tag);
+  el.value = cur.join(', ');
+  el.focus();
+}
 function submitPlan(){ return once('#planBtn', _submitPlan); }
 async function _submitPlan(){
   const body = {plan_type: $('#pl_type').value, city: $('#pl_city').value.trim(),
     org: $('#pl_org').value.trim(), kind: $('#pl_kind').value,
     dep_dt: $('#pl_dep').value, ret_dt: $('#pl_ret').value, car: $('#pl_car').value,
     purpose: $('#pl_purpose').value.trim(), remark: $('#pl_remark').value.trim(),
+    tags: $('#pl_tags') ? $('#pl_tags').value : '',
     confirmed: $('#pl_confirm')?.checked || false,
     travelers: collectTravelers()};
   if (EDIT_GID) {                          // 수정 — 상태·개인 처리상태는 서버가 고정
@@ -1312,65 +1331,122 @@ function bSample(){
   bPreview();
 }
 
-/* ═══ 결재 작성 도우미 ═══
-   결재는 사내 전자결재 사이트에서 올린다. 이 시스템은 '그 창에 넣을 값'을 화면과 같은
-   순서로 꺼내 주고, 한 줄씩·통째로 복사할 수 있게만 한다(값을 대신 써 넣지 않는다). */
-function apvRows(g){
-  const T = g.travelers || [];
-  const sum = k => T.reduce((a, p) => a + (Number(p[k]) || 0), 0);
-  const rows = [
-    ['출장 구분', g.plan_type || '계획'],
-    ['출장 도시', g.city || ''],
-    ['출장 기관&업체', g.org || ''],
-    ['출장 목적&사유', g.purpose || ''],
-    ['출장 유형', g.kind || ''],
-    ['출발일자', g.dep_dt || ''],
-    ['복귀일자', g.ret_dt || ''],
-    ['출장일수', `${g.days || ''}일`],
-    ['자차사용여부', g.car || '미사용'],
-    ['출장자', T.map(p => `${p.name}(${p.emp_no}·${p.rank})`).join(', ')],
-    ['소속 CCG', [...new Set(T.map(p => `${p.ccg_nm}(${p.ccg})`))].join(', ')],
-    ['인원', `${T.length}명`],
-  ];
+/* 태그 편집 — 분류·검색용이라 이관·완료된 건도 고칠 수 있다(금액·상태는 건드리지 않는다) */
+async function editTags(gid){
+  const g = ST.groups.find(x => x.group_id === gid); if (!g) return;
+  const used = (ST.tags || []).map(x => x.tag).join(' · ');
+  const cur = (g.tags || []).join(', ');
+  const v = prompt(`태그 (쉼표로 여러 개, 비우면 전부 삭제)\n\n${gname(g)}\n`
+    + (used ? `\n지금까지 쓰인 태그: ${used}` : ''), cur);
+  if (v === null) return;
+  const {ok, data} = await api(`/groups/${gid}/tags`, {method: 'POST', body: JSON.stringify({tags: v})});
+  if (!ok) { toast((data.errors || ['저장 실패'])[0]); return; }
+  await load(); renderListBody();
+  toast(data.tags.length ? `태그 ${data.tags.length}개 저장` : '태그를 모두 지웠습니다');
+}
+
+/* ═══ 결재 작성 도우미 (국내 출장 정산서) ═══
+   결재는 사내 전자결재 사이트에서 사람이 올린다. 이 화면은 그 창의 칸 순서 그대로
+   '넣을 값'을 꺼내 주고, 한 줄씩·통째로 복사하게만 한다. 값을 대신 써 넣지 않는다.
+   정산서는 사번이 한 개라 사람별로 올린다 — 동행이 있으면 위에서 사람을 고른다. */
+const APV_TRANS = ['타인 차량 동승', '공용차량', '개인차량(고속도로이용)', '개인차량(국도이용)',
+                   '대중교통', '셔틀버스', '의전차량', '항공기', '고속철도', '렌트차량'];
+const APV_FROM = ['근무지 사업장 — 분당캠퍼스', '근무지 사업장 — 센터원오피스',
+                  '근무지 사업장 — 이천캠퍼스', '근무지 사업장 — 청주캠퍼스', '거주지(주소 입력)'];
+let APV_P = 0;                                   // 지금 보고 있는 출장자 순번
+
+/* 정산서 칸 = [라벨, 값, 도움말].  값이 빈 문자열이면 '시스템에 없는 값' 으로 표시한다 */
+function apvRows(g, p){
   const isAct = (g.act_tot || 0) > 0;
   const pre = isAct ? 'a_' : 'p_';
-  rows.push([isAct ? '실적 교통비' : '계획 교통비', won(sum(pre + 'trans')) + '원']);
-  rows.push([isAct ? '실적 숙박비' : '계획 숙박비', won(sum(pre + 'lodg')) + '원']);
-  rows.push([isAct ? '실적 식대&잡비' : '계획 식대&잡비', won(sum(pre + 'meal')) + '원']);
-  rows.push([isAct ? '실적 기타' : '계획 기타', won(sum(pre + 'etc')) + '원']);
-  rows.push([isAct ? '실적 합계' : '계획 합계', won(isAct ? g.act_tot : g.plan_tot) + '원']);
-  if (g.remark) rows.push(['비고', g.remark]);
-  return rows;
+  const won0 = v => won(Number(v) || 0) + '원';
+  const car = g.car === '자차사용' ? '개인차량(고속도로이용)' : '대중교통';
+  const days = `${g.dep_dt} ~ ${g.ret_dt || g.dep_dt}`;
+  const plan = `${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} ${g.city} ${g.org} · ${g.purpose}`;
+  return [
+    ['출장 목적', g.purpose || '', ''],
+    ['세부일정', plan, '일자 · 방문처 · 목적을 한 줄로'],
+    ['방문회사', g.org || '', ''],
+    ['방문자', names(g).replace(/<[^>]*>/g, ''), '우리 쪽 출장자입니다. 상대측 담당자는 결재 창에서 직접'],
+    ['목적지 주소 및 전화번호', '', '시스템에 없는 값 — 결재 창에서 직접'],
+    ['사번', p ? p.emp_no : '', ''],
+    ['성명', p ? p.name : '', ''],
+    ['출장일시', days, '시작 ~ 종료'],
+    ['교통편', car, '자차 여부로 미리 골라 둔 것 — 실제와 다르면 결재 창에서 바꾸세요'],
+    ['출발지', '', '근무지 사업장 또는 거주지 — 결재 창에서 고르세요'],
+    ['출장지', [g.city, g.org].filter(Boolean).join(' '), '주소는 결재 창에서 [추가]'],
+    [isAct ? '실적 교통비' : '계획 교통비', won0(p ? p[pre + 'trans'] : 0), ''],
+    [isAct ? '실적 숙박비' : '계획 숙박비', won0(p ? p[pre + 'lodg'] : 0), ''],
+    [isAct ? '실적 식대&잡비' : '계획 식대&잡비', won0(p ? p[pre + 'meal'] : 0), ''],
+    [isAct ? '실적 기타' : '계획 기타', won0(p ? p[pre + 'etc'] : 0), ''],
+    [isAct ? '실적 합계' : '계획 합계',
+     won0(p ? ['trans', 'lodg', 'meal', 'etc'].reduce((a, k) => a + (Number(p[pre + k]) || 0), 0) : 0),
+     '증빙(카드) 금액과 대조할 값'],
+    ['비고', g.remark || '', ''],
+    ['태그', (g.tags || []).map(x => '#' + x).join(' '), '분류용 — 결재 창에는 넣지 않아도 됩니다'],
+  ];
 }
-function apvText(g){
-  return apvRows(g).map(([k, v]) => `${k}\t${v}`).join('\n');
+function apvText(g, p){
+  return apvRows(g, p).filter(([, v]) => v).map(([k, v]) => `${k}\t${v}`).join('\n');
 }
 function openApproval(gid){
   const g = ST.groups.find(x => x.group_id === gid);
   if (!g) return;
+  APV_P = 0;
+  drawApproval(gid);
+}
+function apvPick(gid, i){ APV_P = i; drawApproval(gid); }
+function drawApproval(gid){
+  const g = ST.groups.find(x => x.group_id === gid);
+  if (!g) return;
+  const T = g.travelers || [];
+  const p = T[Math.min(APV_P, T.length - 1)] || null;
   const url = (ST.settings && ST.settings.approval_url) || '';
-  const rows = apvRows(g);
+  const rows = apvRows(g, p);
   const isAct = (g.act_tot || 0) > 0;
   document.getElementById('apvCard')?.remove();
   const el = document.createElement('section');
   el.className = 'mailcard'; el.id = 'apvCard';
   el.innerHTML = `
-    <div class="mh"><span>결재 작성 도우미 · ${esc(gname(g))} ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</span>
+    <div class="mh"><span>국내 출장 정산서 작성 도우미 · ${esc(gname(g))} ${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</span>
       <span class="mhb"><button title="닫기" onclick="this.closest('.mailcard').remove()">×</button></span></div>
-    <div class="how">사내 결재 창의 각 칸에 아래 값을 그대로 넣으시면 됩니다.
-      <span class="sub">${isAct ? '실적이 입력된 건이라 <b>실적 금액</b>을 보여줍니다.' : '아직 실적 전이라 <b>계획 금액</b>을 보여줍니다.'}</span></div>
-    <div style="padding:0 16px 12px">
+    <div class="how">사내 결재 창의 칸 순서대로 정리했습니다. 줄마다 <b>복사</b>, 위에 <b>전체 복사</b>.
+      <span class="sub">${isAct ? '실적이 입력된 건이라 <b>실적 금액</b>' : '아직 실적 전이라 <b>계획 금액</b>'}을
+      보여줍니다. 정산서는 <b>사번이 한 개</b>라 사람별로 올립니다.</span></div>
+    <div style="padding:0 16px 16px">
+      ${T.length > 1 ? `<div class="tagbar" style="margin-top:12px">
+        <span class="sub">출장자 ${T.length}명 — 정산서를 올릴 사람</span>
+        ${T.map((x, i) => `<button class="tag${i === Math.min(APV_P, T.length - 1) ? ' on' : ''}"
+          onclick="apvPick('${gid}',${i})">${esc(x.name)} ${esc(x.emp_no)}</button>`).join('')}
+      </div>` : ''}
       <div class="btns" style="margin:12px 0">
-        ${url ? `<a class="btn pri" href="${esc(url)}" target="_blank" rel="noopener">사내 결재 사이트 열기 ↗</a>`
+        ${url ? `<a class="btn pri" href="${esc(url)}" target="_blank" rel="noopener">국내 출장 정산서 열기 ↗</a>`
               : `<span class="sub">결재 사이트 주소가 없습니다 — <b>시스템 설정</b>에서 넣으면 여기에 바로가기가 생깁니다.</span>`}
-        <button class="btn" onclick="copyText(apvText(ST.groups.find(x=>x.group_id==='${gid}')),'결재 항목을 전부 복사했습니다')">전체 복사</button>
+        <button class="btn" onclick="copyText(apvText(ST.groups.find(x=>x.group_id==='${gid}'),
+          (ST.groups.find(x=>x.group_id==='${gid}').travelers||[])[${Math.min(APV_P, Math.max(T.length - 1, 0))}]),
+          '정산서 항목을 전부 복사했습니다')">전체 복사</button>
       </div>
       <div class="scroll"><table class="apv-tbl">
-        <thead><tr><th>결재 항목</th><th>넣을 값</th><th></th></tr></thead>
-        <tbody>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td><b>${esc(v)}</b></td>
-          <td class="num"><button class="btn sm" onclick="copyText(${JSON.stringify(String(v))},'복사했습니다')">복사</button></td></tr>`).join('')}
+        <thead><tr><th>정산서 칸</th><th>넣을 값</th><th></th></tr></thead>
+        <tbody>${rows.map(([k, v, hint]) => `<tr>
+          <td>${esc(k)}</td>
+          <td>${v ? `<b>${esc(v)}</b>${hint ? `<div class="sub">${esc(hint)}</div>` : ''}`
+            : `<span class="sub">${esc(hint || '시스템에 없는 값')}</span>`}</td>
+          <td class="num">${v ? `<button class="btn sm"
+            onclick="copyText(${JSON.stringify(String(v))},'복사했습니다')">복사</button>` : ''}</td></tr>`).join('')}
         </tbody></table></div>
-      <p class="cap" style="margin:12px 0 0">출장자별 금액이 필요하면 목록에서 <b>내역 ▼</b> 를 펼쳐 보세요.</p>
+      <details class="fold" style="margin-top:12px">
+        <summary>교통편 · 출발지 선택지 — 결재 창에서 고르는 것</summary>
+        <div class="note" style="margin-top:8px">
+          <b>교통편</b> ${APV_TRANS.map(x => esc(x)).join(' · ')}<br>
+          <span class="sub">국도이용을 고르면 이동경로를 함께 적어야 합니다.</span>
+        </div>
+        <div class="note" style="margin-top:8px">
+          <b>출발지</b> ${APV_FROM.map(x => esc(x)).join(' · ')}
+        </div>
+      </details>
+      <p class="cap" style="margin:12px 0 0">증빙(카드 지불 정보)은 결재 창이 직접 불러옵니다.
+        위 <b>${isAct ? '실적' : '계획'} 합계</b>와 대조하세요.</p>
     </div>`;
   mailHost().appendChild(el);
   el.scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -1448,7 +1524,7 @@ const LCOLS = [
   {k:'plan',  th:'계획',     f:'min', ph:'≥금액', num:true},
   {k:'act',   th:'실적',     f:'min', ph:'≥금액', num:true},
 ];
-const LQ = {q:'', sort:'stage', dir:'desc', group:true, col:{}};
+const LQ = {q:'', sort:'stage', dir:'desc', group:true, col:{}, tag:''};
 const BQ = {q:'', type:'', dir:'desc'};
 function setBQ(k, v){ BQ[k] = v; rBudget(); nav('budget'); }
 function toggleBDir(){ BQ.dir = BQ.dir === 'asc' ? 'desc' : 'asc'; rBudget(); nav('budget'); }
@@ -1467,10 +1543,11 @@ function listRows(){
   const all = ST.groups.filter(g => g.yq === YQ);
   const q = LQ.q.trim().toLowerCase();
   // 전체 검색은 '데이터'만 대상 — 관리 버튼 문구가 걸리지 않도록
-  const hay = g => [g.city, g.org, g.purpose, g.roll, g.plan_type,
+  const hay = g => [g.city, g.org, g.purpose, g.roll, g.plan_type, ...(g.tags || []),
     ...(g.travelers || []).flatMap(p => [p.name, p.emp_no, p.ccg_nm])]
     .filter(Boolean).join(' ').toLowerCase();
   const G = all.filter(g => {
+    if (LQ.tag && !(g.tags || []).includes(LQ.tag)) return false;
     if (q && !hay(g).includes(q)) return false;
     for (const c of LCOLS) {                       // 컬럼별 검색창
       const v = String(LQ.col[c.k] || '').trim();
@@ -1509,7 +1586,8 @@ function sortList(k){
   renderListBody();
 }
 function setCol(k, v){ LQ.col[k] = v; renderListBody(); }   // 본문만 갱신 → 입력 포커스 유지
-function clearList(){ LQ.q = ''; LQ.col = {}; rList(); nav('list'); }
+function clearList(){ LQ.q = ''; LQ.col = {}; LQ.tag = ''; rList(); nav('list'); }
+function setTagFilter(tag){ LQ.tag = (LQ.tag === tag) ? '' : tag; rList(); nav('list'); }
 function toggleGroup(on){ LQ.group = on; renderListBody(); }
 function toggleLDir(){ LQ.dir = LQ.dir === 'asc' ? 'desc' : 'asc'; renderListBody(); }
 
@@ -1572,6 +1650,12 @@ function copyDetail(gid){
 }
 let DTL = new Set();                       // 펼쳐 둔 행 (다시 그려도 유지)
 let PDTL = new Set();                      // 이관·처리 화면에서 펼쳐 둔 그룹
+/* 행 아무 데나 눌러 내역을 편다. 버튼·체크박스·메뉴 위에서 누른 것은 그쪽 동작이라 건너뛴다
+   (예전엔 '내역 ▼' 버튼이 따로 있었는데, 행을 눌러도 같은 일이 나야 자연스럽다) */
+function rowClick(ev, gid){
+  if (ev.target.closest('button,a,input,select,label,details,.rowmenu')) return;
+  toggleDetail(gid);
+}
 function toggleDetail(gid){
   DTL.has(gid) ? DTL.delete(gid) : DTL.add(gid);
   renderListBody();
@@ -1676,26 +1760,31 @@ function listRowHtml(g, grouped){
   if (g.act_tot > 0 && !more.some(m => m[0] === '인폼 보기')
       && !main.some(x => x.includes('인폼'))) more.push(['인폼 보기', `reopenMail('${gid}')`, '']);
   // 결재는 사내 사이트에서 올린다 — 여기서는 '결재 창에 넣을 값'을 그대로 꺼내 준다
-  if (g.status !== '취소') more.push(['결재 작성 도우미', `openApproval('${gid}')`, '']);
+  more.push(['태그 편집', `editTags('${gid}')`, '']);
+  if (g.status !== '취소') more.push(['정산서 작성 도우미', `openApproval('${gid}')`, '']);
   const open = DTL.has(gid);
-  const detail = `<button class="btn sm${open ? ' pri' : ''}" onclick="toggleDetail('${gid}')"
-    title="출장자별 교통비·숙박비·식대·기타 내역">내역 ${open ? '▲' : '▼'}</button>`;
   const menu = more.length ? `<details class="rowmenu"><summary class="btn sm" title="더 보기">⋯</summary>
     <div class="rowmenu-pop">${more.map(([label, fn, cls]) =>
       `<button class="rowmenu-item${cls ? ' ' + cls : ''}" onclick="closeMenus();${fn}">${label}</button>`).join('')}
     </div></details>` : '';
-  const acts = [detail, ...main, menu].filter(Boolean);
+  const acts = [...main, menu].filter(Boolean);
   // 잠정만 골라서 한 번에 확정할 수 있게 — 엑셀로 20건 넣고 20번 누르던 것
   const pick = g.status === '계획 등록'
     ? `<input type="checkbox" class="lsel" data-gid="${gid}" ${SEL.has(gid) ? 'checked' : ''}
          aria-label="${esc(gname(g))} 선택" onchange="toggleSel('${gid}',this.checked)">`
     : '';
-  return `<tr${SEL.has(gid) ? ' class="picked"' : ''}>
+  return `<tr class="lrow${SEL.has(gid) ? ' picked' : ''}${open ? ' open' : ''}"
+      onclick="rowClick(event,'${gid}')" title="누르면 전체 내용과 출장자별 내역이 열립니다">
     <td class="pick">${pick}</td>
     <td>${grouped ? '' : `<span class="status ${stClass(g.roll)}">${esc(dispSt(g.roll))}</span>`}${
       g.plan_type === '긴급' ? '<span class="status urgent">긴급</span>' : ''}${
       ''}</td>
-    <td><b>${esc(gname(g))}</b><div class="sub">${esc(g.purpose)}</div></td>
+    <td class="trip"><b>${esc(gname(g))}</b><div class="sub">${esc(g.purpose)}</div>${
+      (g.tags || []).length ? `<div class="tags">${g.tags.map(x =>
+        `<button type="button" class="tag${LQ.tag === x ? ' on' : ''}"
+           onclick="event.stopPropagation();setTagFilter('${esc(x).replace(/'/g, "\\'")}')"
+           title="이 태그만 보기">#${esc(x)}</button>`).join('')}</div>` : ''}
+      <span class="tw" aria-hidden="true">${open ? '▲' : '▼'}</span></td>
     <td>${names(g)} <span class="sub">${g.travelers.length}명</span>${procTag(g)}</td>
     <td class="num">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</td>
     <td class="num">${g.plan_tot ? won(g.plan_tot) : '–'}</td>
@@ -1812,7 +1901,7 @@ function rList(){
         <button class="btn" id="listDir" onclick="toggleLDir()">${dirIcon(LQ.dir)}</button>
         <button class="btn" onclick="clearList()">필터 해제</button>
       </div>
-      <p class="cap" style="margin:-4px 0 12px">머리글을 누르면 정렬, 아래 칸에 입력하면 검색됩니다.</p>
+      <p class="cap" style="margin:-4px 0 12px">머리글을 누르면 정렬, 아래 칸에 입력하면 검색됩니다. <b>행을 누르면</b> 잘린 이름까지 전부와 출장자별 내역이 열립니다.</p>
       <div id="listErr"></div>
       <div id="selBar" class="selbar"></div>
       <div class="scroll"><table>
