@@ -237,6 +237,39 @@ font-size:12px;line-height:18px;font-family:inherit;cursor:pointer}
 .tag.on{background:var(--s3bg);border-color:var(--s4ln);color:var(--navy);font-weight:700}
 td.trip .tags{margin-top:2px}
 .tagpick{display:flex;flex-wrap:wrap;gap:0 4px;margin-top:4px}
+/* 문답 — 한 화면에 질문 하나. 지나온 답은 위에 한 줄씩 쌓이고, 누르면 그리로 돌아간다. */
+.card.askcard{background:var(--tint);border-color:var(--s4ln)}
+.askq3{font-size:24px;line-height:32px;color:var(--navy);margin-bottom:16px}
+/* 고르는 줄 — 넉넉하게. 누르면 바로 다음으로 넘어간다. */
+.askopt{display:block;width:100%;text-align:left;font:inherit;font-size:16px;line-height:24px;
+color:var(--ink);background:var(--white);border:1px solid var(--line);border-radius:var(--r-box);
+padding:12px 16px;margin-bottom:8px;cursor:pointer}
+.askopt:hover{border-color:var(--s3);background:var(--tint)}
+.askopt .sub{display:block;margin-top:2px}
+.askor{color:var(--mut);font-size:13px;line-height:20px;margin:16px 0 8px}
+/* 사람 고르기는 이름만 짧아 줄로 늘어놓으면 화면을 다 먹는다 — 칩으로 눕힌다 */
+.askchips{display:flex;flex-wrap:wrap;gap:8px}
+.askchip{font:inherit;font-size:14px;line-height:22px;color:var(--ink);background:var(--white);
+border:1px solid var(--line);border-radius:var(--r-ctl);padding:8px 12px;cursor:pointer}
+.askchip:hover{border-color:var(--s3);background:var(--tint)}
+.askgrid{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.askgrid .askopt{margin-bottom:0}
+.askme{background:var(--white);border:1px solid var(--line);border-radius:var(--r-box);
+padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.askme .btn{margin-left:auto}
+.askdone{display:flex;width:100%;text-align:left;align-items:center;gap:8px;font:inherit;
+font-size:13px;line-height:20px;color:var(--ink);background:none;border:0;
+border-bottom:1px solid var(--line2);padding:8px 0;cursor:pointer}
+.askdone .askv{flex:1;min-width:0}
+.askdone .askedit{color:var(--mut)}
+.askdone:hover .askedit{color:var(--s2)}
+.askdone + .askq3{margin-top:24px}
+.asksum{background:var(--white);border:1px solid var(--line);border-radius:var(--r-box);
+padding:16px;margin-bottom:12px}
+.askfoot{margin-top:24px}
+/* 체크박스가 폭 200px 로 늘어나던 것 — 필터 줄과 같은 처방 */
+.askchk{display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer}
+.askchk input[type=checkbox]{flex:0 0 auto;min-width:0;width:auto;margin:0}
 .tagbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 tr.lrow{cursor:pointer}
 tr.lrow.open{background:var(--tint)}

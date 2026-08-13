@@ -177,6 +177,85 @@ try {
   ok('콘솔 코드 에러 없음', codeErrs.length === 0, codeErrs.slice(0, 3));
   ok('저장형 XSS 미실행', alerted === false);
 
+  // 문답 — 신원은 한 번, 그 뒤 계획 5문 · 실적 2문. 고르면 바로 다음으로 넘어간다.
+  await page.click('.nav a[data-view="dash"]');
+  await page.waitForSelector('.askbox .askq3');
+  ok('문답 — 처음엔 누구세요', (await page.textContent('.askbox .askq3')).includes('누구세요'));
+  ok('문답 — 아는 사람은 칩으로 (첫 화면을 밀지 않게)',
+    (await page.$$('.askbox .askchip')).length > 0);
+  // 목록 순서에 기대지 않도록 직접 넣는 길로 — 그 길도 함께 확인된다
+  await page.click('.askbox button:has-text("목록에 없어요")');
+  await page.waitForSelector('#me_nm');
+  await page.fill('#me_nm', '이정훈'); await page.fill('#me_no', '2071478');
+  await page.selectOption('#me_tm', 'C&C소재기술');
+  await page.click('.askbox button:has-text("이게 접니다")');
+  await page.waitForFunction(() =>
+    (document.querySelector('.askbox .askq3') || {}).textContent?.includes('무엇을 하시겠어요'), { timeout: 3000 });
+  ok('문답 — 이름을 기억한다',
+    (await page.textContent('.askbox .askq3')).startsWith('이정훈님'));
+
+  await page.locator('.askbox .askopt', { hasText: '출장 계획 넣기' }).click();
+  await page.waitForSelector('#a_city');
+  await page.fill('#a_city', '청주'); await page.fill('#a_org', '문답테스트');
+  await page.click('.askbox button:has-text("다음")');
+  await page.waitForSelector('#a_dep');
+  await page.fill('#a_dep', '2026-08-11'); await page.fill('#a_ret', '2026-08-12');
+  await page.locator('.askbox .askopt', { hasText: '자차사용' }).click();          // 고르면 바로 다음
+  await page.waitForSelector('#a_purpose');
+  await page.fill('#a_purpose', '문답 등록 시험');
+  await page.locator('.askbox .askopt', { hasText: /^정기 Audit$/ }).click();      // 고르면 바로 다음
+  await page.waitForFunction(() =>
+    (document.querySelector('.askbox .askq3') || {}).textContent?.includes('같이 가시는'), { timeout: 3000 });
+  await page.fill('#a_nm', '한지우'); await page.fill('#a_no', '20210302');
+  await page.selectOption('#a_rk', '팀장'); await page.selectOption('#a_tm', 'P&C소재');
+  await page.click('.askbox button:has-text("이분도 넣기")');
+  await page.click('.askbox button:has-text("다음")');
+  await page.waitForSelector('.a-c-trans');
+  await page.fill('.a-c-trans', '70000'); await page.fill('.a-c-lodg', '95000');
+  await page.fill('.a-c-meal', '65000');
+  await page.click('.askbox button:has-text("다음")');
+  await page.waitForSelector('#askBtn');
+  await page.click('.askbox button:has-text("구분·태그·비고 넣기")');
+  await page.fill('#a_tags', 'CMP'); await page.fill('#a_remark', '한 화면에서 등록');
+  await page.check('#askConfirm');
+  await page.click('#askBtn');
+  await page.waitForFunction(() => ST.groups.some(g => g.org === '문답테스트'), { timeout: 5000 });
+  const made = await page.evaluate(() => {
+    const g = ST.groups.find(x => x.org === '문답테스트');
+    return { st: g.status, city: g.city, kind: g.kind, dep: g.dep_dt, ret: g.ret_dt, days: g.days,
+      car: g.car, tags: (g.tags || []).join(','), remark: g.remark, plan: g.plan_tot,
+      who: g.travelers.map(t => `${t.name}/${t.rank}/${t.ccg_nm}`).join(',') };
+  });
+  ok('문답 — 고른 값이 그대로 등록되고 본인이 자동으로 들어감',
+    made.st === '확정 예정' && made.city === '청주' && made.kind === '정기 Audit'
+    && made.dep === '2026-08-11' && made.ret === '2026-08-12' && made.days === 2
+    && made.car === '자차사용' && made.tags === 'CMP' && made.remark === '한 화면에서 등록'
+    && made.plan === 460000
+    && made.who === '이정훈/TL/C&C소재기술,한지우/팀장/P&C소재', made);
+
+  // 실적 — 내가 간 출장만 보인다
+  await page.locator('.askbox .askopt', { hasText: '다녀와서 실적 넣기' }).click();
+  await page.waitForFunction(() =>
+    (document.querySelector('.askbox .askq3') || {}).textContent?.includes('어느 출장'), { timeout: 3000 });
+  const trips = await page.$$eval('.askbox .askopt', els => els.map(e => e.textContent.trim()));
+  ok('문답 — 내 출장만 보여 준다', trips.length === 1 && trips[0].includes('문답테스트'), trips);
+  await page.locator('.askbox .askopt').first().click();
+  await page.waitForSelector('.a-s-trans');
+  await page.locator('.askbox .askopt', { hasText: '계획대로 썼습니다' }).click();
+  await page.waitForSelector('#askBtn');
+  await page.click('#askBtn');
+  await page.waitForFunction(() =>
+    (ST.groups.find(g => g.org === '문답테스트') || {}).status === '실적 입력·인폼', { timeout: 5000 });
+  const act = await page.evaluate(() => {
+    const g = ST.groups.find(x => x.org === '문답테스트');
+    const me = g.travelers.find(t => t.name === '이정훈');
+    const other = g.travelers.find(t => t.name !== '이정훈');
+    return { st: g.status, mine: [me.a_trans, me.a_lodg, me.a_meal, me.a_etc].join('/'),
+      otherTot: [other.a_trans, other.a_lodg, other.a_meal, other.a_etc].reduce((s, x) => s + x, 0) };
+  });
+  ok('문답 — 계획대로 채우고 내 줄만 저장',
+    act.st === '실적 입력·인폼' && act.mine === '70000/95000/65000/0' && act.otherTot === 0, act);
+
   // mobile overflow
   const mp = await ctx.newPage();
   await mp.setViewportSize({ width: 390, height: 800 });

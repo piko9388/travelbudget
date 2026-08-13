@@ -617,7 +617,8 @@ function rDash(){
     </div>`;
   // 부서별 현황이 먼저다 — 매번 스크롤해야 보이던 자리(y≈940px)를 첫 화면으로 올린다.
   // '바로 할 일' 큐는 그 아래. 큐는 목록·처리 화면에도 진입로가 있지만 부서별 집계는 여기뿐이다.
-  $('#v-dash').innerHTML = notice + hero + ccg + todo;
+  $('#v-dash').innerHTML = notice + '<div class="askbox"></div>' + hero + ccg + todo;
+  askDraw();
 }
 let NOTICE_EDIT = false;
 function editNotice(on){
@@ -763,7 +764,8 @@ function rPlan(){
   const copyOpts = ST.groups.filter(g => g.status !== '취소').slice(0, 30)
     .map(g => { const full = `${gname(g)} · ${names(g)} · ${fmtD(g.dep_dt)}`;
       return `<option value="${g.group_id}" title="${esc(full)}">${esc(cut(full, 16))}</option>`; }).join('');
-  $('#v-plan').innerHTML = justPanel() + `
+  $('#v-plan').innerHTML = justPanel()
+    + `
     <div class="card">
       <div class="card-head"><h2>${ed ? '출장 계획 수정' : '출장 계획 등록'}</h2>
         ${ed ? '' : `<select id="copySel" class="headsel" aria-label="이전 출장에서 불러오기" onchange="copyPlan(this.value)">
@@ -1165,6 +1167,428 @@ function bParseJson(text){
       errs.push(`${i + 1}번째 — city·org·purpose 는 필수입니다.`);
   });
   return {groups, errs};
+}
+
+/* ── 문답으로 끝내기 ────────────────────────────────────────────
+   한 화면에 질문 하나. 고르면 바로 다음으로 넘어가고, 적어야 하는 것만 [다음]을 누른다.
+   본인이 누구인지는 처음 한 번만 묻고 이 브라우저에 기억한다 — 그 뒤로는 안 묻는다.
+   그래서 계획은 '어디로·언제·무슨 일로·누구랑·얼마' 다섯, 실적은 '어느 출장·얼마' 둘이다.
+
+   고를 수 있는 값은 전부 눌러서 고른다(구분·CCG·직책·자차·태그). 날짜는 달력을 쓴다.
+   자유롭게 적는 칸은 목적·비고뿐이고 그건 해석하지 않는다.
+
+   저장은 하지 않는다: 마지막 확인 화면에서 사람이 누르면 기존 라우트로 나간다.
+   (문답이 새 쓰기 경로가 되면 검증·권한 게이트가 무의미해진다) */
+const ME_KEY = 'tb_me';
+function meGet(){
+  try { const v = JSON.parse(localStorage.getItem(ME_KEY) || 'null');
+    return v && v.emp_no && v.name ? v : null; } catch (e) { return null; }
+}
+function meSet(p){ try { localStorage.setItem(ME_KEY, JSON.stringify(p)); } catch (e) {} askDraw(); }
+function meClear(){ try { localStorage.removeItem(ME_KEY); } catch (e) {} ASK = null; askDraw(); }
+/* 원장에 이미 있는 사람 — 대부분 여기서 자기 이름을 찾는다 */
+function mePeople(){
+  const seen = [], out = [];
+  for (const g of ST.groups) for (const p of (g.travelers || [])) {
+    if (p.emp_no && !seen.includes(String(p.emp_no))) {
+      seen.push(String(p.emp_no));
+      out.push({name: p.name, emp_no: String(p.emp_no), rank: p.rank || 'TL', ccg_nm: p.ccg_nm});
+    }
+  }
+  return out;
+}
+function meManual(){ ME_MANUAL = true; askDraw(); }
+function meSetFrom(emp){
+  const p = mePeople().find(x => x.emp_no === String(emp));
+  if (p) meSet(p);
+}
+function meSaveNew(){
+  const p = {name: ($('#me_nm') || {}).value?.trim(), emp_no: ($('#me_no') || {}).value?.trim(),
+    rank: ($('#me_rk') || {}).value, ccg_nm: ($('#me_tm') || {}).value};
+  if (!p.name || !p.emp_no || !p.ccg_nm) { toast('성명·사번·CCG팀을 넣어 주세요'); return; }
+  meSet(p);
+}
+
+const askOpt = (label, fn, sub) =>
+  `<button type="button" class="askopt" onclick="${fn}">${label}${
+    sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
+
+const ASK_STEP = {
+  where: {
+    q: () => '어디로 가시나요?',
+    view: () => {
+      const seen = [], out = [];
+      for (const g of ST.groups) {
+        const k = `${g.city}|${g.org}`;
+        if (g.city && g.org && !seen.includes(k)) { seen.push(k); out.push(g); }
+        if (out.length >= 6) break;
+      }
+      return out.map(g => askOpt(esc(g.org), `askTake('where',{city:'${esc(g.city)}',org:'${esc(g.org)}'})`,
+        esc(g.city))).join('')
+        + `<div class="askor">또는 직접</div>
+           <div class="form-grid c2">
+             <div><label for="a_city">출장 도시</label><input id="a_city" placeholder="예: 청주"></div>
+             <div><label for="a_org">출장 기관&업체</label><input id="a_org" placeholder="예: 원익머트리얼즈"></div>
+           </div>`;
+    },
+    read: () => ({city: ($('#a_city') || {}).value?.trim() || '',
+                  org: ($('#a_org') || {}).value?.trim() || ''}),
+    okay: v => v.city && v.org,
+    warn: '도시와 기관&업체를 넣어 주세요',
+    show: v => `${esc(v.city)} · <b>${esc(v.org)}</b>`,
+  },
+  when: {
+    q: () => '언제 다녀오시나요?',
+    view: () => `
+      <div class="form-grid c2">
+        <div><label for="a_dep">출발일자</label><input type="date" id="a_dep" onchange="askSameDay()"></div>
+        <div><label for="a_ret">복귀일자</label><input type="date" id="a_ret"></div>
+      </div>
+      <div class="askor">차는 어떻게</div>
+      ${ST.meta.cars.map(c => askOpt(esc(c), `askSetCar('${esc(c)}')`)).join('')}`,
+    read: () => { const d = ($('#a_dep') || {}).value || '';
+      return {dep: d, ret: ($('#a_ret') || {}).value || d, car: askSel.car || '미사용'}; },
+    okay: v => !!v.dep,
+    warn: '출발일자를 달력에서 골라 주세요',
+    show: v => `<b>${esc(v.dep)}</b> ~ <b>${esc(v.ret)}</b> <span class="sub">${esc(v.car)}</span>`,
+  },
+  why: {
+    q: () => '무슨 일로 가시나요?',
+    view: () => `
+      <div><label for="a_purpose">출장 목적&사유 <span class="au">소재명 포함</span></label>
+        <input id="a_purpose" placeholder="예: NF3 순도 관리 정기 Audit"></div>
+      <div class="askor">어떤 일인가요 — 누르면 넘어갑니다</div>
+      ${ST.meta.kinds.map(k => askOpt(esc(k), `askSetKind('${esc(k).replace(/'/g, "\\'")}')`)).join('')}`,
+    read: () => ({purpose: ($('#a_purpose') || {}).value?.trim() || '', kind: askSel.kind || '기타'}),
+    okay: v => !!v.purpose,
+    warn: '출장 목적을 적어 주세요',
+    show: v => `<b>${esc(v.purpose)}</b>${
+      bnorm(v.purpose).toLowerCase().includes(bnorm(v.kind).toLowerCase())
+        ? '' : ` <span class="sub">${esc(v.kind)}</span>`}`,
+  },
+  who: {
+    q: () => '같이 가시는 분이 있나요?',
+    view: () => {
+      const me = meGet() || {};
+      const mine = `<div class="askme"><b>${esc(me.name)}</b>
+        <span class="sub">${esc(me.emp_no)} · ${esc(me.rank)} · ${esc(me.ccg_nm)}</span></div>`;
+      const others = (ASK.who || []).map((p, i) => `<div class="askme">
+        <b>${esc(p.name)}</b> <span class="sub">${esc(p.emp_no)} · ${esc(p.rank)} · ${esc(p.ccg_nm)}</span>
+        <button class="btn sm" onclick="askDropWho(${i})">빼기</button></div>`).join('');
+      const seen = [String(me.emp_no)].concat((ASK.who || []).map(x => String(x.emp_no)));
+      const past = mePeople().filter(p => !seen.includes(p.emp_no)).slice(0, 6);
+      return mine + others
+        + `<div class="askor">같이 가는 분 — 누르면 들어갑니다</div>`
+        + past.map(p => askOpt(esc(p.name), `askAddWho('${esc(p.emp_no)}')`, esc(p.ccg_nm))).join('')
+        + `<div class="askor">목록에 없으면 직접</div>
+           <div class="form-grid c4">
+             <div><label for="a_nm">성명</label><input id="a_nm" placeholder="성명"></div>
+             <div><label for="a_no">사번</label><input id="a_no" placeholder="사번"></div>
+             <div><label for="a_rk">직책</label><select id="a_rk">${
+               ST.meta.ranks.map(r => `<option>${r}</option>`).join('')}</select></div>
+             <div><label for="a_tm">CCG팀</label><select id="a_tm"><option value="">선택</option>${
+               ST.ccg.map(t => `<option value="${esc(t.team)}">${esc(t.team)} · ${esc(t.ccg)}</option>`).join('')
+             }</select></div>
+           </div>
+           <div class="btns" style="margin-top:8px"><button class="btn" onclick="askAddWho()">이분도 넣기</button></div>`;
+    },
+    read: () => [meGet()].concat(ASK.who || []).filter(Boolean),
+    okay: v => v.length > 0,
+    warn: '출장 가는 분이 없습니다',
+    show: v => v.map(p => `<b>${esc(p.name)}</b>`).join(', ') + ` <span class="sub">${v.length}명</span>`,
+  },
+  cost: {
+    q: () => '1인당 얼마쯤 드나요?',
+    view: () => `<div class="form-grid c4">${
+      ST.meta.cost.map((c, i) => `<div><label>${esc(c.label)}</label>${
+        mfield('a-c-' + KEYS[i], 0, '0', 'askCostSum()')}</div>`).join('')}</div>
+      <div class="askor" id="askCostTot">1인당 합계 0원</div>`,
+    read: () => { const o = {}; KEYS.forEach(k => o[k] = mnum($('.a-c-' + k))); return o; },
+    okay: () => true,
+    show: v => askMoneyShow(v),
+  },
+  trip: {
+    q: () => '어느 출장을 다녀오셨나요?',
+    view: () => {
+      const me = meGet() || {};
+      const today = new Date().toISOString().slice(0, 10);
+      const mine = ST.groups
+        .filter(g => g.status !== '취소' && g.roll !== '처리 완료'
+          && (g.travelers || []).some(p => String(p.emp_no) === String(me.emp_no)))
+        .sort((a, b) => ((b.ret_dt <= today) - (a.ret_dt <= today)) || String(b.dep_dt).localeCompare(a.dep_dt));
+      if (!mine.length) return `<div class="note">${esc(me.name)}님 앞으로 실적을 넣을 출장이 없습니다.</div>`;
+      return mine.slice(0, 8).map(g => askOpt(esc(gname(g)),
+        `askTake('trip','${g.group_id}')`,
+        `${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)} · ${esc(dispSt(g.roll))}`)).join('');
+    },
+    read: () => ASK.v.trip || null,
+    okay: v => !!v,
+    warn: '출장을 골라 주세요',
+    show: v => { const g = ST.groups.find(x => x.group_id === v) || {};
+      return `<b>${esc(gname(g))}</b> <span class="sub">${fmtD(g.dep_dt)}–${fmtD(g.ret_dt)}</span>`; },
+  },
+  spent: {
+    q: () => '얼마 쓰셨어요?',
+    view: () => {
+      const p = askMyRow();
+      return (p ? askOpt('계획대로 썼습니다', 'askAsPlanned()',
+        `교통 ${won(p.p_trans)} · 숙박 ${won(p.p_lodg)} · 식대&잡비 ${won(p.p_meal)} · 기타 ${won(p.p_etc)}`) : '')
+        + `<div class="askor">다르면 직접</div>
+           <div class="form-grid c4">${ST.meta.cost.map((c, i) => `<div><label>${esc(c.label)}</label>${
+             mfield('a-s-' + KEYS[i], 0, p ? won(p['p_' + KEYS[i]]) : '0', 'askSpentSum()')}</div>`).join('')}</div>
+           <div class="askor" id="askSpentTot">실적 합계 0원</div>`;
+    },
+    read: () => { const o = {}; KEYS.forEach(k => o[k] = mnum($('.a-s-' + k))); return o; },
+    okay: () => true,
+    show: v => askMoneyShow(v),
+  },
+};
+function askMoneyShow(v){
+  const on = KEYS.map((k, i) => v[k] ? `${esc(ST.meta.cost[i].label)} <b>${won(v[k])}</b>` : '').filter(Boolean);
+  const tot = KEYS.reduce((s, k) => s + v[k], 0);
+  return on.length ? on.join(' · ') + ` <span class="sub">합계 ${won(tot)}</span>` : '0';
+}
+function askMyRow(){
+  const me = meGet() || {};
+  const g = ST.groups.find(x => x.group_id === ASK.v.trip);
+  return g && (g.travelers || []).find(x => String(x.emp_no) === String(me.emp_no));
+}
+const ASK_FLOW = {plan: ['where', 'when', 'why', 'who', 'cost'], act: ['trip', 'spent']};
+let ASK = null, askSel = {}, ME_MANUAL = false;
+
+/* 고르면 바로 다음으로 — 누르고 또 [다음]을 누르게 하지 않는다 */
+function askTake(k, v){ ASK.v[k] = v; ASK.i = ASK_FLOW[ASK.mode].indexOf(k) + 1; askDraw(); }
+function askSetCar(c){ askSel.car = c; askNext(); }
+function askSetKind(k){ askSel.kind = k; askNext(); }
+function askSameDay(){ const d = $('#a_dep'), r = $('#a_ret'); if (d && r && !r.value) r.value = d.value; }
+function askAddWho(emp){
+  const p = emp ? mePeople().find(x => x.emp_no === String(emp))
+    : {name: ($('#a_nm') || {}).value?.trim(), emp_no: ($('#a_no') || {}).value?.trim(),
+       rank: ($('#a_rk') || {}).value, ccg_nm: ($('#a_tm') || {}).value};
+  if (!p || !p.name || !p.emp_no || !p.ccg_nm) { toast('성명·사번·CCG팀을 넣어 주세요'); return; }
+  ASK.who = ASK.who || [];
+  const me = meGet() || {};
+  if (String(p.emp_no) === String(me.emp_no) || ASK.who.some(x => String(x.emp_no) === String(p.emp_no))) {
+    toast('이미 들어간 분입니다'); return;
+  }
+  ASK.who.push(p);
+  askDraw();
+}
+function askDropWho(i){ (ASK.who || []).splice(i, 1); askDraw(); }
+function askAsPlanned(){
+  const p = askMyRow(); if (!p) return;
+  KEYS.forEach(k => { const el = $('.a-s-' + k); if (el) el.value = won(p['p_' + k]); });
+  askSpentSum();
+  askNext();
+}
+const askSum = (sel, out, label) => {
+  const t = KEYS.reduce((s, k) => s + mnum($(sel + k)), 0);
+  const el = $(out); if (el) el.textContent = `${label} ${won(t)}원`;
+};
+function askCostSum(){ askSum('.a-c-', '#askCostTot', '1인당 합계'); }
+function askSpentSum(){ askSum('.a-s-', '#askSpentTot', '실적 합계'); }
+function askAddTag(t){
+  const el = $('#a_tags'); if (!el) return;
+  const cur = el.value.split(',').map(x => x.trim()).filter(Boolean);
+  if (!cur.includes(t)) cur.push(t);
+  el.value = cur.join(', ');
+}
+
+function askStart(mode){ ASK = {mode, i: 0, v: {}, who: [], extra: false}; askSel = {}; askDraw(); }
+function askStop(){ ASK = null; askSel = {}; askDraw(); }
+/* 처음 한 번 — 누구신지 */
+function askMeBox(){
+  const past = mePeople().slice(0, 8);
+  return `<div class="card askcard">
+    <div class="askq3">누구세요?</div>
+    <p class="cap">한 번만 여쭤보고 이 브라우저에 기억합니다. 다음부터는 안 묻습니다.</p>
+    ${past.length ? `<div class="askchips">${past.map(p =>
+      `<button type="button" class="askchip" onclick="meSetFrom('${esc(p.emp_no)}')"
+         title="${esc(p.emp_no)} · ${esc(p.ccg_nm)}">${esc(p.name)}</button>`).join('')}</div>` : ''}
+    ${past.length && !ME_MANUAL
+      ? `<div class="askfoot"><button class="btn sm" onclick="meManual()">목록에 없어요</button></div>`
+      : `<div class="askor">직접 넣어 주세요</div>
+    <div class="form-grid c4">
+      <div><label for="me_nm">성명</label><input id="me_nm" placeholder="성명"></div>
+      <div><label for="me_no">사번</label><input id="me_no" placeholder="사번"></div>
+      <div><label for="me_rk">직책</label><select id="me_rk">${
+        ST.meta.ranks.map(r => `<option>${r}</option>`).join('')}</select></div>
+      <div><label for="me_tm">CCG팀</label><select id="me_tm"><option value="">선택</option>${
+        ST.ccg.map(t => `<option value="${esc(t.team)}">${esc(t.team)} · ${esc(t.ccg)}</option>`).join('')
+      }</select></div>
+    </div>
+    <div class="btns" style="margin-top:8px"><button class="btn pri" onclick="meSaveNew()">이게 접니다</button></div>`}
+  </div>`;
+}
+function askBox(){
+  const me = meGet();
+  if (!me) return askMeBox();
+  if (!ASK) {
+    return `<div class="card askcard">
+      <div class="askq3">${esc(me.name)}님, 무엇을 하시겠어요?</div>
+      <div class="askgrid">
+        ${askOpt('출장 계획 넣기', "askStart('plan')", '가기 전에 계획과 예상 비용을 올립니다')}
+        ${askOpt('다녀와서 실적 넣기', "askStart('act')", '실제 쓴 금액을 넣으면 인폼이 만들어집니다')}
+      </div>
+      <div class="askfoot"><button class="btn sm" onclick="meClear()">${esc(me.name)}님이 아닌가요?</button></div>
+    </div>`;
+  }
+  const flow = ASK_FLOW[ASK.mode];
+  const done = ASK.i >= flow.length;
+  // 지나온 답은 위에 한 줄씩 — 물어본 말과 고른 값을 둘 다 늘어놓지 않는다
+  const trail = flow.slice(0, ASK.i).map(k => {
+    const st = ASK_STEP[k], has = ASK.v[k] !== undefined && ASK.v[k] !== null;
+    return `<button type="button" class="askdone" onclick="askBack('${k}')">
+      <span class="askv">${has ? st.show(ASK.v[k]) : '건너뜀'}</span><span class="askedit">고치기</span></button>`;
+  }).join('');
+  const body = done ? askConfirm() : (() => {
+    const st = ASK_STEP[flow[ASK.i]];
+    const needBtn = !['trip'].includes(flow[ASK.i]);
+    return `<div class="askq3">${esc(st.q())}</div>${st.view()}
+      ${needBtn ? `<div class="btns" style="margin-top:24px">
+        <button class="btn pri" onclick="askNext()">다음</button>
+        <button class="btn" onclick="askStop()">그만두기</button></div>`
+      : `<div class="askfoot"><button class="btn sm" onclick="askStop()">그만두기</button></div>`}`;
+  })();
+  return `<div class="card askcard">
+    ${trail}${body}</div>`;
+}
+function askConfirm(){
+  const p = ASK.mode === 'plan' ? askPlanBody() : null;
+  return `<div class="askq3">${ASK.mode === 'plan' ? '이대로 등록할까요?' : '이대로 저장할까요?'}</div>
+    <div id="askErr"></div>
+    ${ASK.mode === 'plan' ? `
+      <div class="asksum">출장자 ${p.travelers.length}명 · 계획 합계
+        <b>${won(p.travelers.reduce((s, t) => s + KEYS.reduce((x, k) => x + (t['p_' + k] || 0), 0), 0))}원</b></div>
+      <label class="askchk"><input type="checkbox" id="askConfirm">
+        <b>실제로 가는 출장입니다</b>
+        <span class="sub">체크하면 예산이 확보됩니다. 안 하면 잠정 계획으로 남습니다</span></label>` : ''}
+    ${ASK.extra ? `
+      ${ASK.mode === 'plan' ? `
+      <div class="askor">구분</div>
+      <div class="tagpick" id="pick-ptype">${ST.meta.planTypes.map(t =>
+        `<button type="button" class="tag${(askSel.ptype || '계획') === t ? ' on' : ''}"
+           onclick="askSet('ptype','${esc(t)}')">${esc(t)}</button>`).join('')}</div>
+      <div class="askor">태그</div>
+      ${(ST.tags || []).length ? `<div class="tagpick">${(ST.tags || []).slice(0, 12).map(x =>
+        `<button type="button" class="tag" onclick="askAddTag('${esc(x.tag).replace(/'/g, "\\'")}')">#${esc(x.tag)}</button>`
+      ).join('')}</div>` : ''}
+      <input id="a_tags" placeholder="새 태그는 쉼표로 여러 개" style="margin-top:4px">` : ''}
+      <div style="margin-top:12px"><label for="a_remark">비고</label>
+        <input id="a_remark" placeholder="특이사항이 있으면 적어주세요"></div>`
+    : `<div class="askfoot"><button class="btn sm" onclick="askExtra()">${
+        ASK.mode === 'plan' ? '구분·태그·비고 넣기' : '비고 넣기'}</button></div>`}
+    <div class="btns" style="margin-top:24px">
+      <button class="btn pri" id="askBtn" onclick="askSubmit()">${ASK.mode === 'plan' ? '등록' : '실적 저장'}</button>
+      <button class="btn" onclick="askStop()">그만두기</button></div>`;
+}
+function askExtra(){ ASK.extra = true; askDraw(); }
+/* 칩만 갈아 끼운다 — 다시 그리면 같은 화면에 이미 친 글이 지워진다 */
+function askSet(name, v){
+  askSel[name] = v;
+  const box = $('#pick-' + name);
+  if (!box) { askDraw(); return; }
+  [...box.children].forEach(b => b.classList.toggle('on', b.textContent.trim() === v));
+}
+function askDraw(){
+  const box = $('.askbox');
+  if (!box) return;
+  box.innerHTML = askBox();
+  if (ASK && ASK.i < ASK_FLOW[ASK.mode].length) askRestore(ASK_FLOW[ASK.mode][ASK.i]);
+  if (ASK && ASK.i >= ASK_FLOW[ASK.mode].length && ASK.extra) askRestore('extra');
+  const el = box.querySelector('.askq3 ~ .form-grid input,.askq3 ~ div input');
+  if (el && el.type !== 'checkbox') el.focus();
+}
+/* 고치기로 돌아오면 넣어 뒀던 값이 그대로 있어야 한다 */
+function askRestore(k){
+  const v = ASK.v[k];
+  if (k === 'extra') { askFill('a_tags', (ASK.extraV || {}).tags || ''); askFill('a_remark', (ASK.extraV || {}).remark || ''); return; }
+  if (v === undefined || v === null) return;
+  if (k === 'where') { askFill('a_city', v.city); askFill('a_org', v.org); }
+  if (k === 'why')   { askFill('a_purpose', v.purpose); askSel.kind = v.kind; }
+  if (k === 'when')  { askFill('a_dep', v.dep); askFill('a_ret', v.ret); askSel.car = v.car; }
+  if (k === 'cost')  { KEYS.forEach(x => askFill2('.a-c-' + x, v[x])); askCostSum(); }
+  if (k === 'spent') { KEYS.forEach(x => askFill2('.a-s-' + x, v[x])); askSpentSum(); }
+}
+function askFill(id, v){ const el = $('#' + id); if (el) el.value = v || ''; }
+function askFill2(sel, v){ const el = $(sel); if (el) el.value = v ? won(v) : ''; }
+function askBack(k){ if (ASK) { ASK.i = ASK_FLOW[ASK.mode].indexOf(k); askDraw(); } }
+function askNext(){
+  if (!ASK) return;
+  const k = ASK_FLOW[ASK.mode][ASK.i];
+  const st = ASK_STEP[k];
+  const v = st.read();
+  if (!st.okay(v)) { toast(st.warn || '값을 넣어 주세요'); return; }
+  ASK.v[k] = v;
+  ASK.i++;
+  askDraw();
+}
+function askExtraRead(){
+  ASK.extraV = {tags: ($('#a_tags') || {}).value || '', remark: ($('#a_remark') || {}).value || ''};
+  return ASK.extraV;
+}
+
+/* 저장은 기존 라우트로 나간다 — 검증·권한·감사 로그가 전부 그대로 살아 있다 */
+function askSubmit(){ return once('#askBtn', ASK && ASK.mode === 'plan' ? askSendPlan : askSendAct); }
+function askPlanBody(){
+  const v = ASK.v;
+  const w = v.where || {city: '', org: ''};
+  const y = v.why || {purpose: '', kind: '기타'};
+  const t = v.when || {dep: '', ret: '', car: '미사용'};
+  const c = v.cost || {trans: 0, lodg: 0, meal: 0, etc: 0};
+  const x = ASK.extra ? askExtraRead() : (ASK.extraV || {tags: '', remark: ''});
+  return {plan_type: askSel.ptype || '계획', city: w.city, org: w.org, kind: y.kind,
+    dep_dt: t.dep, ret_dt: t.ret || t.dep, car: t.car,
+    purpose: y.purpose, remark: (x.remark || '').trim(),
+    tags: (x.tags || '').split(',').map(s => s.trim().replace(/^#/, '')).filter(Boolean),
+    confirmed: $('#askConfirm')?.checked || false,
+    travelers: (v.who || []).map(p => ({name: p.name, emp_no: p.emp_no, rank: p.rank, ccg_nm: p.ccg_nm,
+      p_trans: c.trans, p_lodg: c.lodg, p_meal: c.meal, p_etc: c.etc}))};
+}
+async function askSendPlan(){
+  const body = askPlanBody();
+  // 확정 시 예산이 모자라면 막지 않고 확인만 받는다 (계획 화면과 같은 규칙)
+  if (body.confirmed) {
+    const need = body.travelers.reduce((sm, t) => sm + KEYS.reduce((x, k) => x + (t['p_' + k] || 0), 0), 0);
+    const after = (ST.dash.avail || 0) - need;
+    if (after < 0 && !confirm(
+        `확정 후 가용 잔여가 −${won(Math.abs(after))}원입니다.\n` +
+        '예산 부족을 인지한 상태로 계속 확정하시겠습니까?\n\n' +
+        '[확인] 계속 확정   /   [취소] 돌아가기')) return;
+  }
+  const {ok, data} = await api('/groups', {method: 'POST', body: JSON.stringify(body)});
+  if (!ok) { showErr('#askErr', data.errors); return; }
+  toast(`등록 완료 — ${dispSt(data.group.status)} · ${body.travelers.length}명`);
+  PLAN_JUST = data.group;
+  YQ = data.group.yq;
+  ASK = null; askSel = {};
+  await load();
+}
+async function askSendAct(){
+  const me = meGet() || {};
+  const gid = ASK.v.trip;
+  const g = ST.groups.find(x => x.group_id === gid);
+  if (!g) { showErr('#askErr', ['연결된 출장이 없습니다.']); return; }
+  const c = ASK.v.spent || {trans: 0, lodg: 0, meal: 0, etc: 0};
+  const x = ASK.extra ? askExtraRead() : (ASK.extraV || {remark: ''});
+  // 내 줄만 보낸다 — 서버가 사번으로 맞춰 넣으므로 같이 가신 분 실적은 건드리지 않는다
+  const body = {travelers: [{emp_no: me.emp_no,
+    a_trans: c.trans, a_lodg: c.lodg, a_meal: c.meal, a_etc: c.etc}]};
+  if ((x.remark || '').trim()) body.remark = x.remark.trim();
+  const {ok, data} = await api(`/groups/${gid}/actual`, {method: 'POST', body: JSON.stringify(body)});
+  if (!ok) {
+    if (data.status === 401 || (data.errors || []).some(t => /관리자/.test(t))) {
+      askAdmin(() => askSubmit()); return;
+    }
+    showErr('#askErr', data.errors); return;
+  }
+  // 같이 가신 분 실적이 아직 0이면 인폼 금액이 그만큼 비어 나간다 — 저장은 됐으니 알리기만
+  const rest = (data.group.travelers || []).filter(p =>
+    String(p.emp_no) !== String(me.emp_no) && KEYS.every(k => !p['a_' + k])).length;
+  toast(rest ? `저장했습니다 — 같이 가신 ${rest}명 실적은 아직 비어 있습니다`
+             : '저장했습니다 — 인폼 메일이 만들어졌습니다');
+  ASK = null; askSel = {};
+  await load();
 }
 function bParse(text){
   const raw = String(text || '').trim();

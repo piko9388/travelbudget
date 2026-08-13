@@ -914,7 +914,7 @@ ok('잠정만 고를 수 있음', "g.status === '계획 등록'" in _appjs and '
 ok('전체 선택 체크박스', 'id="selAll"' in _appjs and 'function selAll' in _appjs)
 ok('선택 띠에 합계·가용 경고', 'selbar' in _tpl and '가용 잔여' in _appjs)
 ok('확정 전 확인창', 'function bulkConfirm' in _appjs and 'confirm(' in _appjs)
-ok('부서별 현황이 큐보다 먼저', _appjs.index('notice + hero + ccg + todo') > 0)
+ok('부서별 현황이 큐보다 먼저', _appjs.index("+ hero + ccg + todo") > 0)
 ok('정적판도 일괄 확정 지원', '/groups/bulk_status' in open('tools/tb_local.js', encoding='utf-8').read())
 
 # ── 모서리·그림자·테두리 척도 ──
@@ -1766,6 +1766,54 @@ ok('통째로 복사는 탭으로 나눔 (결재창·엑셀에 붙여도 칸이 
 ok('인원 표에 사번·소속·금액', "'성명', '사번', '소속 CCG'" in _appjs)
 ok('없는 값은 없다고 말한다', '시스템에 없는 값' in _appjs)
 ok('증빙은 결재 창이 불러온다고 안내', '증빙(카드 지불 정보)은' in _appjs)
+
+# ── 39. 문답으로 채우기 ────────────────────────────────────────
+# 질문이 '어느 칸에 들어갈 답'인지 정해 주므로 사내 LLM 없이 돈다.
+_ask = _appjs[_appjs.index("const ME_KEY = 'tb_me'"):_appjs.index('function bParse(text)')]
+# 고를 수 있는 것은 고르게 한다 — 주관식으로 받으면 해석이 필요하고 거기서 오류가 난다
+ok('출장 구분은 고르게 (누르면 바로 다음)', 'askSetKind' in _ask and 'ST.meta.kinds.map' in _ask)
+ok('자차 사용은 고르게 (누르면 바로 다음)', 'askSetCar' in _ask and 'ST.meta.cars.map' in _ask)
+ok('구분(계획·변경·긴급)은 고르게', "askSet('ptype'" in _ask and 'ST.meta.planTypes.map' in _ask)
+ok('직책·CCG팀은 목록에서', "id=\"a_rk\"" in _ask and "id=\"a_tm\"" in _ask and 'ST.ccg.map' in _ask)
+ok('날짜는 달력으로', 'type="date" id="a_dep"' in _ask and 'type="date" id="a_ret"' in _ask)
+ok('금액은 금액 칸으로', "mfield('a-c-" in _ask and "mfield('a-s-" in _ask)
+ok('태그는 쓰던 것에서 고르게', 'askAddTag' in _ask and 'ST.tags' in _ask)
+ok('전에 다녀온 곳·간 사람을 눌러 넣기', "askTake('where'" in _ask and 'askAddWho(' in _ask)
+ok('실적은 내 출장만 보여 준다', "askTake('trip'" in _ask and "String(p.emp_no) === String(me.emp_no)" in _ask)
+ok('신원은 처음 한 번만 묻고 기억한다', 'function meGet' in _ask and 'ME_KEY' in _ask and '다음부터는 안 묻습니다' in _ask)
+ok('아는 사람은 칩으로 — 첫 화면을 밀지 않게', 'askchips' in _ask and 'ME_MANUAL' in _ask)
+ok('두 갈래는 나란히', 'askgrid' in _ask)
+ok('본인은 출장자에 자동으로 들어간다', '[meGet()].concat(ASK.who' in _ask)
+ok('내가 아니면 지우고 다시', 'function meClear' in _ask and '아닌가요' in _ask)
+ok('고르면 바로 다음으로', 'function askTake' in _ask and 'ASK.i = ASK_FLOW' in _ask)
+ok('계획대로 버튼', 'askAsPlanned' in _ask)
+# 주관식 해석기가 남아 있으면 안 된다 — 이 기능을 넣은 이유가 사라진다
+for _dead in ('askWhere', 'askWhen(', 'askWho(', 'askMore(', 'askMoney(', 'askDate('):
+    ok(f'주관식 해석기 {_dead} 없음', _dead not in _appjs)
+# 대시보드 한 화면에서 끝난다
+ok('문답은 대시보드에 있다', "'<div class=\"askbox\"></div>' + hero" in _appjs)
+ok('계획·실적 화면에는 두지 않는다', 'data-mode="plan"' not in _appjs and 'data-mode="act"' not in _appjs)
+ok('무엇을 할지 그 자리에서 고른다', '출장 계획 넣기' in _appjs and '다녀와서 실적 넣기' in _appjs)
+ok('계획 5문 · 실적 2문', "plan: ['where', 'when', 'why', 'who', 'cost']" in _ask
+   and "act: ['trip', 'spent']" in _ask)
+ok('구분·태그·비고는 확인 화면에서 펼쳐 넣는다', 'function askExtra' in _ask and 'askExtraRead' in _ask)
+# 양식의 모든 칸이 payload 에 들어가야 한다
+for _k in ('plan_type', 'city', 'org', 'kind', 'dep_dt', 'ret_dt', 'car',
+           'purpose', 'remark', 'tags', 'confirmed', 'travelers'):
+    ok(f'계획 등록에 {_k} 를 실어 보낸다', f'{_k}:' in _ask)
+ok('출장자 이름·사번·직책·CCG·금액', 'name: p.name' in _ask and 'p_trans: c.trans' in _ask)
+ok('실적은 금액과 비고를 보낸다', 'a_trans: c.trans' in _ask and 'body.remark' in _ask)
+ok('바로 확정도 그 자리에서', "$('#askConfirm')" in _ask)
+# 저장은 반드시 기존 라우트로 — 새 경로를 파면 검증·권한·감사 로그가 비껴간다
+ok('등록은 기존 /groups 로', "api('/groups'," in _ask)
+ok('실적은 기존 /actual 로', '/actual`' in _ask)
+ok('예산 부족은 막지 않고 확인만', '예산 부족을 인지한 상태로' in _ask)
+ok('실적 재입력 401 이면 관리자 인증', 'askAdmin(() => askSubmit())' in _ask)
+ok('내 줄만 보내 동행자 실적을 건드리지 않음', 'emp_no: me.emp_no' in _ask)
+ok('같이 가신 분 실적이 비면 알려 줌', '아직 비어 있습니다' in _ask)
+# 칩을 고를 때 카드를 다시 그리면 같은 단계에 친 글이 지워진다
+ok('칩만 갈아 끼운다', "classList.toggle('on'" in _ask)
+ok('고치기로 돌아오면 값이 남아 있다', 'function askRestore' in _ask)
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)
