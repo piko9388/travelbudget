@@ -75,8 +75,8 @@ def ccg_by_cd(data=None):
     """CCG 코드 → 팀 이름. 표시용 이름은 항상 코드에서 파생한다."""
     return {t["ccg"]: t["team"] for t in ccg_teams(data)}
 
-APP_VERSION = "v10.27"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
-APP_BUILD = "2026-08-06"
+APP_VERSION = "v10.28"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+APP_BUILD = "2026-09-09"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
 CSV_HEADERS = ["구분", "LV2", "CCG", "CCG명", "사번", "성명", "직책",

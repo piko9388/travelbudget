@@ -1783,6 +1783,15 @@ ok('실적은 내 출장만 보여 준다', "askTake('trip'" in _ask and "String
 ok('신원은 처음 한 번만 묻고 기억한다', 'function meGet' in _ask and 'ME_KEY' in _ask and '다음부터는 안 묻습니다' in _ask)
 ok('아는 사람은 칩으로 — 첫 화면을 밀지 않게', 'askchips' in _ask and 'ME_MANUAL' in _ask)
 ok('두 갈래는 나란히', 'askgrid' in _ask)
+# 조직도를 붙일 수 없어서 — 지금까지 간 사람의 이력이 곧 명부다
+ok('이름을 치면 사번을 이력에서 찾는다', 'function nameHits' in _ask and "oninput=\"nameLook('a')\"" in _ask)
+ok('누구세요 칸에도 같은 매칭', "oninput=\"nameLook('me')\"" in _ask)
+ok('사번·직책·CCG 를 함께 채운다', 'function namePut' in _ask and "pre + '_no'" in _ask)
+ok('동명이인이면 둘 다 띄우고 고르게', '같은 이름이' in _ask and 'namePick' in _ask)
+ok('앞글자만 쳐도 후보를 준다', 'function namePrefix' in _ask and 'startsWith(q)' in _ask)
+ok('이력에 없으면 그렇게 말한다', '이력에 없는 이름입니다' in _ask)
+ok('힌트 칸만 갈아 끼운다 (친 글 보존)', "$('#' + pre + '_hit')" in _ask and 'askDraw' not in
+   _ask[_ask.index('function nameLook'):_ask.index('function meManual')])
 ok('본인은 출장자에 자동으로 들어간다', '[meGet()].concat(ASK.who' in _ask)
 ok('내가 아니면 지우고 다시', 'function meClear' in _ask and '아닌가요' in _ask)
 ok('고르면 바로 다음으로', 'function askTake' in _ask and 'ASK.i = ASK_FLOW' in _ask)

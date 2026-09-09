@@ -186,8 +186,16 @@ try {
   // 목록 순서에 기대지 않도록 직접 넣는 길로 — 그 길도 함께 확인된다
   await page.click('.askbox button:has-text("목록에 없어요")');
   await page.waitForSelector('#me_nm');
-  await page.fill('#me_nm', '이정훈'); await page.fill('#me_no', '2071478');
-  await page.selectOption('#me_tm', 'C&C소재기술');
+  // 이름만 치면 사번·직책·CCG 가 이력에서 따라와야 한다 (조직도 연동을 대신한다)
+  await page.fill('#me_nm', '이정훈');
+  await page.waitForFunction(() =>
+    (document.querySelector('#me_no') || {}).value === '2071478', { timeout: 3000 });
+  const pull = await page.evaluate(() => ({
+    no: document.querySelector('#me_no').value, tm: document.querySelector('#me_tm').value,
+    rk: document.querySelector('#me_rk').value, say: document.querySelector('#me_hit').textContent.trim() }));
+  ok('이름 → 사번·CCG 를 이력에서 채움',
+    pull.no === '2071478' && pull.tm === 'C&C소재기술' && pull.rk === 'TL'
+    && pull.say.includes('이력에서 채웠습니다'), pull);
   await page.click('.askbox button:has-text("이게 접니다")');
   await page.waitForFunction(() =>
     (document.querySelector('.askbox .askq3') || {}).textContent?.includes('무엇을 하시겠어요'), { timeout: 3000 });

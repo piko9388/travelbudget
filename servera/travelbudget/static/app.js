@@ -1197,6 +1197,53 @@ function mePeople(){
   }
   return out;
 }
+/* 조직도를 붙일 수 없어서 — 지금까지 간 사람의 이력이 곧 명부다.
+   이름을 치면 사번·직책·CCG 를 이력에서 끌어온다. 같은 이름이 둘이면 고르게 한다. */
+function nameHits(name){
+  const q = bnorm(name).toLowerCase();
+  if (!q) return [];
+  return mePeople().filter(p => bnorm(p.name).toLowerCase() === q);
+}
+function namePrefix(name){
+  const q = bnorm(name).toLowerCase();
+  if (q.length < 1) return [];
+  const seen = [];
+  return mePeople().filter(p => {
+    const n = bnorm(p.name).toLowerCase();
+    if (n === q || !n.startsWith(q) || seen.includes(n)) return false;
+    seen.push(n); return true;
+  }).slice(0, 6);
+}
+const nameSay = p => `${esc(p.emp_no)} · ${esc(p.rank)} · ${esc(p.ccg_nm)}`;
+/* 다시 그리면 이미 친 글이 지워진다 — 힌트 칸만 갈아 끼운다 */
+function nameLook(pre){
+  const box = $('#' + pre + '_hit'); if (!box) return;
+  const v = ($('#' + pre + '_nm') || {}).value || '';
+  const hit = nameHits(v);
+  if (hit.length === 1) { namePut(pre, hit[0]); return; }
+  if (hit.length > 1) {
+    box.innerHTML = `<div class="namehit warn">같은 이름이 ${hit.length}명입니다 — 고르세요</div>
+      <div class="askchips">${hit.map(p =>
+        `<button type="button" class="askchip" onclick='namePick("${pre}",${JSON.stringify(p)
+          .replace(/'/g, "&#39;")})'>${esc(p.name)} <span class="sub">${nameSay(p)}</span></button>`).join('')}</div>`;
+    return;
+  }
+  const near = namePrefix(v);
+  box.innerHTML = near.length
+    ? `<div class="askchips">${near.map(p =>
+        `<button type="button" class="askchip" onclick='namePick("${pre}",${JSON.stringify(p)
+          .replace(/'/g, "&#39;")})'>${esc(p.name)} <span class="sub">${esc(p.ccg_nm)}</span></button>`).join('')}</div>`
+    : (v.trim() ? '<div class="namehit">이력에 없는 이름입니다 — 사번과 CCG팀을 넣어 주세요</div>' : '');
+}
+function namePick(pre, p){ namePut(pre, typeof p === 'string' ? JSON.parse(p) : p); }
+function namePut(pre, p){
+  askFill(pre + '_nm', p.name); askFill(pre + '_no', p.emp_no);
+  const rk = $('#' + pre + '_rk'), tm = $('#' + pre + '_tm');
+  if (rk) rk.value = p.rank || 'TL';
+  if (tm) tm.value = p.ccg_nm || '';
+  const box = $('#' + pre + '_hit');
+  if (box) box.innerHTML = `<div class="namehit ok">이력에서 채웠습니다 — ${nameSay(p)}</div>`;
+}
 function meManual(){ ME_MANUAL = true; askDraw(); }
 function meSetFrom(emp){
   const p = mePeople().find(x => x.emp_no === String(emp));
@@ -1282,7 +1329,8 @@ const ASK_STEP = {
         + past.map(p => askOpt(esc(p.name), `askAddWho('${esc(p.emp_no)}')`, esc(p.ccg_nm))).join('')
         + `<div class="askor">목록에 없으면 직접</div>
            <div class="form-grid c4">
-             <div><label for="a_nm">성명</label><input id="a_nm" placeholder="성명"></div>
+             <div><label for="a_nm">성명</label>
+               <input id="a_nm" placeholder="이름을 치면 사번을 찾습니다" oninput="nameLook('a')"></div>
              <div><label for="a_no">사번</label><input id="a_no" placeholder="사번"></div>
              <div><label for="a_rk">직책</label><select id="a_rk">${
                ST.meta.ranks.map(r => `<option>${r}</option>`).join('')}</select></div>
@@ -1290,6 +1338,7 @@ const ASK_STEP = {
                ST.ccg.map(t => `<option value="${esc(t.team)}">${esc(t.team)} · ${esc(t.ccg)}</option>`).join('')
              }</select></div>
            </div>
+           <div id="a_hit"></div>
            <div class="btns" style="margin-top:8px"><button class="btn" onclick="askAddWho()">이분도 넣기</button></div>`;
     },
     read: () => [meGet()].concat(ASK.who || []).filter(Boolean),
@@ -1409,7 +1458,8 @@ function askMeBox(){
       ? `<div class="askfoot"><button class="btn sm" onclick="meManual()">목록에 없어요</button></div>`
       : `<div class="askor">직접 넣어 주세요</div>
     <div class="form-grid c4">
-      <div><label for="me_nm">성명</label><input id="me_nm" placeholder="성명"></div>
+      <div><label for="me_nm">성명</label>
+        <input id="me_nm" placeholder="이름을 치면 사번을 찾습니다" oninput="nameLook('me')"></div>
       <div><label for="me_no">사번</label><input id="me_no" placeholder="사번"></div>
       <div><label for="me_rk">직책</label><select id="me_rk">${
         ST.meta.ranks.map(r => `<option>${r}</option>`).join('')}</select></div>
@@ -1417,6 +1467,7 @@ function askMeBox(){
         ST.ccg.map(t => `<option value="${esc(t.team)}">${esc(t.team)} · ${esc(t.ccg)}</option>`).join('')
       }</select></div>
     </div>
+    <div id="me_hit"></div>
     <div class="btns" style="margin-top:8px"><button class="btn pri" onclick="meSaveNew()">이게 접니다</button></div>`}
   </div>`;
 }
