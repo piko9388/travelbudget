@@ -12,7 +12,7 @@
    from servera.travelbudget import travelbudget
    app.register_blueprint(travelbudget)
    ```
-   → `material.skhynix.com/travelbudget` 접속. (data_json/은 첫 실행 시 자동 생성·시드)
+   → `http://material.skhynix.com/travelbudget` 접속. (data_json/은 첫 실행 시 자동 생성·시드)
 
 의존성: Flask 3.x 뿐 (`pip install -r requirements.txt`)
 
@@ -89,7 +89,7 @@
 화면 문구·버튼 이름을 실제 화면에서 그대로 가져왔고, 어긋나면 `test_api.py` §23 이 실패합니다.
 
 - 화면에서: **좌측 메뉴 맨 아래 `출장자용 안내 ↗`** (또는 이용 안내 화면의 버튼) — 새 탭으로 열립니다
-- 직접 링크: `material.skhynix.com/travelbudget/guide`
+- 직접 링크: `http://material.skhynix.com/travelbudget/guide`
 - 파일로 배포: 그 HTML 하나만 보내면 됩니다 (외부 CDN·이미지 없음, 인쇄 스타일 포함)
 - **화이트 고정** — OS/브라우저가 다크 모드여도 뒤집히지 않습니다 (`color-scheme:only light`)
 - 정적 GitHub Pages 판은 `tools/build_docs.py` 가 같은 파일을 `docs/` 로 복사하고 링크를 상대 경로로 바꿉니다

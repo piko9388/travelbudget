@@ -1749,6 +1749,12 @@ ok('정적판도 같은 규칙', 'function cleanTags' in _tbl and "/tags$/" in _
 ok('결재 주소 기본값이 사내 정산서', 'apv.skhynix.com' in _store._settings()['approval_url'])
 # 새로 까는 사람은 data.example.json 을 정본으로 복사한다 — 거기에도 주소가 있어야 한다
 # (_settings() 는 '파일이 없을 때'만 심는다. 예시 파일로 시작하면 심는 단계를 건너뛴다)
+# 인폼 메일 본문에 그대로 박혀 나간다 — 스킴이 없으면 Outlook 에서 링크로 안 걸린다
+_ref = _store._settings()['reference_url']
+ok('참고 주소는 클릭되는 링크 (http:// 포함)', _ref.startswith('http://') or _ref.startswith('https://'), _ref)
+ok('정적판 참고 주소도 같음', "reference_url: 'http://material.skhynix.com/travelbudget'" in _tbl)
+ok('예시 정본 참고 주소도 같음',
+   _json.load(open('data.example.json', encoding='utf-8'))['settings']['reference_url'] == _ref)
 ok('예시 정본에도 결재 주소',
    'apv.skhynix.com' in _json.load(
        open('data.example.json', encoding='utf-8'))['settings'].get('approval_url', ''))

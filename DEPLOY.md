@@ -85,7 +85,7 @@ Windows 서비스라면 서비스 환경변수에 `TB_DATA_DIR` 을 등록합니
 ## 5. 재기동 → 접속
 
 ```
-material.skhynix.com/travelbudget
+http://material.skhynix.com/travelbudget
 ```
 
 좌측 하단에 **v10.28 · 2026-08-06** 이 보이면 이 버전이 올라간 것입니다.

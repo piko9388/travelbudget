@@ -45,7 +45,7 @@
   "admin_id": "2071478",
   "admin_pw": "2071478",
   "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong5.kim@sk.com"],
-  "reference_url": "material.skhynix.com/travelbudget"
+  "reference_url": "http://material.skhynix.com/travelbudget"
 }
 ```
 

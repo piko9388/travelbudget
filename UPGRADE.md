@@ -42,7 +42,7 @@ servera\travelbudget\
 
 **화면에서 확인하는 방법 (가장 쉬움)**
 
-1. 브라우저로 `material.skhynix.com/travelbudget` 접속
+1. 브라우저로 `http://material.skhynix.com/travelbudget` 접속
 2. **출장 내역** 메뉴 → 목록 맨 위의 **전체 건수**
 3. **대시보드** → **총 예산 / 처리 완료 / 처리 중 / 확정 예정 / 가용 잔여**
 
@@ -75,7 +75,7 @@ python check_data.py
   시스템 이름  소재 국내 출장비 관리
   안내 문구    2026-3Q 소재 예산 소진 — 센터 예산 사용 중입니다. 식비 15,000원 이내로…
   안내 보조    (센터 검토 시 반려될 수 있음)
-  참고 주소    material.skhynix.com/travelbudget
+  참고 주소    http://material.skhynix.com/travelbudget
   담당자 암호  기본값(2071478)
   인폼 수신인  4명
                · junghoon12.lee@sk.com

@@ -35,7 +35,7 @@
   "system_name": "소재 국내 출장비 관리",
   "admin_pw": "2071478",
   "mail_recipients": ["junghoon12.lee@sk.com", "eunjeong5.kim@sk.com"],
-  "reference_url": "material.skhynix.com/travelbudget"
+  "reference_url": "http://material.skhynix.com/travelbudget"
 }
 
 ■ budget[] — 분기 예산 배정 이력. 한 줄 = 한 번의 배정/증액/감액
