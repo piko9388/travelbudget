@@ -1,5 +1,7 @@
 # 소재 국내 출장비 관리 v10.28
 
+> 시스템 기준서는 [`SPEC.md`](SPEC.md), AX 계획은 [`AX_ROADMAP.md`](AX_ROADMAP.md) 를 보세요.
+
 소재전략 국내 출장비 계획·실적·인폼·정산 관리 (Flask + data.json 단일 파일 저장)
 
 ## 사내 서버 반영 (2단계)
