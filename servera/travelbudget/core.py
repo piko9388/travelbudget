@@ -75,7 +75,22 @@ def ccg_by_cd(data=None):
     """CCG 코드 → 팀 이름. 표시용 이름은 항상 코드에서 파생한다."""
     return {t["ccg"]: t["team"] for t in ccg_teams(data)}
 
-APP_VERSION = "v10.28"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
+
+ORG_DEFAULT = "소재"
+ORG_MAX = 20
+
+
+def org_name(data=None):
+    """조직명 — 설정 settings.org_name. 없으면 '소재'(기존 원장 호환).
+
+    다른 부서가 그대로 쓰려면 바꿔야 하는 말은 하나뿐이다: 센터 양식의 LV2 열,
+    엑셀 제목, 이관 인폼의 '○○ 담당자', 상태 표시 '○○ 이관'. 저장된 상태 문자열
+    ('소재 이관')은 스키마라 건드리지 않고 화면에서 표시만 바꾼다."""
+    raw = ((data or {}).get("settings") or {}).get("org_name")
+    v = _txt(raw)[:ORG_MAX]
+    return v or ORG_DEFAULT
+
+APP_VERSION = "v10.29"                     # 사내 서버 업로드 버전 (배포 시 여기만 올림)
 APP_BUILD = "2026-09-09"
 
 # 센터 관리 양식(정산 대장) 27필드 — 최초 제공 엑셀표 순서 그대로. 센터 제출은 이 양식.
@@ -250,13 +265,13 @@ def proc_counts(g):
 
 
 # ── 정규화·검증 ───────────────────────────────────────────
-def normalize_group(g, by_nm=None, by_cd=None):
+def normalize_group(g, by_nm=None, by_cd=None, lv2=None):
     by_nm = by_nm if by_nm is not None else CCG_BY_NM
     by_cd = by_cd if by_cd is not None else CCG_BY_CD
     g = deepcopy(g)
     g.setdefault("plan_type", "계획")
     g.setdefault("status", ST_PLAN)
-    g.setdefault("lv2", "소재")
+    g.setdefault("lv2", lv2 or ORG_DEFAULT)
     # travelers는 반드시 dict의 list — 아니면 여기서 안전하게 비우고 validate_group이 400으로 돌려준다.
     # (정규화가 검증보다 먼저 도는 구조라, 여기서 막지 않으면 잘못된 형식이 500으로 터진다)
     T = g.get("travelers")
@@ -709,7 +724,7 @@ def make_transfer_mail(g, settings, emps=None):
     # to 는 비워 둔다 — 이관 후 비용을 처리할 소재 담당자는 출장·site 마다 다르므로
     # 수신자 마스터를 두지 않고 담당자가 메일에서 직접 지정한다.
     return {"to": to, "subject": subject, "trip_name": name, "kind": "transfer",
-            "to_hint": "수신자: 직접 지정 (이관 후 비용을 처리할 소재 담당자)",
+            "to_hint": f"수신자: 직접 지정 (이관 후 비용을 처리할 {org_name({'settings': settings})} 담당자)",
             "heading": "이관 결재 상신 · 비용 처리 요청 인폼",
             "body_text": "\n".join(L), "body_html": lead + info + table + ref}
 
@@ -751,14 +766,15 @@ def ledger_rows(data, yq=None, internal=False, gids=None):
     out = []
     keep = set(gids) if gids is not None else None
     by_cd = ccg_by_cd(data)                  # 제출본 CCG명도 설정 기준으로 통일
+    org = org_name(data)                     # LV2 열 — 저장값이 있으면 그것, 없으면 조직명
     for raw in sorted(data.get("groups", []), key=lambda g: _txt(g.get("dep_dt"))):
-        g = normalize_group(raw, by_cd=by_cd)
+        g = normalize_group(raw, by_cd=by_cd, lv2=org)
         if yq and g["yq"] != yq:
             continue
         if keep is not None and g.get("group_id") not in keep:
             continue
         for p in g["travelers"]:
-            row = [g["plan_type"], "소재", p.get("ccg", ""), _csv_safe(p.get("ccg_nm", "")),
+            row = [g["plan_type"], _csv_safe(g.get("lv2") or org), p.get("ccg", ""), _csv_safe(p.get("ccg_nm", "")),
                    _csv_safe(p.get("emp_no", "")), _csv_safe(p.get("name", "")), p.get("rank", ""),
                    _csv_safe(g.get("city", "")), _csv_safe(g.get("org", "")), _csv_safe(g.get("purpose", "")),
                    g.get("dep_dt", ""), g.get("ret_dt", ""), g["days"], g["quarter"],
@@ -790,7 +806,7 @@ def make_xls(data, yq=None, internal=False, gids=None):
         return f'<td style="{tdn if num_col else td}">{escape(str(v))}</td>'
     body = "".join("<tr>" + "".join(cell(v, i) for i, v in enumerate(r)) + "</tr>" for r in rows)
     # 걸러서 낸 제출본은 제목에 그 사실을 적는다 — 받는 쪽이 '전체인 줄' 알면 안 된다
-    title = f"소재 국내 출장비 정산 대장 {yq or '전체'}"
+    title = f"{org_name(data)} 국내 출장비 정산 대장 {yq or '전체'}"
     if gids is not None:
         title += f" (선택 {len(set(gids))}건 · 출장자 {len(rows)}명)"
     return ('<html xmlns:o="urn:schemas-microsoft-com:office:office" '

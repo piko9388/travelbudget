@@ -984,6 +984,7 @@ _local = {
     'system_name': _grab('system_name'), 'notice': _grab('notice'),
     'notice_sub': _grab('notice_sub'), 'admin_pw': _grab('admin_pw'),
     'reference_url': _grab('reference_url'), 'approval_url': _grab('approval_url'),
+    'org_name': _grab('org_name'),
     'mail_recipients': _re0.findall(r"'([^']+)'", _mails),
 }
 _srv = _store._settings()
@@ -1829,6 +1830,45 @@ ok('같이 가신 분 실적이 비면 알려 줌', '아직 비어 있습니다'
 # 칩을 고를 때 카드를 다시 그리면 같은 단계에 친 글이 지워진다
 ok('칩만 갈아 끼운다', "classList.toggle('on'" in _ask)
 ok('고치기로 돌아오면 값이 남아 있다', 'function askRestore' in _ask)
+
+# ── 40. 조직명 설정 — 다른 부서가 그대로 쓸 수 있는가 ──────────────
+# '소재'를 코드에 박아 두면 이름만 바꾼 부서의 센터 제출본에 '소재'가 찍힌다.
+# 저장된 상태 문자열('소재 이관')은 스키마라 그대로 두고, 표시·양식·문구만 조직명을 따른다.
+ok('설정 기본값에 조직명', _store._settings().get('org_name') == '소재')
+ok('조직명 없는 옛 원장은 소재로 읽음', _C.org_name({'settings': {}}) == '소재' and _C.org_name(None) == '소재')
+ok('조직명은 20자에서 끊음', len(_C.org_name({'settings': {'org_name': '가' * 40}})) == 20)
+_od = {'settings': {'org_name': '설비'}, 'budget': [], 'groups': [
+    {'group_id': 'TB-A', 'plan_type': '계획', 'status': '계획 등록', 'city': '이천', 'org': 'BP',
+     'purpose': 'p', 'kind': '정기 Audit', 'dep_dt': '2026-08-04', 'ret_dt': '2026-08-04',
+     'travelers': [{'name': '홍', 'emp_no': '1', 'rank': 'TL', 'ccg_nm': '소재전략', 'ccg': '50110502'}]},
+    {'group_id': 'TB-B', 'plan_type': '계획', 'status': '계획 등록', 'city': '이천', 'org': 'BP', 'lv2': '소재',
+     'purpose': 'p', 'kind': '정기 Audit', 'dep_dt': '2026-08-04', 'ret_dt': '2026-08-04',
+     'travelers': [{'name': '홍', 'emp_no': '2', 'rank': 'TL', 'ccg_nm': '소재전략', 'ccg': '50110502'}]}]}
+_rows = _C.ledger_rows(_od)
+ok('센터 양식 LV2 — lv2 없는 건은 조직명', _rows[0][1] == '설비', _rows[0][1])
+ok('센터 양식 LV2 — 저장된 lv2 는 그대로 (하드코딩 버그 수정)', _rows[1][1] == '소재', _rows[1][1])
+ok('엑셀 제목이 조직명을 따름', '설비 국내 출장비 정산 대장' in _C.make_xls(_od))
+ok('이관 인폼 수신자 힌트가 조직명을 따름',
+   '설비 담당자' in _C.make_transfer_mail(_od['groups'][0], _od['settings'])['to_hint'])
+# API 로 저장·조회
+_r = c.post('/travelbudget/api/settings', json={'org_name': '장비'}, headers=ADM)
+ok('설정 API 로 조직명 저장', _r.status_code == 200, _r.get_json())
+ok('설정 조회에 조직명', c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings'].get('org_name') == '장비')
+ok('state 에도 조직명이 실림', c.get('/travelbudget/api/state').get_json()['settings'].get('org_name') == '장비')
+_r = c.post('/travelbudget/api/groups', json={
+    "plan_type": "계획", "city": "청주", "org": "BP", "purpose": "p", "kind": "정기 Audit",
+    "dep_dt": "2026-11-03", "ret_dt": "2026-11-03", "car": "미사용",
+    "travelers": [{"name": "홍", "emp_no": "77", "rank": "TL", "ccg_nm": "소재전략", "p_trans": 1}]}, headers=ADM)
+ok('새 건의 lv2 가 조직명', _r.get_json()['group'].get('lv2') == '장비', _r.get_json()['group'].get('lv2'))
+c.post('/travelbudget/api/settings', json={'org_name': ''}, headers=ADM)
+ok('비우면 소재로 되돌아감', c.get('/travelbudget/api/settings', headers=ADM).get_json()['settings'].get('org_name') == '소재')
+# 화면·정적판
+ok('화면: 조직명 전역 + 상태 표시 매핑', "let ORG = '소재'" in _appjs and "s === '소재 이관' ? `${ORG} 이관`" in _appjs)
+ok('화면: 설정에 조직명 칸', 'id="cfgOrg"' in _appjs and "org_name: $('#cfgOrg')" in _appjs)
+ok('화면: 안내·처리 문구가 조직명을 따름', '${ORG} 담당자' in _appjs and '전체 ${ORG} 이관' in _appjs)
+ok('화면: 하드코딩 담당자 문구 없음', '소재 담당자' not in _appjs.replace('${ORG} 담당자', ''))
+ok('정적판: 조직명 헬퍼 · LV2 · 제목 · 등록', 'function orgName' in _tbl and "g.lv2 || orgName(data)" in _tbl
+   and "orgName(data) + ' 국내 출장비 정산 대장 '" in _tbl and "body.lv2 = orgName(data)" in _tbl)
 
 print(f'\n{"="*48}\n  API 통합  {P[0]} passed / {F[0]} failed\n{"="*48}')
 sys.exit(1 if F[0] else 0)

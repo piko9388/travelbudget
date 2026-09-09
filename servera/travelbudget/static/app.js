@@ -81,11 +81,12 @@ function stClass(s){ return s === '처리 완료' ? 'done' : s === '취소' ? 'c
   : s === '확정 예정' ? 'confirm'
   : (s === '실적 입력·인폼' || s === '소재 이관') ? 'wip' : ''; }
 // 화면 표기만 바꾼다 — data.json·CSV·센터 양식의 저장값은 그대로여야 하므로 여기서만 치환
+let ORG = '소재';                       // 조직명 — 설정에서 온다. 저장된 상태 '소재 이관'은 스키마라 표시만 바꾼다
 const ST_LABEL = {'계획 등록': '계획(잠정)', '확정 예정': '출장 확정 · 예산 반영'};
 // 좁은 칸(표 머리 필터)에서는 짧은 쪽을 쓴다 — 긴 이름은 잘려서 오히려 못 읽는다
 const ST_SHORT = {'계획 등록': '계획(잠정)', '확정 예정': '출장 확정', '실적 입력·인폼': '실적·인폼'};
-function dispSt(s){ return ST_LABEL[s] || s; }
-function shortSt(s){ return ST_SHORT[s] || s; }
+function dispSt(s){ return s === '소재 이관' ? `${ORG} 이관` : (ST_LABEL[s] || s); }
+function shortSt(s){ return s === '소재 이관' ? `${ORG} 이관` : (ST_SHORT[s] || s); }
 function gname(g){ return [g.city, g.org].filter(Boolean).join(' '); }
 function names(g){ return (g.travelers || []).map(p => esc(p.name)).join(', '); }
 function procTag(g){   // 부분 처리(개인별 상태 분리) 표시 — 섞여 있을 때만
@@ -106,6 +107,8 @@ function procTag(g){   // 부분 처리(개인별 상태 분리) 표시 — 섞�
 async function load(){
   const {data} = await api('/state' + (YQ ? '?yq=' + encodeURIComponent(YQ) : ''));
   ST = data; YQ = data.yq;
+  ORG = (data.settings && data.settings.org_name) || '소재';
+  TITLES.process = `실적 입력·인폼 → ${ORG} 이관 → 처리 완료`;
   const qs = $('#qsel');
   const opts = [...new Set([...data.yqList, YQ])];
   qs.innerHTML = opts.map(q => `<option${q === YQ ? ' selected' : ''}>${q}</option>`).join('');
@@ -370,14 +373,14 @@ function rGuide(){
          style="float:right;margin-left:12px">자세한 사용법 · 인쇄용 ↗</a>
       <h2>출장비는 이런 순서로 처리됩니다</h2>
       <p>출장 가시는 분은 <b>계획</b>과 <b>실적</b>만 넣으시면 됩니다. 메일 만들기와 이관·정산은
-      <b>소재 출장 예산 담당자</b>와 시스템이 맡습니다. 같이 간 사람이 여럿이어도 <b>메일은 한 통</b>입니다.</p>
+      <b>${ORG} 출장 예산 담당자</b>와 시스템이 맡습니다. 같이 간 사람이 여럿이어도 <b>메일은 한 통</b>입니다.</p>
       <div class="g-formula">가용 잔여 = 총 예산 − 처리 완료 − 처리 중 − 확정 예정(확보)</div>
     </div>
     <div class="card">
       <div class="flowbar">
         <span class="pill">① 계획(잠정)·확정</span><span class="arrow">→</span>
         <span class="pill wip">② 실적·인폼</span><span class="arrow">→</span>
-        <span class="pill wip">③ 소재 이관</span><span class="arrow">→</span>
+        <span class="pill wip">③ ${ORG} 이관</span><span class="arrow">→</span>
         <span class="pill done">④ 처리 완료</span>
       </div>`;
   const steps =
@@ -389,12 +392,12 @@ function rGuide(){
       '<b>출장 실적 입력</b>에 실제 쓴 금액을 넣으면 메일이 만들어집니다. 그 표를 끌어다 메일 본문에 놓으면 됩니다.',
       '계획과의 차액은 자동으로 계산됩니다. 긴급 출장은 비고를 꼭 적어야 합니다.',
       `<button class="btn pri" onclick="nav('actual')">출장 실적 입력으로 가기 →</button>`) +
-    step(3, 'admin', '소재 이관', '예산 담당자가 이관하고 소재 담당자에게 메일을 보냅니다', '예산 담당자', 'admin',
-      '예산 담당자가 이관 결재를 올리고 소재 담당자에게 메일을 보냅니다. <b>사람별로 따로</b> 이관·완료·보류할 수 있습니다.',
+    step(3, 'admin', `${ORG} 이관`, `예산 담당자가 이관하고 ${ORG} 담당자에게 메일을 보냅니다`, '예산 담당자', 'admin',
+      `예산 담당자가 이관 결재를 올리고 ${ORG} 담당자에게 메일을 보냅니다. <b>사람별로 따로</b> 이관·완료·보류할 수 있습니다.`,
       '이관하면 비용 처리 요청 메일이 만들어집니다. 보류된 건은 대시보드 바로 할 일에 표시됩니다.',
       `<button class="btn" onclick="nav('list')">내 출장 상태 확인 (출장 내역) →</button>`) +
-    step(4, 'done', '처리 완료', '소재 담당자가 비용을 처리하면 끝납니다', '소재 담당자', 'owner',
-      '소재 담당자가 비용을 처리하면 예산 담당자가 <b>처리 완료</b>로 표시합니다. 이 금액이 최종으로 빠집니다.',
+    step(4, 'done', '처리 완료', `${ORG} 담당자가 비용을 처리하면 끝납니다`, `${ORG} 담당자`, 'owner',
+      `${ORG} 담당자가 비용을 처리하면 예산 담당자가 <b>처리 완료</b>로 표시합니다. 이 금액이 최종으로 빠집니다.`,
       '', '') +
     step('취', 'cancel', '취소', '안 가게 되면 취소합니다', '담당자·예산 담당자', 'owner',
       '잠정 계획은 <b>삭제</b>, 확정한 뒤라면 <b>출장 취소</b>를 누릅니다. 확보됐던 예산은 다시 풀립니다.',
@@ -413,7 +416,7 @@ function rGuide(){
         <span class="arrow">→</span>
         <span><span class="status confirm">확정 예정</span> 예산 선확보</span>
         <span class="arrow">→</span>
-        <span><span class="status wip">처리 중</span> 실적·인폼 / 소재 이관</span>
+        <span><span class="status wip">처리 중</span> 실적·인폼 / ${ORG} 이관</span>
         <span class="arrow">→</span>
         <span><span class="status done">처리 완료</span> 정산 끝</span>
       </div>
@@ -2440,7 +2443,7 @@ function rProcess(){
     if (past && g.travelers.length > 1 && g.roll !== '처리 완료')
       gb.push(`<button class="btn sm pri" onclick="setStatus('${g.group_id}','처리 완료')">전체 처리 완료</button>`);
     if (past && g.travelers.length > 1 && pc.transfer + pc.done < pc.total)
-      gb.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','소재 이관')">전체 소재 이관</button>`);
+      gb.push(`<button class="btn sm" onclick="setStatus('${g.group_id}','소재 이관')">전체 ${ORG} 이관</button>`);
     if (past && pc.transfer > 0)
       gb.push(`<button class="btn sm" onclick="openTransferMail('${g.group_id}')">이관 인폼</button>`);
     if (['계획 등록', '실적 입력·인폼'].includes(g.roll))
@@ -2450,7 +2453,7 @@ function rProcess(){
       const eff = p.status || g.status;
       const a = KEYS.reduce((s, k) => s + (p['a_' + k] || 0), 0);
       const b = [];
-      if (['실적 입력·인폼', '보류'].includes(eff)) b.push(pBtn(g.group_id, p.emp_no, '소재 이관', '소재 이관', 'pri'));
+      if (['실적 입력·인폼', '보류'].includes(eff)) b.push(pBtn(g.group_id, p.emp_no, '소재 이관', `${ORG} 이관`, 'pri'));
       if (['실적 입력·인폼', '소재 이관', '보류'].includes(eff)) b.push(pBtn(g.group_id, p.emp_no, '처리 완료', '처리 완료', 'pri'));
       if (!['보류', '처리 완료'].includes(eff)) b.push(pBtn(g.group_id, p.emp_no, '보류', '보류', 'red'));
       if (['소재 이관', '처리 완료', '보류'].includes(eff)) b.push(pBtn(g.group_id, p.emp_no, '실적 입력·인폼', '되돌리기'));
@@ -2483,7 +2486,7 @@ function rProcess(){
     </div>`;
   };
   $('#v-process').innerHTML = `
-    <div class="note">실적 입력·인폼 → <b>소재 이관</b>(실비 이관 접수) → <b>처리 완료</b>(전표 처리 종료). 처리 완료·처리 중(인폼·이관·<b>보류</b>) 금액만 잔여에서 차감됩니다.
+    <div class="note">실적 입력·인폼 → <b>${ORG} 이관</b>(실비 이관 접수) → <b>처리 완료</b>(전표 처리 종료). 처리 완료·처리 중(인폼·이관·<b>보류</b>) 금액만 잔여에서 차감됩니다.
       <br>같은 출장이라도 <b>출장자별로 따로</b> 처리·보류할 수 있어요 — 아래 ‘처리(인당)’ 버튼. 다 같이 처리할 땐 상단 ‘전체’ 버튼을 쓰세요.</div>
     <div class="card"><h2>${YQ} 이관·처리 관리 (출장자 개인별)</h2>
       ${G.map(block).join('') || `<div class="note" style="margin:0">
@@ -2724,6 +2727,8 @@ function drawConfig(){
       <div class="form-grid c2">
         <div><label for="cfgName">시스템 이름</label>
           <input id="cfgName" value="${esc(c.system_name || '')}" maxlength="60"></div>
+        <div><label for="cfgOrg">조직명 <span class="au">센터 양식 LV2 · 엑셀 제목 · 이관 문구에 씀</span></label>
+          <input id="cfgOrg" value="${esc(c.org_name || '소재')}" maxlength="20" placeholder="예: 소재"></div>
         <div><label for="cfgUrl">참조 주소 <span class="au">인폼 하단에 표기</span></label>
           <input id="cfgUrl" value="${esc(c.reference_url || '')}" maxlength="200"></div>
         <div><label for="cfgApv">사내 결재 사이트 <span class="au">https:// 로 시작</span></label>
@@ -2749,6 +2754,7 @@ function cfgRead(){
       ccg: tr.querySelector('.cfg-code').value.trim(),
     })).filter(t => t.team || t.ccg),
     system_name: $('#cfgName').value.trim(),
+    org_name: $('#cfgOrg').value.trim(),
     reference_url: $('#cfgUrl').value.trim(),
     approval_url: $('#cfgApv').value.trim(),
     admin_pw: $('#cfgPw').value.trim(),
@@ -2854,7 +2860,7 @@ async function showReport(){
     <td class="num"><b>${won(x.total)}</b></td><td class="num">${x.groups}</td><td class="num">${x.people}</td></tr>`).join('');
   const revs = r.revisions.map(b => `<tr><td class="num">${esc(b.rev_dt)}</td><td>${esc(b.rev_type)}</td>
     <td class="num">${b.amt >= 0 ? '+' : '−'}${won(Math.abs(b.amt))}</td><td>${esc(b.reason || '')}</td></tr>`).join('');
-  const text = [`[${r.yq} 소재 국내 출장비 집행 현황]`, '',
+  const text = [`[${r.yq} ${ORG} 국내 출장비 집행 현황]`, '',
     `배정 ${won(r.alloc)}원 / 집행 ${won(r.used)}원 (완료 ${won(r.done)} + 처리 중 ${won(r.wip)})`,
     `확정 예정(확보) ${won(r.commit)}원 · 소진율 ${(r.burn * 100).toFixed(1)}%`,
     `가용 잔여 ${won(r.avail)}원` + (r.need > 0 ? ` · 추가 필요 예상 ${won(r.need)}원` : ''), '',
@@ -2908,8 +2914,8 @@ function askAdmin(then){
       <div class="merr" id="admErr">비밀번호가 올바르지 않습니다.</div>
       <label for="admPw">비밀번호</label><input id="admPw" type="password" autocomplete="off">
       <div class="hint">${(ST.settings && ST.settings.pw_default === false)
-        ? '담당자가 비밀번호를 변경했습니다 — 소재 출장 예산 담당자에게 문의하세요.'
-        : '소재 출장 예산 담당자용 공개 비밀번호 — <b>2071478</b>'}<br>
+        ? `담당자가 비밀번호를 변경했습니다 — ${ORG} 출장 예산 담당자에게 문의하세요.`
+        : `${ORG} 출장 예산 담당자용 공개 비밀번호 — <b>2071478</b>`}<br>
         이관·처리 완료·예산 리비전·백업 복원에 필요합니다.</div>
       <div class="btns" style="margin-top:0">
         <button class="btn pri" id="admOk">확인</button>

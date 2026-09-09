@@ -64,7 +64,7 @@ _MAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 
 def _norm(g, data):
     """표시·메일·CSV 용 정규화 — 팀 이름을 설정 기준으로 통일해서 내보낸다."""
-    return C.normalize_group(g, by_nm=C.ccg_by_nm(data), by_cd=C.ccg_by_cd(data))
+    return C.normalize_group(g, by_nm=C.ccg_by_nm(data), by_cd=C.ccg_by_cd(data), lv2=C.org_name(data))
 
 
 def _tags_used(data):
@@ -167,6 +167,11 @@ def _clean_settings(body, cur, data):
     if len(nm) > 60:
         e.append("시스템 이름은 60자까지입니다.")
     out["system_name"] = nm[:60]
+    # 조직명 — 센터 양식 LV2 · 엑셀 제목 · 이관 인폼 문구 · 상태 표시가 이 한 칸을 따른다
+    og = (C._txt(body.get("org_name")) if "org_name" in body else cur.get("org_name", "")) or C.ORG_DEFAULT
+    if len(og) > C.ORG_MAX:
+        e.append(f"조직명은 {C.ORG_MAX}자까지입니다.")
+    out["org_name"] = og[:C.ORG_MAX]
     out["reference_url"] = (C._txt(body.get("reference_url"))
                             if "reference_url" in body else cur.get("reference_url", ""))[:200]
     # 사내 전자결재 주소 — 사람이 눌러서 여는 링크라 http(s) 만 허용한다
@@ -288,6 +293,7 @@ def create_group():
         payload["group_id"] = f"TB-{uuid.uuid4().hex[:8].upper()}"
         payload["status"] = C.ST_CONFIRM if payload.get("confirmed") else C.ST_PLAN
         payload["created_at"] = datetime.now().isoformat(timespec="seconds")
+        payload.setdefault("lv2", C.org_name(data))   # 센터 양식 LV2 — 부서마다 다르다
         for p in _tlist(payload.get("travelers")):   # 개인 처리 상태 주입 금지 (신규는 항상 빈 값)
             p.pop("status", None)
         g = C.normalize_group(payload, by_nm=C.ccg_by_nm(data))
@@ -622,6 +628,7 @@ def get_settings():
     s = data["settings"]
     return jsonify({"ok": True, "settings": {
         "system_name": s.get("system_name", ""),
+        "org_name": C.org_name(data),
         "reference_url": s.get("reference_url", ""),
         "approval_url": s.get("approval_url", ""),
         "admin_pw": s.get("admin_pw", ""),

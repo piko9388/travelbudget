@@ -14,6 +14,7 @@
     '비정기 Audit(Issue/Theme)', '기타'];
   var CARS = ['미사용', '자차사용'];
   var REV_TYPES = ['최초배정', '추가증액', '감액', '이월'];
+  function orgName(data) { var v = String(((data || {}).settings || {}).org_name || '').trim().slice(0, 20); return v || '소재'; }
   var ST_PLAN = '계획 등록', ST_INFORM = '실적 입력·인폼', ST_TRANSFER = '소재 이관',
     ST_DONE = '처리 완료', ST_CANCEL = '취소';
   var ST_CONFIRM = '확정 예정';                            // 실제로 감 → 예산 선확보
@@ -68,7 +69,7 @@
   // 표시용 팀 이름은 코드에서 파생 — 요청 진입 시 현재 설정으로 갱신한다 (routes._norm 과 같은 역할)
   var CUR_BY_CD = {};
   CCG_TEAMS.forEach(function (t) { CUR_BY_CD[t.ccg] = t.team; });
-  var APP_VERSION = 'v10.28', APP_BUILD = '2026-09-09';
+  var APP_VERSION = 'v10.29', APP_BUILD = '2026-09-09';
   var AMT_MAX = 100000000;   // 비용 1건 상한 — 오타 방어선
   // 텍스트 길이 상한 — 붙여넣기 사고 방어선 (core.TEXT_MAX 와 동일)
   var TEXT_MAX = [['city', '출장도시', 40], ['org', '출장기관&업체', 100],
@@ -452,7 +453,7 @@
       var g = normalizeGroup(raw); if (yq && g.yq !== yq) return;
       if (keep && keep.indexOf(g.group_id) < 0) return;
       g.travelers.forEach(function (p) {
-        var row = [g.plan_type, '소재', p.ccg || '', csvSafe(p.ccg_nm || ''),
+        var row = [g.plan_type, csvSafe(g.lv2 || orgName(data)), p.ccg || '', csvSafe(p.ccg_nm || ''),
           csvSafe(p.emp_no || ''), csvSafe(p.name || ''), p.rank || '',
           csvSafe(g.city || ''), csvSafe(g.org || ''), csvSafe(g.purpose || ''),
           g.dep_dt || '', g.ret_dt || '', g.days, g.quarter, g.car || '', g.kind || '',
@@ -488,7 +489,7 @@
       }).join('') + '</tr>';
     }).join('');
     // 걸러서 낸 제출본은 제목에 그 사실을 적는다 — 받는 쪽이 '전체인 줄' 알면 안 된다
-    var title = '소재 국내 출장비 정산 대장 ' + (yq || '전체');
+    var title = orgName(data) + ' 국내 출장비 정산 대장 ' + (yq || '전체');
     if (gids && gids.length) {
       var uniq = gids.filter(function (v, i) { return gids.indexOf(v) === i; });
       title += ' (선택 ' + uniq.length + '건 · 출장자 ' + rows.length + '명)';
@@ -579,6 +580,7 @@
     return {
       schema_version: '2.0', updated_at: nowISO(),
       settings: {
+        org_name: '소재',
         system_name: '소재 국내 출장비 관리',
         notice: '현재 소재 배정 예산 소진 후 센터 예산 사용 중으로, 식비 15,000원, 회사 공용 차량 이용 통한 교통비 절감 요청 드립니다',
         notice_sub: '(사용 전/후 센터 검토 시 반려될 수 있음)',
@@ -686,6 +688,7 @@
     }
     if (path === '/groups' && method === 'POST') {
       body.group_id = 'TB-' + randHex(8).toUpperCase();
+      if (body.lv2 == null || body.lv2 === '') body.lv2 = orgName(data);   // 센터 양식 LV2 — 부서마다 다르다
       body.status = body.confirmed ? ST_CONFIRM : ST_PLAN; body.created_at = nowISO();
       (body.travelers || []).forEach(function (p) { if (p && typeof p === 'object') delete p.status; });
       var g = normalizeGroup(body); var e = validateGroup(g, false);
@@ -880,7 +883,7 @@
       if (!isAdmin) return err('관리자 인증이 필요합니다.', 401);
       var u = ccgUsage(data), st = data.settings;
       return okr({ settings: {
-        system_name: st.system_name || '', reference_url: st.reference_url || '',
+        org_name: orgName(data), system_name: st.system_name || '', reference_url: st.reference_url || '',
         approval_url: st.approval_url || '',
         admin_pw: st.admin_pw || '', mail_recipients: (st.mail_recipients || []).slice(),
         ccg_teams: ccgTeams(data), ccg_from_settings: Array.isArray(st.ccg_teams)
@@ -945,18 +948,19 @@
       var pw = txt(body.admin_pw) || String(cur.admin_pw || '');
       if (pw.length < 4 || pw.indexOf(' ') >= 0) e.push('비밀번호는 공백 없이 4자 이상이어야 합니다.');
       if (e.length) return err(e);
-      var before = JSON.stringify([cur.mail_recipients, cur.ccg_teams, cur.admin_pw, cur.system_name, cur.reference_url, cur.approval_url]);
+      var before = JSON.stringify([cur.mail_recipients, cur.ccg_teams, cur.admin_pw, cur.system_name, cur.reference_url, cur.approval_url, cur.org_name]);
       cur.mail_recipients = mails.slice(0, 10);
       cur.ccg_teams = clean;
       cur.admin_pw = pw;
       cur.system_name = (txt(body.system_name) || cur.system_name || '').slice(0, 60);
+      if ('org_name' in body) cur.org_name = txt(body.org_name).slice(0, 20) || '소재';
       if ('reference_url' in body) cur.reference_url = txt(body.reference_url).slice(0, 200);
       if ('approval_url' in body) {                       // 사람이 누르는 링크라 http(s) 만
         var au = txt(body.approval_url).slice(0, 300);
         if (au && !/^https?:\/\//i.test(au)) return err(['결재 사이트 주소는 http:// 또는 https:// 로 시작해야 합니다.']);
         cur.approval_url = au;
       }
-      var chg = before === JSON.stringify([cur.mail_recipients, cur.ccg_teams, cur.admin_pw, cur.system_name, cur.reference_url, cur.approval_url]) ? [] : ['settings'];
+      var chg = before === JSON.stringify([cur.mail_recipients, cur.ccg_teams, cur.admin_pw, cur.system_name, cur.reference_url, cur.approval_url, cur.org_name]) ? [] : ['settings'];
       appendAudit(data, '시스템 설정 변경', chg.length ? '변경됨' : '변경 없음', 'admin');
       Store.save(data);
       return okr({ settings: publicSettings(cur), changed: chg, ccg: ccgTeams(data) });
